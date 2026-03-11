@@ -1,9 +1,9 @@
 //! Part definition and part usage parsing.
 
 use crate::ast::{
-    Bind, Connect, ConnectBody, InOut, InterfaceUsage, InterfaceUsageBodyElement, Node, PartDef,
-    PartDefBody, PartDefBodyElement, PartUsage, PartUsageBody, PartUsageBodyElement, Perform,
-    PerformBody, PerformBodyElement, RefBody,
+    Allocate, Bind, Connect, ConnectBody, InOut, InterfaceUsage, InterfaceUsageBodyElement, Node,
+    PartDef, PartDefBody, PartDefBodyElement, PartUsage, PartUsageBody, PartUsageBodyElement,
+    Perform, PerformBody, PerformBodyElement, RefBody,
 };
 use crate::parser::attribute::{attribute_def, attribute_usage};
 use crate::parser::expr::{expression, path_expression};
@@ -11,6 +11,7 @@ use crate::parser::interface::connect_body;
 use crate::parser::lex::{identification, name, qualified_name, skip_until_brace_end, ws1, ws_and_comments};
 use crate::parser::node_from_to;
 use crate::parser::port::port_usage;
+use crate::parser::requirement::doc_comment;
 use crate::parser::Input;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_until};
@@ -44,7 +45,14 @@ fn part_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PartDefBod
     let (input, _) = ws_and_comments(input)?;
     let start = input;
     let (input, elem) = alt((
+        map(doc_comment, PartDefBodyElement::Doc),
+        map(perform_action_decl, PartDefBodyElement::Perform),
+        map(perform_usage, PartDefBodyElement::Perform),
+        map(allocate_, PartDefBodyElement::Allocate),
+        map(connect_, PartDefBodyElement::Connect),
+        map(part_usage, |p| PartDefBodyElement::PartUsage(Box::new(p))),
         map(port_usage, PartDefBodyElement::PortUsage),
+        map(attribute_usage, PartDefBodyElement::AttributeUsage),
         map(attribute_def, PartDefBodyElement::AttributeDef),
     ))
     .parse(input)?;
@@ -216,6 +224,34 @@ fn perform_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PerformBody
     ))
 }
 
+/// Skip an optional `doc /* ... */` comment (treated as freeform annotation).
+fn skip_doc_comment(input: Input<'_>) -> IResult<Input<'_>, ()> {
+    let (input, _) = ws_and_comments(input)?;
+    if !input.fragment().starts_with(b"doc") {
+        return Ok((input, ()));
+    }
+    // Peek: after "doc" there must be whitespace then "/*"
+    let after_doc = &input.fragment()[3..];
+    let is_doc = after_doc.first().map(|b| b.is_ascii_whitespace()).unwrap_or(false);
+    if !is_doc {
+        return Ok((input, ()));
+    }
+    // Try to parse the doc comment, but if it fails just leave input alone.
+    match doc_comment(input) {
+        Ok((rest, _)) => {
+            let (rest, _) = ws_and_comments(rest)?;
+            Ok((rest, ()))
+        }
+        Err(_) => Ok((input, ())),
+    }
+}
+
+/// Perform body element, optionally preceded by a doc comment.
+fn perform_body_element_with_doc(input: Input<'_>) -> IResult<Input<'_>, Node<PerformBodyElement>> {
+    let (input, _) = skip_doc_comment(input)?;
+    perform_body_element(input)
+}
+
 /// Perform body: `{` (doc/comments and perform_body_element* ) `}`.
 fn perform_body(input: Input<'_>) -> IResult<Input<'_>, PerformBody> {
     let (input, _) = ws_and_comments(input)?;
@@ -223,7 +259,7 @@ fn perform_body(input: Input<'_>) -> IResult<Input<'_>, PerformBody> {
         tag(&b"{"[..]),
         preceded(
             ws_and_comments,
-            many0(preceded(ws_and_comments, perform_body_element)),
+            many0(preceded(ws_and_comments, perform_body_element_with_doc)),
         ),
         preceded(ws_and_comments, tag(&b"}"[..])),
     )
@@ -231,7 +267,7 @@ fn perform_body(input: Input<'_>) -> IResult<Input<'_>, PerformBody> {
     Ok((input, PerformBody::Brace { elements }))
 }
 
-/// Perform usage: `perform` action_path body.
+/// Perform usage: `perform` action_path body (with optional `{ }` body).
 fn perform_usage(input: Input<'_>) -> IResult<Input<'_>, Node<Perform>> {
     let start = input;
     let (input, _) = ws_and_comments(input)?;
@@ -241,7 +277,66 @@ fn perform_usage(input: Input<'_>) -> IResult<Input<'_>, Node<Perform>> {
     let (input, body) = perform_body(input)?;
     Ok((
         input,
-        node_from_to(start, input, Perform { action_name, body }),
+        node_from_to(
+            start,
+            input,
+            Perform {
+                action_name,
+                type_name: None,
+                body,
+            },
+        ),
+    ))
+}
+
+/// Perform action declaration: `perform action` name (`:` type_name)? (`;` or body).
+pub(crate) fn perform_action_decl(input: Input<'_>) -> IResult<Input<'_>, Node<Perform>> {
+    let start = input;
+    let (input, _) = ws_and_comments(input)?;
+    let (input, _) = tag(&b"perform"[..]).parse(input)?;
+    let (input, _) = ws1(input)?;
+    let (input, _) = tag(&b"action"[..]).parse(input)?;
+    let (input, _) = ws1(input)?;
+    let (input, action_name) = name(input)?;
+    let (input, type_name) = opt(preceded(
+        preceded(ws_and_comments, tag(&b":"[..])),
+        preceded(ws_and_comments, qualified_name),
+    ))
+    .parse(input)?;
+    let (input, body_cb) = connect_body(input)?;
+    let body = match body_cb {
+        ConnectBody::Semicolon => PerformBody::Semicolon,
+        ConnectBody::Brace => PerformBody::Brace {
+            elements: vec![],
+        },
+    };
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            Perform {
+                action_name,
+                type_name,
+                body,
+            },
+        ),
+    ))
+}
+
+/// Allocate: `allocate` source `to` target body.
+fn allocate_(input: Input<'_>) -> IResult<Input<'_>, Node<Allocate>> {
+    let start = input;
+    let (input, _) = ws_and_comments(input)?;
+    let (input, _) = tag(&b"allocate"[..]).parse(input)?;
+    let (input, _) = ws1(input)?;
+    let (input, source) = path_expression(input)?;
+    let (input, _) = preceded(ws_and_comments, tag(&b"to"[..])).parse(input)?;
+    let (input, target) = preceded(ws_and_comments, path_expression).parse(input)?;
+    let (input, body) = connect_body(input)?;
+    Ok((
+        input,
+        node_from_to(start, input, Allocate { source, target, body }),
     ))
 }
 
@@ -401,7 +496,10 @@ fn part_usage_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PartUsag
         String::from_utf8_lossy(first_30),
     );
     let (input, elem) = alt((
+        map(doc_comment, PartUsageBodyElement::Doc),
+        map(perform_action_decl, PartUsageBodyElement::Perform),
         map(perform_usage, PartUsageBodyElement::Perform),
+        map(allocate_, PartUsageBodyElement::Allocate),
         map(attribute_usage, PartUsageBodyElement::AttributeUsage),
         map(part_usage, |p| PartUsageBodyElement::PartUsage(Box::new(p))),
         map(port_usage, PartUsageBodyElement::PortUsage),

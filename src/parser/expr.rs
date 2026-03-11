@@ -177,11 +177,57 @@ fn postfix<'a>(
     Ok((input, current))
 }
 
-/// Full expression: primary then zero or more postfix (#(expr), .name).
+/// Try to consume a binary infix operator token.
+fn binary_op_token(input: Input<'_>) -> IResult<Input<'_>, String> {
+    let (input, _) = ws_and_comments(input)?;
+    // Multi-char operators must be tried before single-char subsets.
+    alt((
+        map(tag(&b">="[..]), |_| ">=".to_string()),
+        map(tag(&b"<="[..]), |_| "<=".to_string()),
+        map(tag(&b"=="[..]), |_| "==".to_string()),
+        map(tag(&b"!="[..]), |_| "!=".to_string()),
+        map(tag(&b"&&"[..]), |_| "&&".to_string()),
+        map(tag(&b"||"[..]), |_| "||".to_string()),
+        map(tag(&b"+"[..]), |_| "+".to_string()),
+        map(tag(&b"-"[..]), |_| "-".to_string()),
+        map(tag(&b"*"[..]), |_| "*".to_string()),
+        map(tag(&b"/"[..]), |_| "/".to_string()),
+        map(tag(&b">"[..]), |_| ">".to_string()),
+        map(tag(&b"<"[..]), |_| "<".to_string()),
+    ))
+    .parse(input)
+}
+
+/// Left-associative binary expression chain.
+fn binary_chain<'a>(
+    input: Input<'a>,
+    start: Input<'a>,
+    left: Node<Expression>,
+) -> IResult<Input<'a>, Node<Expression>> {
+    match binary_op_token(input) {
+        Ok((input, op)) => {
+            let (input, _) = ws_and_comments(input)?;
+            let rhs_start = input;
+            let (input, rhs_primary) = primary(input)?;
+            let (input, rhs) = postfix(input, rhs_start, rhs_primary)?;
+            let expr = Expression::BinaryOp {
+                op,
+                left: Box::new(left),
+                right: Box::new(rhs),
+            };
+            let node = node_from_to(start, input, expr);
+            binary_chain(input, start, node)
+        }
+        Err(_) => Ok((input, left)),
+    }
+}
+
+/// Full expression: primary, postfix, then optional binary operator chain.
 pub(crate) fn expression(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
     let start = input;
     let (input, primary_node) = primary(input)?;
-    postfix(input, start, primary_node)
+    let (input, after_postfix) = postfix(input, start, primary_node)?;
+    binary_chain(input, start, after_postfix)
 }
 
 /// Path expression: name or name.name.name... (for bind/connect). Returns Node<Expression>.

@@ -10,6 +10,7 @@
 mod action;
 mod alias;
 mod attribute;
+mod constraint;
 mod expr;
 mod import;
 mod interface;
@@ -17,7 +18,10 @@ mod lex;
 mod package;
 mod part;
 mod port;
+mod requirement;
 mod span;
+mod state;
+mod usecase;
 
 pub(crate) use span::{node_from_to, Input};
 

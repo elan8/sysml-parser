@@ -2,7 +2,7 @@
 
 use std::path::Path;
 use sysml_parser::ast::{
-    ActionDef, ActionDefBody, ActionUsage, ActionUsageBody, ActionUsageBodyElement, AliasBody,
+    ActionDef, ActionDefBody, ActionDefBodyElement, ActionUsage, ActionUsageBody, ActionUsageBodyElement, AliasBody,
     AliasDef, AttributeBody, AttributeDef, Bind, ConnectBody, Expression, FirstMergeBody, FirstStmt,
     Flow, Identification, Import, InOut, InOutDecl, MergeStmt, Node, Package, PackageBody,
     PackageBodyElement, RootNamespace, Span, Visibility,
@@ -82,16 +82,16 @@ fn definitions_package() -> Package {
                     identification: id("Generate Torque"),
                     body: ActionDefBody::Brace {
                         elements: vec![
-                            n(InOutDecl {
+                            n(ActionDefBodyElement::InOutDecl(n(InOutDecl {
                                 direction: InOut::In,
                                 name: "fuelCmd".to_string(),
                                 type_name: "FuelCmd".to_string(),
-                            }),
-                            n(InOutDecl {
+                            }))),
+                            n(ActionDefBodyElement::InOutDecl(n(InOutDecl {
                                 direction: InOut::Out,
                                 name: "engineTorque".to_string(),
                                 type_name: "Torque".to_string(),
-                            }),
+                            }))),
                         ],
                     },
                 }))),
@@ -99,16 +99,16 @@ fn definitions_package() -> Package {
                     identification: id("Amplify Torque"),
                     body: ActionDefBody::Brace {
                         elements: vec![
-                            n(InOutDecl {
+                            n(ActionDefBodyElement::InOutDecl(n(InOutDecl {
                                 direction: InOut::In,
                                 name: "engineTorque".to_string(),
                                 type_name: "Torque".to_string(),
-                            }),
-                            n(InOutDecl {
+                            }))),
+                            n(ActionDefBodyElement::InOutDecl(n(InOutDecl {
                                 direction: InOut::Out,
                                 name: "transmissionTorque".to_string(),
                                 type_name: "Torque".to_string(),
-                            }),
+                            }))),
                         ],
                     },
                 }))),
@@ -116,16 +116,16 @@ fn definitions_package() -> Package {
                     identification: id("Transfer Torque"),
                     body: ActionDefBody::Brace {
                         elements: vec![
-                            n(InOutDecl {
+                            n(ActionDefBodyElement::InOutDecl(n(InOutDecl {
                                 direction: InOut::In,
                                 name: "transmissionTorque".to_string(),
                                 type_name: "Torque".to_string(),
-                            }),
-                            n(InOutDecl {
+                            }))),
+                            n(ActionDefBodyElement::InOutDecl(n(InOutDecl {
                                 direction: InOut::Out,
                                 name: "driveshaftTorque".to_string(),
                                 type_name: "Torque".to_string(),
-                            }),
+                            }))),
                         ],
                     },
                 }))),
@@ -133,21 +133,21 @@ fn definitions_package() -> Package {
                     identification: id("Distribute Torque"),
                     body: ActionDefBody::Brace {
                         elements: vec![
-                            n(InOutDecl {
+                            n(ActionDefBodyElement::InOutDecl(n(InOutDecl {
                                 direction: InOut::In,
                                 name: "driveShaftTorque".to_string(),
                                 type_name: "Torque".to_string(),
-                            }),
-                            n(InOutDecl {
+                            }))),
+                            n(ActionDefBodyElement::InOutDecl(n(InOutDecl {
                                 direction: InOut::Out,
                                 name: "wheelTorque1".to_string(),
                                 type_name: "Torque".to_string(),
-                            }),
-                            n(InOutDecl {
+                            }))),
+                            n(ActionDefBodyElement::InOutDecl(n(InOutDecl {
                                 direction: InOut::Out,
                                 name: "wheelTorque2".to_string(),
                                 type_name: "Torque".to_string(),
-                            }),
+                            }))),
                         ],
                     },
                 }))),
@@ -155,21 +155,21 @@ fn definitions_package() -> Package {
                     identification: id("Provide Power"),
                     body: ActionDefBody::Brace {
                         elements: vec![
-                            n(InOutDecl {
+                            n(ActionDefBodyElement::InOutDecl(n(InOutDecl {
                                 direction: InOut::In,
                                 name: "fuelCmd".to_string(),
                                 type_name: "FuelCmd".to_string(),
-                            }),
-                            n(InOutDecl {
+                            }))),
+                            n(ActionDefBodyElement::InOutDecl(n(InOutDecl {
                                 direction: InOut::Out,
                                 name: "wheelTorque1".to_string(),
                                 type_name: "Torque".to_string(),
-                            }),
-                            n(InOutDecl {
+                            }))),
+                            n(ActionDefBodyElement::InOutDecl(n(InOutDecl {
                                 direction: InOut::Out,
                                 name: "wheelTorque2".to_string(),
                                 type_name: "Torque".to_string(),
-                            }),
+                            }))),
                         ],
                     },
                 }))),

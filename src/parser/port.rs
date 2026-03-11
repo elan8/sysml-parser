@@ -1,6 +1,8 @@
 //! Port definition and port usage parsing.
 
 use crate::ast::{Node, PortBody, PortDef, PortDefBody, PortDefBodyElement, PortUsage};
+use crate::parser::action::in_out_decl;
+use crate::parser::requirement::doc_comment;
 use crate::parser::expr::expression;
 use crate::parser::lex::{identification, name, qualified_name, skip_until_brace_end, ws1, ws_and_comments};
 use crate::parser::node_from_to;
@@ -60,7 +62,19 @@ pub(crate) fn port_usage(input: Input<'_>) -> IResult<Input<'_>, Node<PortUsage>
     .parse(input)?;
     let (input, type_name) = opt(preceded(
         preceded(ws_and_comments, tag(&b":"[..])),
-        preceded(ws_and_comments, qualified_name),
+        preceded(
+            ws_and_comments,
+            nom::combinator::map(
+                (nom::combinator::opt(tag(&b"~"[..])), qualified_name),
+                |(tilde, name)| {
+                    if tilde.is_some() {
+                        format!("~{}", name)
+                    } else {
+                        name
+                    }
+                },
+            ),
+        ),
     ))
     .parse(input)?;
     let (input, multiplicity) = opt(multiplicity).parse(input)?;
@@ -103,30 +117,39 @@ fn multiplicity(input: Input<'_>) -> IResult<Input<'_>, String> {
     Ok((input, s))
 }
 
-/// Port def body: ';' or '{' PortDefBodyElement* '}'
+/// Port def body: ';' or '{' PortDefBodyElement* '}' (or skip to '}' when body is unparseable).
 fn port_def_body(input: Input<'_>) -> IResult<Input<'_>, PortDefBody> {
     let (input, _) = ws_and_comments(input)?;
     alt((
         map(tag(&b";"[..]), |_| PortDefBody::Semicolon),
-        map(
-            nom::sequence::delimited(
-                tag(&b"{"[..]),
-                preceded(
-                    ws_and_comments,
-                    many0(preceded(ws_and_comments, port_def_body_element)),
-                ),
-                preceded(ws_and_comments, tag(&b"}"[..])),
-            ),
-            |elements| PortDefBody::Brace { elements },
-        ),
+        port_def_body_brace,
     ))
     .parse(input)
 }
 
+fn port_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, PortDefBody> {
+    let (input, _) = tag(&b"{"[..]).parse(input)?;
+    let (input, _) = ws_and_comments(input)?;
+    let (input, elements) = many0(preceded(ws_and_comments, port_def_body_element)).parse(input)?;
+    let (input, _) = if elements.is_empty() {
+        skip_until_brace_end(input)?
+    } else {
+        (input, ())
+    };
+    let (input, _) = preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?;
+    Ok((input, PortDefBody::Brace { elements }))
+}
+
 fn port_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PortDefBodyElement>> {
     let start = input;
-    let (input, p) = port_usage(input)?;
-    Ok((input, node_from_to(start, input, PortDefBodyElement::PortUsage(p))))
+    let (input, _) = ws_and_comments(input)?;
+    let (input, elem) = nom::branch::alt((
+        map(in_out_decl, PortDefBodyElement::InOutDecl),
+        map(doc_comment, PortDefBodyElement::Doc),
+        map(port_usage, PortDefBodyElement::PortUsage),
+    ))
+    .parse(input)?;
+    Ok((input, node_from_to(start, input, elem)))
 }
 
 /// Port definition: 'port' 'def' Identification body

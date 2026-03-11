@@ -105,6 +105,12 @@ pub enum Expression {
         value: Box<Node<Expression>>,
         unit: Box<Node<Expression>>,
     },
+    /// Binary infix operation e.g. `a >= b * c`, `x / y`.
+    BinaryOp {
+        op: String,
+        left: Box<Node<Expression>>,
+        right: Box<Node<Expression>>,
+    },
 }
 
 /// Root of a SysML document: a sequence of package-level elements.
@@ -116,6 +122,7 @@ pub struct RootNamespace {
 /// Top-level element inside a namespace or package body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageBodyElement {
+    Doc(Node<DocComment>),
     Package(Node<Package>),
     Import(Node<Import>),
     PartDef(Node<PartDef>),
@@ -126,6 +133,14 @@ pub enum PackageBodyElement {
     AttributeDef(Node<AttributeDef>),
     ActionDef(Node<ActionDef>),
     ActionUsage(Node<ActionUsage>),
+    RequirementDef(Node<RequirementDef>),
+    RequirementUsage(Node<RequirementUsage>),
+    Satisfy(Node<Satisfy>),
+    UseCaseDef(Node<UseCaseDef>),
+    Actor(Node<ActorDecl>),
+    StateDef(Node<StateDef>),
+    ConstraintDef(Node<ConstraintDef>),
+    CalcDef(Node<CalcDef>),
 }
 
 /// A package declaration: `package` Identification PackageBody
@@ -195,8 +210,14 @@ pub enum PartDefBody {
 /// Element inside a part definition body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PartDefBodyElement {
+    Doc(Node<DocComment>),
     AttributeDef(Node<AttributeDef>),
+    AttributeUsage(Node<AttributeUsage>),
     PortUsage(Node<PortUsage>),
+    PartUsage(Box<Node<PartUsage>>),
+    Connect(Node<Connect>),
+    Perform(Node<Perform>),
+    Allocate(Node<Allocate>),
 }
 
 /// Attribute definition: `attribute` name (`:>` type)? body.
@@ -241,6 +262,7 @@ pub enum PartUsageBody {
 /// Element inside a part usage body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PartUsageBodyElement {
+    Doc(Node<DocComment>),
     AttributeUsage(Node<AttributeUsage>),
     PartUsage(Box<Node<PartUsage>>),
     PortUsage(Node<PortUsage>),
@@ -248,6 +270,9 @@ pub enum PartUsageBodyElement {
     InterfaceUsage(Node<InterfaceUsage>),
     Connect(Node<Connect>),
     Perform(Node<Perform>),
+    Allocate(Node<Allocate>),
+    Satisfy(Node<Satisfy>),
+    StateUsage(Node<StateUsage>),
 }
 
 /// Enacted performance: `perform` action_path `{` body `}` inside a part usage.
@@ -255,6 +280,8 @@ pub enum PartUsageBodyElement {
 pub struct Perform {
     /// Qualified action name (e.g. "provide power" or "provide power.generate torque").
     pub action_name: String,
+    /// Type after `:` in "perform action name : Type" form.
+    pub type_name: Option<String>,
     pub body: PerformBody,
 }
 
@@ -306,9 +333,11 @@ pub enum PortDefBody {
     },
 }
 
-/// Element inside a port definition body (nested port usages).
+/// Element inside a port definition body (in/out declarations or nested port usages).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PortDefBodyElement {
+    InOutDecl(Node<InOutDecl>),
+    Doc(Node<DocComment>),
     PortUsage(Node<PortUsage>),
 }
 
@@ -479,13 +508,21 @@ pub struct ActionDef {
     pub body: ActionDefBody,
 }
 
-/// Body of an action definition: `;` or `{` InOutDecl* `}`.
+/// Body of an action definition: `;` or `{` ActionDefBodyElement* `}`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ActionDefBody {
     Semicolon,
     Brace {
-        elements: Vec<Node<InOutDecl>>,
+        elements: Vec<Node<ActionDefBodyElement>>,
     },
+}
+
+/// Element inside an action definition body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ActionDefBodyElement {
+    InOutDecl(Node<InOutDecl>),
+    Doc(Node<DocComment>),
+    Perform(Node<Perform>),
 }
 
 /// In/out parameter in action def: `in` name `:` type `;` or `out` name `:` type `;`.
@@ -560,4 +597,230 @@ pub struct MergeStmt {
 pub enum FirstMergeBody {
     Semicolon,
     Brace,
+}
+
+// ---------------------------------------------------------------------------
+// Allocation
+// ---------------------------------------------------------------------------
+
+/// Allocate statement at part usage level: `allocate` from `to` to body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Allocate {
+    pub source: Node<Expression>,
+    pub target: Node<Expression>,
+    pub body: ConnectBody,
+}
+
+// ---------------------------------------------------------------------------
+// Requirements
+// ---------------------------------------------------------------------------
+
+/// Requirement definition: `requirement def` Identification body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RequirementDef {
+    pub identification: Identification,
+    pub body: RequirementDefBody,
+}
+
+/// Body of an requirement definition: `;` or `{` RequirementDefBodyElement* `}`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RequirementDefBody {
+    Semicolon,
+    Brace {
+        elements: Vec<Node<RequirementDefBodyElement>>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RequirementDefBodyElement {
+    SubjectDecl(Node<SubjectDecl>),
+    RequireConstraint(Node<RequireConstraint>),
+    Doc(Node<DocComment>), // Just keeping it simple for now, or maybe DocComment is not in AST, wait.
+}
+
+/// Subject declaration: `subject` name `:` type `;`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubjectDecl {
+    pub name: String,
+    pub type_name: String,
+}
+
+/// Require constraint: `require constraint { ... }`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RequireConstraint {
+    pub body: ConstraintBody,
+}
+
+/// Requirement usage / Satisfy. Example: `satisfy EnduranceReq by droneInstance;`
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Satisfy {
+    pub source: Node<Expression>,
+    pub target: Node<Expression>,
+    pub body: ConnectBody,
+}
+
+/// Bare requirement Usage.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RequirementUsage {
+    pub name: String,
+    pub type_name: String,
+    pub body: RequirementDefBody,
+}
+
+
+// ---------------------------------------------------------------------------
+// Use Cases
+// ---------------------------------------------------------------------------
+
+/// Actor declaration: `actor` Identification `;`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActorDecl {
+    pub identification: Identification,
+}
+
+/// Use Case definition: `use case def` Identification body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UseCaseDef {
+    pub identification: Identification,
+    pub body: UseCaseDefBody,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UseCaseDefBody {
+    Semicolon,
+    Brace {
+        elements: Vec<Node<UseCaseDefBodyElement>>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UseCaseDefBodyElement {
+    Doc(Node<DocComment>),
+    SubjectDecl(Node<SubjectDecl>),
+    ActorUsage(Node<ActorUsage>),
+    Objective(Node<Objective>),
+}
+
+/// actor usage `actor pilot : Operator;`
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActorUsage {
+    pub name: String,
+    pub type_name: String,
+}
+
+/// Objective `objective { doc ... }`
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Objective {
+    pub body: ConstraintBody,
+}
+
+// ---------------------------------------------------------------------------
+// State Machine
+// ---------------------------------------------------------------------------
+
+/// State definition: `state def` Identification body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StateDef {
+    pub identification: Identification,
+    pub body: StateDefBody,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StateDefBody {
+    Semicolon,
+    Brace {
+        elements: Vec<Node<StateDefBodyElement>>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StateDefBodyElement {
+    StateUsage(Node<StateUsage>),
+    Transition(Node<Transition>),
+}
+
+/// State usage: `state` name (`:` type)? body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StateUsage {
+    pub name: String,
+    pub type_name: Option<String>,
+    pub body: StateDefBody,
+}
+
+/// Transition: `transition` name `first` source `then` target body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Transition {
+    pub name: String,
+    pub source: Node<Expression>,
+    pub target: Node<Expression>,
+    pub body: ConnectBody,
+}
+
+// ---------------------------------------------------------------------------
+// Constraints & Calculations
+// ---------------------------------------------------------------------------
+
+/// Constraint definition: `constraint def` Identification body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConstraintDef {
+    pub identification: Identification,
+    pub body: ConstraintDefBody,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConstraintDefBody {
+    Semicolon,
+    Brace {
+        elements: Vec<Node<ConstraintDefBodyElement>>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConstraintDefBodyElement {
+    Doc(Node<DocComment>),
+    InOutDecl(Node<InOutDecl>),
+    Expression(Node<Expression>), // e.g. totalThrust >= totalWeight * margin
+}
+
+/// constraint body {}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConstraintBody {
+    Semicolon,
+    Brace, // Often contains docs or block of expressions
+}
+
+/// Doc comment: `doc /* ... */`
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DocComment {
+    pub text: String,
+}
+
+/// Calc definition: `calc def` Identification body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CalcDef {
+    pub identification: Identification,
+    pub body: CalcDefBody,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CalcDefBody {
+    Semicolon,
+    Brace {
+        elements: Vec<Node<CalcDefBodyElement>>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CalcDefBodyElement {
+    Doc(Node<DocComment>),
+    InOutDecl(Node<InOutDecl>),
+    ReturnDecl(Node<ReturnDecl>),
+    Expression(Node<Expression>), // formula
+}
+
+/// Return declaration: `return` name `:` type `;`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReturnDecl {
+    pub name: String,
+    pub type_name: String,
 }

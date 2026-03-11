@@ -27,3 +27,9 @@ mod function_based_behavior_3a;
 
 #[path = "validation/functional_allocation_4a.rs"]
 mod functional_allocation_4a;
+
+#[path = "validation/surveillance_drone.rs"]
+mod surveillance_drone;
+
+#[path = "validation/surveillance_drone_minimal.rs"]
+mod surveillance_drone_minimal;

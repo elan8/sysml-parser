@@ -7,7 +7,7 @@ pub mod error;
 pub mod parser;
 
 pub use ast::{
-    ActionDef, ActionDefBody, ActionUsage, ActionUsageBody, ActionUsageBodyElement, AliasBody,
+    ActionDef, ActionDefBody, ActionDefBodyElement, ActionUsage, ActionUsageBody, ActionUsageBodyElement, AliasBody,
     AliasDef, AstNode, AttributeBody, AttributeDef, AttributeUsage, Bind, Connect, ConnectBody,
     ConnectStmt, EndDecl, Expression, FirstMergeBody, FirstStmt, Flow, Identification, InOut,
     InOutDecl, InterfaceDef, InterfaceDefBody, InterfaceDefBodyElement, InterfaceUsage,

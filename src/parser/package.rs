@@ -6,12 +6,16 @@ use crate::ast::{
 use crate::parser::action::{action_def, action_usage};
 use crate::parser::alias::alias_def;
 use crate::parser::attribute::attribute_def;
+use crate::parser::constraint::{calc_def, constraint_def};
 use crate::parser::import::import_;
 use crate::parser::interface::interface_def;
 use crate::parser::lex::{identification, ws1, ws_and_comments};
 use crate::parser::node_from_to;
 use crate::parser::part::{part_def, part_usage};
 use crate::parser::port::port_def;
+use crate::parser::requirement::{doc_comment, requirement_def, requirement_usage, satisfy};
+use crate::parser::state::state_def;
+use crate::parser::usecase::{actor_decl, use_case_def};
 use crate::parser::Input;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
@@ -83,7 +87,11 @@ pub(crate) fn package_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<
         "package_body_element: first 20 bytes: {:?}",
         frag.get(..20.min(frag.len())).unwrap_or(frag),
     );
+    // Doc first so "doc /* ... */" at start of package body parses before other elements.
+    // Attribute def before package so inner package body (e.g. "attribute def Real;") parses before "package".
     let (input, elem) = alt((
+        map(doc_comment, PackageBodyElement::Doc),
+        map(attribute_def, PackageBodyElement::AttributeDef),
         map(package_, PackageBodyElement::Package),
         map(import_, PackageBodyElement::Import),
         map(part_def, PackageBodyElement::PartDef),
@@ -91,9 +99,16 @@ pub(crate) fn package_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<
         map(port_def, PackageBodyElement::PortDef),
         map(interface_def, PackageBodyElement::InterfaceDef),
         map(alias_def, PackageBodyElement::AliasDef),
-        map(attribute_def, PackageBodyElement::AttributeDef),
         map(action_def, PackageBodyElement::ActionDef),
         map(action_usage, PackageBodyElement::ActionUsage),
+        map(requirement_def, PackageBodyElement::RequirementDef),
+        map(requirement_usage, PackageBodyElement::RequirementUsage),
+        map(satisfy, PackageBodyElement::Satisfy),
+        map(use_case_def, PackageBodyElement::UseCaseDef),
+        map(actor_decl, PackageBodyElement::Actor),
+        map(state_def, PackageBodyElement::StateDef),
+        map(constraint_def, PackageBodyElement::ConstraintDef),
+        map(calc_def, PackageBodyElement::CalcDef),
     ))
     .parse(input)?;
     Ok((input, node_from_to(start, input, elem)))

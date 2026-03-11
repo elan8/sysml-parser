@@ -36,7 +36,7 @@ fn first_merge_body(input: Input<'_>) -> IResult<Input<'_>, FirstMergeBody> {
 }
 
 /// In/out decl: `in` name `:` type `;` or `out` name `:` type `;`
-fn in_out_decl(input: Input<'_>) -> IResult<Input<'_>, Node<InOutDecl>> {
+pub(crate) fn in_out_decl(input: Input<'_>) -> IResult<Input<'_>, Node<InOutDecl>> {
     let start = input;
     let (input, _) = ws_and_comments(input)?;
     let (input, direction) = alt((
@@ -58,7 +58,7 @@ fn in_out_decl(input: Input<'_>) -> IResult<Input<'_>, Node<InOutDecl>> {
     ))
 }
 
-/// Action def body: `;` or `{` InOutDecl* `}`
+/// Action def body: `;` or `{` ActionDefBodyElement* `}`
 fn action_def_body(input: Input<'_>) -> IResult<Input<'_>, ActionDefBody> {
     let (input, _) = ws_and_comments(input)?;
     alt((
@@ -68,7 +68,7 @@ fn action_def_body(input: Input<'_>) -> IResult<Input<'_>, ActionDefBody> {
                 tag(&b"{"[..]),
                 preceded(
                     ws_and_comments,
-                    many0(preceded(ws_and_comments, in_out_decl)),
+                    many0(preceded(ws_and_comments, action_def_body_element)),
                 ),
                 preceded(ws_and_comments, tag(&b"}"[..])),
             ),
@@ -76,6 +76,23 @@ fn action_def_body(input: Input<'_>) -> IResult<Input<'_>, ActionDefBody> {
         ),
     ))
     .parse(input)
+}
+
+/// Element inside an action definition body: InOutDecl | Doc | Perform
+fn action_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<crate::ast::ActionDefBodyElement>> {
+    use crate::ast::ActionDefBodyElement;
+    use crate::parser::part::perform_action_decl;
+    use crate::parser::requirement::doc_comment;
+
+    let (input, _) = ws_and_comments(input)?;
+    let start = input;
+    let (input, elem) = nom::branch::alt((
+        map(in_out_decl, ActionDefBodyElement::InOutDecl),
+        map(doc_comment, ActionDefBodyElement::Doc),
+        map(perform_action_decl, ActionDefBodyElement::Perform),
+    ))
+    .parse(input)?;
+    Ok((input, node_from_to(start, input, elem)))
 }
 
 /// Action definition: `action` `def` Identification body

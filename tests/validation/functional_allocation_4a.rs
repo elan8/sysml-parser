@@ -68,6 +68,7 @@ fn vehicle1_c1_functional_allocation() -> PartUsage {
                 n(PartUsageBodyElement::PortUsage(n(port_fuel_cmd_port()))),
                 n(PartUsageBodyElement::Perform(n(Perform {
                     action_name: "provide power".to_string(),
+                    type_name: None,
                     body: PerformBody::Brace {
                         elements: vec![n(PerformBodyElement {
                             direction: InOut::In,
@@ -115,6 +116,7 @@ fn part_engine() -> PartUsage {
                 }))),
                 n(PartUsageBodyElement::Perform(n(Perform {
                     action_name: "provide power.generate torque".to_string(),
+                    type_name: None,
                     body: PerformBody::Brace {
                         elements: vec![
                             n(PerformBodyElement {
@@ -162,6 +164,7 @@ fn part_transmission() -> PartUsage {
                 }))),
                 n(PartUsageBodyElement::Perform(n(Perform {
                     action_name: "provide power.amplify torque".to_string(),
+                    type_name: None,
                     body: PerformBody::Brace {
                         elements: vec![
                             n(PerformBodyElement {
@@ -209,6 +212,7 @@ fn part_driveshaft() -> PartUsage {
                 }))),
                 n(PartUsageBodyElement::Perform(n(Perform {
                     action_name: "provide power.transfer torque".to_string(),
+                    type_name: None,
                     body: PerformBody::Brace {
                         elements: vec![
                             n(PerformBodyElement {
@@ -256,6 +260,7 @@ fn part_rear_axle_assembly() -> PartUsage {
                 }))),
                 n(PartUsageBodyElement::Perform(n(Perform {
                     action_name: "provide power.distribute torque".to_string(),
+                    type_name: None,
                     body: PerformBody::Brace {
                         elements: vec![
                             n(PerformBodyElement {

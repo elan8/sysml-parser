@@ -16,15 +16,16 @@ pub(crate) fn ws(input: Input<'_>) -> IResult<Input<'_>, ()> {
     Ok((input, ()))
 }
 
-/// Skip whitespace and comments (block, single-line, doc+block). Use between tokens and at body boundaries.
-/// //* ... */ is tried before line_comment so that "//*" starts a block comment, not a line comment.
+/// Skip whitespace and comments (block, single-line). Use between tokens and at body boundaries.
+/// Does NOT consume "doc /* ... */" — that is a body element (PackageBodyElement::Doc etc.) and must
+/// be parsed explicitly so it appears in the AST. //* ... */ is tried before line_comment so that
+/// "//*" starts a block comment, not a line comment.
 pub(crate) fn ws_and_comments(input: Input<'_>) -> IResult<Input<'_>, ()> {
     let (input, _) = take_while(|c: u8| c == b' ' || c == b'\t' || c == b'\n' || c == b'\r').parse(input)?;
     let (input, _) = many0(alt((
         block_comment,
         block_comment_slash_star,
         line_comment,
-        doc_then_block_comment,
     ))).parse(input)?;
     Ok((input, ()))
 }
@@ -52,17 +53,6 @@ fn line_comment(input: Input<'_>) -> IResult<Input<'_>, ()> {
     let (input, _) = tag(&b"//"[..]).parse(input)?;
     let (input, _) = take_while(|c: u8| c != b'\n' && c != b'\r').parse(input)?;
     let (input, _) = take_while(|c: u8| c == b'\n' || c == b'\r').parse(input)?;
-    Ok((input, ()))
-}
-
-/// Doc keyword followed by optional whitespace and a block comment.
-fn doc_then_block_comment(input: Input<'_>) -> IResult<Input<'_>, ()> {
-    let (input, _) = tag(&b"doc"[..]).parse(input)?;
-    let (input, _) = ws1(input)?;
-    let (input, _) = tag(&b"/*"[..]).parse(input)?;
-    let (input, _) = take_until(&b"*/"[..]).parse(input)?;
-    let (input, _) = tag(&b"*/"[..]).parse(input)?;
-    let (input, _) = ws(input)?;
     Ok((input, ()))
 }
 
