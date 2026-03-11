@@ -238,6 +238,32 @@ pub enum PartUsageBodyElement {
     Bind(Node<Bind>),
     InterfaceUsage(Node<InterfaceUsage>),
     Connect(Node<Connect>),
+    Perform(Node<Perform>),
+}
+
+/// Enacted performance: `perform` action_path `{` body `}` inside a part usage.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Perform {
+    /// Qualified action name (e.g. "provide power" or "provide power.generate torque").
+    pub action_name: String,
+    pub body: PerformBody,
+}
+
+/// Body of a perform: `;` or `{` PerformBodyElement* `}`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PerformBody {
+    Semicolon,
+    Brace {
+        elements: Vec<Node<PerformBodyElement>>,
+    },
+}
+
+/// In/out binding inside a perform body: `in` name `=` expr `;` or `out` name `=` expr `;`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PerformBodyElement {
+    pub direction: InOut,
+    pub name: String,
+    pub value: Node<Expression>,
 }
 
 /// Attribute usage: `attribute` name `redefines`? value? body.

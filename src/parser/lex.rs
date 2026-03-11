@@ -17,10 +17,12 @@ pub(crate) fn ws(input: Input<'_>) -> IResult<Input<'_>, ()> {
 }
 
 /// Skip whitespace and comments (block, single-line, doc+block). Use between tokens and at body boundaries.
+/// //* ... */ is tried before line_comment so that "//*" starts a block comment, not a line comment.
 pub(crate) fn ws_and_comments(input: Input<'_>) -> IResult<Input<'_>, ()> {
     let (input, _) = take_while(|c: u8| c == b' ' || c == b'\t' || c == b'\n' || c == b'\r')(input)?;
     let (input, _) = many0(alt((
         block_comment,
+        block_comment_slash_star,
         line_comment,
         doc_then_block_comment,
     )))(input)?;
@@ -30,6 +32,15 @@ pub(crate) fn ws_and_comments(input: Input<'_>) -> IResult<Input<'_>, ()> {
 /// Block comment: /* ... */
 fn block_comment(input: Input<'_>) -> IResult<Input<'_>, ()> {
     let (input, _) = tag(b"/*")(input)?;
+    let (input, _) = take_until(&b"*/"[..])(input)?;
+    let (input, _) = tag(b"*/")(input)?;
+    let (input, _) = ws(input)?;
+    Ok((input, ()))
+}
+
+/// Block comment starting with //* ... */ (e.g. in 4a fixture).
+fn block_comment_slash_star(input: Input<'_>) -> IResult<Input<'_>, ()> {
+    let (input, _) = tag(b"//*")(input)?;
     let (input, _) = take_until(&b"*/"[..])(input)?;
     let (input, _) = tag(b"*/")(input)?;
     let (input, _) = ws(input)?;

@@ -36,16 +36,22 @@ pub fn parse_root(input: &str) -> Result<RootNamespace, ParseError> {
     match package::root_namespace(located) {
         Ok((rest, root)) => {
             if rest.fragment().is_empty() {
+                log::debug!("parse_root: success, {} top-level elements", root.elements.len());
                 Ok(root)
             } else {
                 let offset = located.location_offset() + located.input_len() - rest.input_len();
                 let unconsumed = rest.fragment();
+                let first_80 = unconsumed.get(..80.min(unconsumed.len())).unwrap_or(unconsumed);
                 log::debug!(
                     "parse_root: expected end of input; parsed {} elements; unconsumed len={}, offset={}, first 80 bytes: {:?}",
                     root.elements.len(),
                     unconsumed.len(),
                     offset,
-                    &unconsumed.get(..80.min(unconsumed.len())).unwrap_or(unconsumed),
+                    first_80,
+                );
+                log::debug!(
+                    "parse_root: unconsumed as str: {:?}",
+                    String::from_utf8_lossy(first_80),
                 );
                 Err(ParseError::new("expected end of input").with_location(offset, rest.location_line(), rest.get_column()))
             }

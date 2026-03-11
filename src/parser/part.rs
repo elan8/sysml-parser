@@ -1,8 +1,9 @@
 //! Part definition and part usage parsing.
 
 use crate::ast::{
-    Bind, Connect, ConnectBody, InterfaceUsage, InterfaceUsageBodyElement, Node, PartDef,
-    PartDefBody, PartDefBodyElement, PartUsage, PartUsageBody, PartUsageBodyElement, RefBody,
+    Bind, Connect, ConnectBody, InOut, InterfaceUsage, InterfaceUsageBodyElement, Node, PartDef,
+    PartDefBody, PartDefBodyElement, PartUsage, PartUsageBody, PartUsageBodyElement, Perform,
+    PerformBody, PerformBodyElement, RefBody,
 };
 use crate::parser::attribute::{attribute_def, attribute_usage};
 use crate::parser::expr::{expression, path_expression};
@@ -13,7 +14,7 @@ use crate::parser::port::port_usage;
 use crate::parser::Input;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_until};
-use nom::combinator::{map, opt};
+use nom::combinator::{map, opt, value};
 use nom::multi::many0;
 use nom::sequence::{preceded, tuple};
 use nom::IResult;
@@ -87,7 +88,13 @@ pub(crate) fn part_usage(input: Input<'_>) -> IResult<Input<'_>, Node<PartUsage>
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = tag(b"part")(input)?;
     let (input, _) = ws1(input)?;
-    let (input, name_str) = name(input)?;
+    let (input, name_str) = alt((
+        preceded(
+            preceded(ws_and_comments, tag(b":>>")),
+            preceded(ws_and_comments, name),
+        ),
+        preceded(ws_and_comments, name),
+    ))(input)?;
     let (input, type_name) = opt(preceded(
         preceded(ws_and_comments, tag(b":")),
         preceded(ws_and_comments, qualified_name),
@@ -133,7 +140,12 @@ pub(crate) fn part_usage(input: Input<'_>) -> IResult<Input<'_>, Node<PartUsage>
 /// Part usage body: ';' or '{' PartUsageBodyElement* '}'
 fn part_usage_body(input: Input<'_>) -> IResult<Input<'_>, PartUsageBody> {
     let (input, _) = ws_and_comments(input)?;
-    alt((
+    let frag = input.fragment();
+    log::debug!(
+        "part_usage_body: first 40 bytes: {:?}",
+        frag.get(..40.min(frag.len())).unwrap_or(frag),
+    );
+    let result = alt((
         map(tag(b";"), |_| PartUsageBody::Semicolon),
         map(
             nom::sequence::delimited(
@@ -144,9 +156,88 @@ fn part_usage_body(input: Input<'_>) -> IResult<Input<'_>, PartUsageBody> {
                 ),
                 preceded(ws_and_comments, tag(b"}")),
             ),
-            |elements| PartUsageBody::Brace { elements },
+            |elements| {
+                log::debug!("part_usage_body: brace ok, {} elements", elements.len());
+                PartUsageBody::Brace { elements }
+            },
         ),
-    ))(input)
+    ))(input);
+    if let Err(_) = &result {
+        log::debug!(
+            "part_usage_body: failed at: {:?}",
+            String::from_utf8_lossy(frag.get(..60.min(frag.len())).unwrap_or(frag)),
+        );
+    }
+    result
+}
+
+/// Action path for perform: name ( '.' name )* -> joined with ".".
+fn perform_action_path(input: Input<'_>) -> IResult<Input<'_>, String> {
+    let (input, first) = name(input)?;
+    let (input, rest) = many0(preceded(
+        preceded(ws_and_comments, tag(b".")),
+        preceded(ws_and_comments, name),
+    ))(input)?;
+    let action_name = std::iter::once(first)
+        .chain(rest)
+        .collect::<Vec<_>>()
+        .join(".");
+    Ok((input, action_name))
+}
+
+/// Perform body element: `in` name `=` expr `;` or `out` name `=` expr `;`.
+fn perform_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PerformBodyElement>> {
+    let start = input;
+    let (input, _) = ws_and_comments(input)?;
+    let (input, direction) = alt((
+        value(InOut::In, tag(b"in")),
+        value(InOut::Out, tag(b"out")),
+    ))(input)?;
+    let (input, _) = ws1(input)?;
+    let (input, name_str) = name(input)?;
+    let (input, _) = preceded(ws_and_comments, tag(b"="))(input)?;
+    let (input, value_expr) = preceded(ws_and_comments, path_expression)(input)?;
+    let (input, _) = preceded(ws_and_comments, tag(b";"))(input)?;
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            PerformBodyElement {
+                direction,
+                name: name_str,
+                value: value_expr,
+            },
+        ),
+    ))
+}
+
+/// Perform body: `{` (doc/comments and perform_body_element* ) `}`.
+fn perform_body(input: Input<'_>) -> IResult<Input<'_>, PerformBody> {
+    let (input, _) = ws_and_comments(input)?;
+    let (input, elements) = nom::sequence::delimited(
+        tag(b"{"),
+        preceded(
+            ws_and_comments,
+            many0(preceded(ws_and_comments, perform_body_element)),
+        ),
+        preceded(ws_and_comments, tag(b"}")),
+    )(input)?;
+    Ok((input, PerformBody::Brace { elements }))
+}
+
+/// Perform usage: `perform` action_path body.
+fn perform_usage(input: Input<'_>) -> IResult<Input<'_>, Node<Perform>> {
+    let start = input;
+    let (input, _) = ws_and_comments(input)?;
+    let (input, _) = tag(b"perform")(input)?;
+    let (input, _) = ws1(input)?;
+    let (input, action_name) = perform_action_path(input)?;
+    let (input, body) = perform_body(input)?;
+    Ok((
+        input,
+        node_from_to(start, input, Perform { action_name, body }),
+    ))
 }
 
 /// Bind: `bind` path `=` path (`;` or `{ }`)
@@ -293,7 +384,15 @@ fn interface_usage(input: Input<'_>) -> IResult<Input<'_>, Node<InterfaceUsage>>
 fn part_usage_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PartUsageBodyElement>> {
     let (input, _) = ws_and_comments(input)?;
     let start = input;
+    let frag = start.fragment();
+    let first_30 = frag.get(..30.min(frag.len())).unwrap_or(frag);
+    log::debug!(
+        "part_usage_body_element: first 30 bytes: {:?} (str: {:?})",
+        first_30,
+        String::from_utf8_lossy(first_30),
+    );
     let (input, elem) = alt((
+        map(perform_usage, PartUsageBodyElement::Perform),
         map(attribute_usage, PartUsageBodyElement::AttributeUsage),
         map(part_usage, |p| PartUsageBodyElement::PartUsage(Box::new(p))),
         map(port_usage, PartUsageBodyElement::PortUsage),

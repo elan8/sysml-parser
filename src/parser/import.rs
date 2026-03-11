@@ -45,9 +45,15 @@ pub(crate) fn import_(input: Input<'_>) -> IResult<Input<'_>, Node<Import>> {
                 preceded(ws_and_comments, tag(b"::")),
                 preceded(ws_and_comments, tag(b"*")),
             )),
-            |(q, _, _)| (format!("{}::*", q), true),
+            |(q, _, _)| {
+                log::debug!("import_: parsed target (with ::*) = {}::*", q);
+                (format!("{}::*", q), true)
+            },
         ),
-        map(qualified_name, |q| (q, false)),
+        map(qualified_name, |q| {
+            log::debug!("import_: parsed target (no ::*) = {}", q);
+            (q, false)
+        }),
     ))(input)?;
     let (input, _) = relationship_body(input)?;
     Ok((

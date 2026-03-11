@@ -45,18 +45,31 @@ fn package_(input: Input<'_>) -> IResult<Input<'_>, Node<Package>> {
 }
 
 /// PackageBody: ';' | '{' PackageBodyElement* '}'
+/// Brace form is tried first so that ws before '{' is not consumed by the semicolon branch.
 pub(crate) fn package_body(input: Input<'_>) -> IResult<Input<'_>, PackageBody> {
-    alt((
-        map(preceded(ws_and_comments, tag(b";")), |_| PackageBody::Semicolon),
+    let len_before = input.fragment().len();
+    log::debug!("package_body: entry, input len={}", len_before);
+    let result = alt((
         map(
             nom::sequence::delimited(
                 preceded(ws_and_comments, tag(b"{")),
-                preceded(ws_and_comments, many0(preceded(ws_and_comments, package_body_element))),
+                preceded(
+                    ws_and_comments,
+                    many0(preceded(ws_and_comments, package_body_element)),
+                ),
                 preceded(ws_and_comments, tag(b"}")),
             ),
-            |elements| PackageBody::Brace { elements },
+            |elements| {
+                log::debug!("package_body: brace form ok, {} elements", elements.len());
+                PackageBody::Brace { elements }
+            },
         ),
-    ))(input)
+        map(preceded(ws_and_comments, tag(b";")), |_| PackageBody::Semicolon),
+    ))(input);
+    if let Err(_) = &result {
+        log::debug!("package_body: alt failed (brace or semicolon)");
+    }
+    result
 }
 
 /// PackageBodyElement: Package | Import | PartDef | PartUsage | PortDef | InterfaceDef | AliasDef | ActionDef | ActionUsage
@@ -86,7 +99,13 @@ pub(crate) fn package_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<
 /// Root: PackageBodyElement*
 pub(crate) fn root_namespace(input: Input<'_>) -> IResult<Input<'_>, RootNamespace> {
     let (input, _) = ws_and_comments(input)?;
+    log::debug!("root_namespace: after leading ws, input len={}", input.fragment().len());
     let (input, elements) = many0(preceded(ws_and_comments, package_body_element))(input)?;
+    log::debug!(
+        "root_namespace: many0 done, elements={}, rest len={}",
+        elements.len(),
+        input.fragment().len(),
+    );
     let (input, _) = ws_and_comments(input)?;
     Ok((input, RootNamespace { elements }))
 }

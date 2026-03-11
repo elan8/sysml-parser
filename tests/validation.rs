@@ -24,3 +24,6 @@ mod parts_interconnection_2a;
 
 #[path = "validation/function_based_behavior_3a.rs"]
 mod function_based_behavior_3a;
+
+#[path = "validation/functional_allocation_4a.rs"]
+mod functional_allocation_4a;

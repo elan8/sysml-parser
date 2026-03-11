@@ -13,8 +13,8 @@ pub use ast::{
     InOutDecl, InterfaceDef, InterfaceDefBody, InterfaceDefBodyElement, InterfaceUsage,
     InterfaceUsageBodyElement, Import, MergeStmt, Node, Package, PackageBody, PackageBodyElement,
     PartDef, PartDefBody, PartDefBodyElement, PartUsage, PartUsageBody, PartUsageBodyElement,
-    PortBody, PortDef, PortDefBody, PortDefBodyElement, PortUsage, RefBody, RefDecl, RootNamespace,
-    Span, Visibility,
+    Perform, PerformBody, PerformBodyElement, PortBody, PortDef, PortDefBody, PortDefBodyElement,
+    PortUsage, RefBody, RefDecl, RootNamespace, Span, Visibility,
 };
 pub use error::ParseError;
 pub use parser::parse_root;
