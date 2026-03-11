@@ -48,6 +48,7 @@ pub enum PackageBody {
 pub enum Visibility {
     Public,
     Private,
+    Protected,
 }
 
 /// Import: `private`? `import` `all`? QualifiedName (`::` `*`)? etc.
