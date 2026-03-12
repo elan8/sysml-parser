@@ -347,6 +347,14 @@ pub enum PartUsageBody {
     },
 }
 
+/// Metadata annotation on usage: `@` Name (`:` Type)? MetadataBody (e.g. `@Security;` or `@Safety{isMandatory = true;}`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MetadataAnnotation {
+    pub name: String,
+    pub type_name: Option<String>,
+    pub body: ConnectBody,
+}
+
 /// Element inside a part usage body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PartUsageBodyElement {
@@ -361,6 +369,7 @@ pub enum PartUsageBodyElement {
     Allocate(Node<Allocate>),
     Satisfy(Node<Satisfy>),
     StateUsage(Node<StateUsage>),
+    MetadataAnnotation(Node<MetadataAnnotation>),
 }
 
 /// Enacted performance: `perform` action_path `{` body `}` inside a part usage.
@@ -1501,6 +1510,9 @@ fn normalize_part_usage_body_element_node(
         PartUsageBodyElement::Satisfy(n) => PartUsageBodyElement::Satisfy(dummy_node(n, n.value.clone())),
         PartUsageBodyElement::StateUsage(n) => {
             PartUsageBodyElement::StateUsage(dummy_node(n, n.value.clone()))
+        }
+        PartUsageBodyElement::MetadataAnnotation(n) => {
+            PartUsageBodyElement::MetadataAnnotation(dummy_node(n, n.value.clone()))
         }
     };
     dummy_node(el, value)

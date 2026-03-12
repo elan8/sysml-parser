@@ -12,6 +12,7 @@ use crate::parser::lex::{identification, name, qualified_name, skip_until_brace_
 use crate::parser::{node_from_to, span_from_to};
 use crate::parser::port::port_usage;
 use crate::parser::with_span;
+use crate::parser::metadata_annotation::metadata_annotation;
 use crate::parser::requirement::doc_comment;
 use crate::parser::Input;
 use nom::branch::alt;
@@ -543,6 +544,7 @@ fn part_usage_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PartUsag
     );
     let (input, elem) = alt((
         map(doc_comment, PartUsageBodyElement::Doc),
+        map(metadata_annotation, PartUsageBodyElement::MetadataAnnotation),
         map(perform_action_decl, PartUsageBodyElement::Perform),
         map(perform_usage, PartUsageBodyElement::Perform),
         map(allocate_, PartUsageBodyElement::Allocate),

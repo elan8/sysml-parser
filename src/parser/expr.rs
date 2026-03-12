@@ -87,6 +87,19 @@ fn feature_ref_primary(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>>
     Ok((input, node_from_to(start, input, Expression::FeatureRef(n))))
 }
 
+/// Metadata reference: @ qualified_name (e.g. @Safety, @Security for filter expressions).
+fn metadata_ref_primary(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
+    let start = input;
+    let (input, _) = ws_and_comments(input)?;
+    let (input, _) = tag(&b"@"[..]).parse(input)?;
+    let (input, _) = ws_and_comments(input)?;
+    let (input, n) = qualified_name(input)?;
+    Ok((
+        input,
+        node_from_to(start, input, Expression::FeatureRef(format!("@{}", n))),
+    ))
+}
+
 /// Literal only (no unit): integer, real, string, boolean.
 fn literal_only(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
     let (input, _) = ws_and_comments(input)?;
@@ -152,13 +165,14 @@ fn null_expression(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
     Ok((input, node_from_to(start, input, Expression::Null)))
 }
 
-/// Primary expression: literal with unit, literal only, feature ref, null, or parenthesized.
+/// Primary expression: literal with unit, literal only, metadata ref, feature ref, null, or parenthesized.
 fn primary(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
     let (input, _) = ws_and_comments(input)?;
     alt((
         literal_with_unit,
         literal_only,
         null_expression,
+        metadata_ref_primary, // @Name before feature_ref so @ is consumed
         feature_ref_primary,
         parenthesized,
     ))
@@ -193,11 +207,23 @@ fn postfix<'a>(
     Ok((input, current))
 }
 
+/// Logical operators (keywords and symbols) — tried before other operators.
+fn logical_op_token(input: Input<'_>) -> IResult<Input<'_>, String> {
+    alt((
+        map(tag(&b"and"[..]), |_| "&&".to_string()),
+        map(tag(&b"or"[..]), |_| "||".to_string()),
+        map(tag(&b"&&"[..]), |_| "&&".to_string()),
+        map(tag(&b"||"[..]), |_| "||".to_string()),
+    ))
+    .parse(input)
+}
+
 /// Try to consume a binary infix operator token (KerML BinaryOperator).
 fn binary_op_token(input: Input<'_>) -> IResult<Input<'_>, String> {
     let (input, _) = ws_and_comments(input)?;
     // Multi-char operators must be tried before single-char subsets; ** before *.
     alt((
+        logical_op_token,
         map(tag(&b">="[..]), |_| ">=".to_string()),
         map(tag(&b"<="[..]), |_| "<=".to_string()),
         map(tag(&b"==="[..]), |_| "===".to_string()),
@@ -205,8 +231,6 @@ fn binary_op_token(input: Input<'_>) -> IResult<Input<'_>, String> {
         map(tag(&b"=="[..]), |_| "==".to_string()),
         map(tag(&b"!="[..]), |_| "!=".to_string()),
         map(tag(&b"**"[..]), |_| "**".to_string()),
-        map(tag(&b"&&"[..]), |_| "&&".to_string()),
-        map(tag(&b"||"[..]), |_| "||".to_string()),
         map(tag(&b"+"[..]), |_| "+".to_string()),
         map(tag(&b"-"[..]), |_| "-".to_string()),
         map(tag(&b"*"[..]), |_| "*".to_string()),

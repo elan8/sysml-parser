@@ -20,6 +20,7 @@ mod import;
 mod interface;
 mod lex;
 mod metadata;
+mod metadata_annotation;
 mod occurrence;
 mod package;
 mod part;
