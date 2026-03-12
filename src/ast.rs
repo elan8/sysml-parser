@@ -250,12 +250,21 @@ pub struct Import {
 /// Part definition: `part def` Identification (`:>` specializes)? Body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartDef {
+    /// Optional `abstract` or `variation` prefix (BNF BasicDefinitionPrefix).
+    pub definition_prefix: Option<DefinitionPrefix>,
     pub identification: Identification,
     /// Supertype after `:>`, e.g. Some("Axle") for `part def FrontAxle :> Axle`.
     pub specializes: Option<String>,
     /// Span of the `:> <type>` fragment (for semantic tokens), when present.
     pub specializes_span: Option<Span>,
     pub body: PartDefBody,
+}
+
+/// BNF BasicDefinitionPrefix: `abstract` | `variation`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DefinitionPrefix {
+    Abstract,
+    Variation,
 }
 
 /// Body of a part definition: `;` or `{` PartDefBodyElement* `}`.
@@ -1402,6 +1411,7 @@ fn normalize_attribute_def(a: &AttributeDef) -> AttributeDef {
 
 fn normalize_part_def(p: &PartDef) -> PartDef {
     PartDef {
+        definition_prefix: p.definition_prefix.clone(),
         identification: p.identification.clone(),
         specializes: p.specializes.clone(),
         specializes_span: None,

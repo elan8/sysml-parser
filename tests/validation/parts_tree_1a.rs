@@ -86,6 +86,7 @@ target: "SI::kg".to_string(),
                         body: PackageBody::Brace {
                             elements: vec![
                                 n(PackageBodyElement::PartDef(n(PartDef {
+                                    definition_prefix: None,
                                     identification: id("Vehicle"),
                                     specializes: None,
                                     specializes_span: None,
@@ -102,12 +103,14 @@ target: "SI::kg".to_string(),
                                     },
                                 }))),
                                 n(PackageBodyElement::PartDef(n(PartDef {
+                                    definition_prefix: None,
                                     identification: id("AxleAssembly"),
                                     specializes: None,
                                     specializes_span: None,
                                     body: PartDefBody::Semicolon,
                                 }))),
                                 n(PackageBodyElement::PartDef(n(PartDef {
+                                    definition_prefix: None,
                                     identification: id("Axle"),
                                     specializes: None,
                                     specializes_span: None,
@@ -124,6 +127,7 @@ target: "SI::kg".to_string(),
                                     },
                                 }))),
                                 n(PackageBodyElement::PartDef(n(PartDef {
+                                    definition_prefix: None,
                                     identification: id("FrontAxle"),
                                     specializes: Some("Axle".to_string()),
                                     specializes_span: None,
@@ -140,6 +144,7 @@ target: "SI::kg".to_string(),
                                     },
                                 }))),
                                 n(PackageBodyElement::PartDef(n(PartDef {
+                                    definition_prefix: None,
                                     identification: id("Wheel"),
                                     specializes: None,
                                     specializes_span: None,

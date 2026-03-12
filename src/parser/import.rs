@@ -65,7 +65,19 @@ pub(crate) fn import_(input: Input<'_>) -> IResult<Input<'_>, Node<Import>> {
             )
         } else if input.fragment().starts_with(b"**") {
             let (input, _) = preceded(ws_and_comments, tag(&b"**"[..])).parse(input)?;
-            (input, qname, false, true, None)
+            let (input, filter_opt) = opt(many1(delimited(
+                preceded(ws_and_comments, tag(&b"["[..])),
+                preceded(ws_and_comments, expression),
+                preceded(ws_and_comments, tag(&b"]"[..])),
+            )))
+            .parse(input)?;
+            let filter_members = filter_opt.map(|members| {
+                members
+                    .into_iter()
+                    .map(|e| Node::new(e.span.clone(), FilterPackageMember { expression: e }))
+                    .collect()
+            });
+            (input, qname, false, true, filter_members)
         } else {
             return Err(nom::Err::Error(nom::error::make_error(input, nom::error::ErrorKind::Tag)));
         }

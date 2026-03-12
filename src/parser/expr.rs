@@ -179,7 +179,7 @@ fn primary(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
     .parse(input)
 }
 
-/// Apply postfix #( expr ) or . name to an expression.
+/// Apply postfix #( expr ), . name, or :: name (qualified member access) to an expression.
 fn postfix<'a>(
     input: Input<'a>,
     start: Input<'a>,
@@ -195,6 +195,13 @@ fn postfix<'a>(
             base: Box::new(current),
             index: Box::new(index_node),
         };
+        return postfix(input, start, node_from_to(start, input, expr));
+    }
+    if input.fragment().starts_with(b"::") {
+        let (input, _) = tag(&b"::"[..]).parse(input)?;
+        let (input, _) = ws_and_comments(input)?;
+        let (input, member) = name(input)?;
+        let expr = Expression::MemberAccess(Box::new(current), member);
         return postfix(input, start, node_from_to(start, input, expr));
     }
     if input.fragment().starts_with(b".") {

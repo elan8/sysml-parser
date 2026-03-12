@@ -1,9 +1,10 @@
 //! Part definition and part usage parsing.
 
 use crate::ast::{
-    Allocate, Bind, Connect, ConnectBody, ExhibitState, InOut, InterfaceUsage, InterfaceUsageBodyElement,
-    Node, PartDef, PartDefBody, PartDefBodyElement, PartUsage, PartUsageBody, PartUsageBodyElement,
-    Perform, PerformBody, PerformBodyElement, PerformInOutBinding, RefBody,
+    Allocate, Bind, Connect, ConnectBody, DefinitionPrefix, ExhibitState, InOut, InterfaceUsage,
+    InterfaceUsageBodyElement, Node, PartDef, PartDefBody, PartDefBodyElement, PartUsage,
+    PartUsageBody, PartUsageBodyElement, Perform, PerformBody, PerformBodyElement, PerformInOutBinding,
+    RefBody,
 };
 use crate::parser::attribute::{attribute_def, attribute_usage};
 use crate::parser::expr::{expression, path_expression};
@@ -87,10 +88,15 @@ fn part_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PartDefBod
     Ok((input, node_from_to(start, input, elem)))
 }
 
-/// Part definition: 'part' 'def' Identification ( ':>' qualified_name )? body
+/// Part definition: ( 'abstract' | 'variation' )? 'part' 'def' Identification ( ':>' qualified_name )? body
 pub(crate) fn part_def(input: Input<'_>) -> IResult<Input<'_>, Node<PartDef>> {
     let start = input;
     let (input, _) = ws_and_comments(input)?;
+    let (input, definition_prefix) = opt(alt((
+        map(preceded(tag(&b"abstract"[..]), ws1), |_| DefinitionPrefix::Abstract),
+        map(preceded(tag(&b"variation"[..]), ws1), |_| DefinitionPrefix::Variation),
+    )))
+    .parse(input)?;
     let (input, _) = tag(&b"part"[..]).parse(input)?;
     let (input, _) = ws1(input)?;
     let (input, _) = tag(&b"def"[..]).parse(input)?;
@@ -110,6 +116,7 @@ pub(crate) fn part_def(input: Input<'_>) -> IResult<Input<'_>, Node<PartDef>> {
     Ok((
         input,
         node_from_to(start, input, PartDef {
+            definition_prefix,
             identification,
             specializes,
             specializes_span,
