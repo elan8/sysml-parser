@@ -120,10 +120,11 @@ pub enum Expression {
     Null,
 }
 
-/// KerML top-level element: package, namespace, or import (BNF RootNamespace = PackageBodyElement*).
+/// KerML top-level element: package, namespace, import, or library package (BNF RootNamespace = PackageBodyElement*).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RootElement {
     Package(Node<Package>),
+    LibraryPackage(Node<LibraryPackage>),
     Namespace(Node<NamespaceDecl>),
     Import(Node<Import>),
 }
@@ -156,6 +157,7 @@ pub enum PackageBodyElement {
     TextualRep(Node<TextualRepresentation>),
     Filter(Node<FilterMember>),
     Package(Node<Package>),
+    LibraryPackage(Node<LibraryPackage>),
     Import(Node<Import>),
     PartDef(Node<PartDef>),
     PartUsage(Node<PartUsage>),
@@ -180,6 +182,10 @@ pub enum PackageBodyElement {
     ViewUsage(Node<ViewUsage>),
     ViewpointUsage(Node<ViewpointUsage>),
     RenderingUsage(Node<RenderingUsage>),
+    ConnectionDef(Node<ConnectionDef>),
+    MetadataDef(Node<MetadataDef>),
+    EnumDef(Node<EnumDef>),
+    OccurrenceDef(Node<OccurrenceDef>),
 }
 
 /// A package declaration: `package` Identification PackageBody
@@ -510,6 +516,95 @@ pub struct RefDecl {
 /// Body of a ref declaration: `;` or `{` ... `}`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RefBody {
+    Semicolon,
+    Brace,
+}
+
+// ---------------------------------------------------------------------------
+// Connection (Phase 2)
+// ---------------------------------------------------------------------------
+
+/// Connection definition: `connection def` Identification body (BNF ConnectionDefinition).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConnectionDef {
+    pub identification: Identification,
+    pub body: ConnectionDefBody,
+}
+
+/// Body of a connection definition: `;` or `{` end/ref/connect* `}`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConnectionDefBody {
+    Semicolon,
+    Brace {
+        elements: Vec<Node<ConnectionDefBodyElement>>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConnectionDefBodyElement {
+    EndDecl(Node<EndDecl>),
+    RefDecl(Node<RefDecl>),
+    ConnectStmt(Node<ConnectStmt>),
+}
+
+// ---------------------------------------------------------------------------
+// Metadata (Phase 2)
+// ---------------------------------------------------------------------------
+
+/// Metadata definition: `metadata def` Identification body (BNF MetadataDefinition).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MetadataDef {
+    pub is_abstract: bool,
+    pub identification: Identification,
+    pub body: DefinitionBody,
+}
+
+// ---------------------------------------------------------------------------
+// Enumeration (Phase 2)
+// ---------------------------------------------------------------------------
+
+/// Enumeration definition: `enum def` Identification EnumerationBody (BNF EnumerationDefinition).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumDef {
+    pub identification: Identification,
+    pub body: EnumerationBody,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EnumerationBody {
+    Semicolon,
+    Brace {
+        values: Vec<String>,
+    },
+}
+
+// ---------------------------------------------------------------------------
+// Occurrence (Phase 2)
+// ---------------------------------------------------------------------------
+
+/// Occurrence definition: `occurrence def` Identification body (BNF OccurrenceDefinition).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OccurrenceDef {
+    pub is_abstract: bool,
+    pub identification: Identification,
+    pub body: DefinitionBody,
+}
+
+// ---------------------------------------------------------------------------
+// Library Package (Phase 2)
+// ---------------------------------------------------------------------------
+
+/// Library package: `library` (optional `standard`) `package` Identification PackageBody (BNF LibraryPackage).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LibraryPackage {
+    pub is_standard: bool,
+    pub identification: Identification,
+    pub body: PackageBody,
+}
+
+/// Generic definition body: `;` or `{` ... `}` (skip content for metadata/occurrence).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DefinitionBody {
     Semicolon,
     Brace,
 }
@@ -1087,12 +1182,23 @@ fn dummy_node<T: Clone>(_n: &Node<T>, value: T) -> Node<T> {
 fn normalize_root_element_node(el: &Node<RootElement>) -> Node<RootElement> {
     let value = match &el.value {
         RootElement::Package(p) => RootElement::Package(dummy_node(p, normalize_package(&p.value))),
+        RootElement::LibraryPackage(lp) => {
+            RootElement::LibraryPackage(dummy_node(lp, normalize_library_package(&lp.value)))
+        }
         RootElement::Namespace(n) => {
             RootElement::Namespace(dummy_node(n, normalize_namespace_decl(&n.value)))
         }
         RootElement::Import(n) => RootElement::Import(dummy_node(n, n.value.clone())),
     };
     dummy_node(el, value)
+}
+
+fn normalize_library_package(lp: &LibraryPackage) -> LibraryPackage {
+    LibraryPackage {
+        is_standard: lp.is_standard,
+        identification: lp.identification.clone(),
+        body: normalize_package_body(&lp.body),
+    }
 }
 
 fn normalize_namespace_decl(n: &NamespaceDecl) -> NamespaceDecl {
@@ -1136,6 +1242,9 @@ fn normalize_package_body_element_node(el: &Node<PackageBodyElement>) -> Node<Pa
         PackageBodyElement::Package(n) => {
             PackageBodyElement::Package(dummy_node(n, normalize_package(&n.value)))
         }
+        PackageBodyElement::LibraryPackage(n) => {
+            PackageBodyElement::LibraryPackage(dummy_node(n, normalize_library_package(&n.value)))
+        }
         PackageBodyElement::Import(n) => PackageBodyElement::Import(dummy_node(n, n.value.clone())),
         PackageBodyElement::PartDef(n) => {
             PackageBodyElement::PartDef(dummy_node(n, normalize_part_def(&n.value)))
@@ -1148,6 +1257,18 @@ fn normalize_package_body_element_node(el: &Node<PackageBodyElement>) -> Node<Pa
         }
         PackageBodyElement::InterfaceDef(n) => {
             PackageBodyElement::InterfaceDef(dummy_node(n, normalize_interface_def(&n.value)))
+        }
+        PackageBodyElement::ConnectionDef(n) => {
+            PackageBodyElement::ConnectionDef(dummy_node(n, normalize_connection_def(&n.value)))
+        }
+        PackageBodyElement::MetadataDef(n) => {
+            PackageBodyElement::MetadataDef(dummy_node(n, normalize_metadata_def(&n.value)))
+        }
+        PackageBodyElement::EnumDef(n) => {
+            PackageBodyElement::EnumDef(dummy_node(n, normalize_enum_def(&n.value)))
+        }
+        PackageBodyElement::OccurrenceDef(n) => {
+            PackageBodyElement::OccurrenceDef(dummy_node(n, normalize_occurrence_def(&n.value)))
         }
         PackageBodyElement::AliasDef(n) => PackageBodyElement::AliasDef(dummy_node(n, n.value.clone())),
         PackageBodyElement::AttributeDef(n) => {
@@ -1387,6 +1508,65 @@ fn normalize_interface_def(i: &InterfaceDef) -> InterfaceDef {
     InterfaceDef {
         identification: i.identification.clone(),
         body: normalize_interface_def_body(&i.body),
+    }
+}
+
+fn normalize_connection_def(c: &ConnectionDef) -> ConnectionDef {
+    ConnectionDef {
+        identification: c.identification.clone(),
+        body: normalize_connection_def_body(&c.body),
+    }
+}
+
+fn normalize_connection_def_body(b: &ConnectionDefBody) -> ConnectionDefBody {
+    match b {
+        ConnectionDefBody::Semicolon => ConnectionDefBody::Semicolon,
+        ConnectionDefBody::Brace { elements } => ConnectionDefBody::Brace {
+            elements: elements
+                .iter()
+                .map(normalize_connection_def_body_element_node)
+                .collect(),
+        },
+    }
+}
+
+fn normalize_connection_def_body_element_node(
+    el: &Node<ConnectionDefBodyElement>,
+) -> Node<ConnectionDefBodyElement> {
+    let value = match &el.value {
+        ConnectionDefBodyElement::EndDecl(n) => {
+            ConnectionDefBodyElement::EndDecl(dummy_node(n, normalize_end_decl(&n.value)))
+        }
+        ConnectionDefBodyElement::RefDecl(n) => {
+            ConnectionDefBodyElement::RefDecl(dummy_node(n, normalize_ref_decl(&n.value)))
+        }
+        ConnectionDefBodyElement::ConnectStmt(n) => {
+            ConnectionDefBodyElement::ConnectStmt(dummy_node(n, n.value.clone()))
+        }
+    };
+    dummy_node(el, value)
+}
+
+fn normalize_metadata_def(m: &MetadataDef) -> MetadataDef {
+    MetadataDef {
+        is_abstract: m.is_abstract,
+        identification: m.identification.clone(),
+        body: m.body.clone(),
+    }
+}
+
+fn normalize_enum_def(e: &EnumDef) -> EnumDef {
+    EnumDef {
+        identification: e.identification.clone(),
+        body: e.body.clone(),
+    }
+}
+
+fn normalize_occurrence_def(o: &OccurrenceDef) -> OccurrenceDef {
+    OccurrenceDef {
+        is_abstract: o.is_abstract,
+        identification: o.identification.clone(),
+        body: o.body.clone(),
     }
 }
 

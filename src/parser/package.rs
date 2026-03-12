@@ -1,14 +1,18 @@
 //! Package and root namespace parsing.
 
 use crate::ast::{
-    FilterMember, NamespaceDecl, Node, Package, PackageBody, PackageBodyElement, RootElement,
-    RootNamespace, Visibility,
+    FilterMember, LibraryPackage, NamespaceDecl, Node, Package, PackageBody, PackageBodyElement,
+    RootElement, RootNamespace, Visibility,
 };
 use crate::parser::action::{action_def, action_usage};
 use crate::parser::alias::alias_def;
 use crate::parser::attribute::attribute_def;
-use crate::parser::item::item_def;
+use crate::parser::connection::connection_def;
 use crate::parser::constraint::{calc_def, constraint_def};
+use crate::parser::enumeration::enum_def;
+use crate::parser::item::item_def;
+use crate::parser::metadata::metadata_def;
+use crate::parser::occurrence::occurrence_def;
 use crate::parser::expr::expression;
 use crate::parser::import::import_;
 use crate::parser::interface::interface_def;
@@ -40,6 +44,31 @@ fn keyword_package(input: Input<'_>) -> IResult<Input<'_>, ()> {
     log::debug!("keyword_package: after tag, rest len={}", input.fragment().len());
     let (input, _) = ws1(input)?;
     Ok((input, ()))
+}
+
+/// library (optional standard) package Identification PackageBody (BNF LibraryPackage)
+fn library_package_(input: Input<'_>) -> IResult<Input<'_>, Node<LibraryPackage>> {
+    let start = input;
+    let (input, _) = preceded(ws_and_comments, tag(&b"library"[..])).parse(input)?;
+    let (input, _) = ws1(input)?;
+    let (input, is_standard) = opt(preceded(tag(&b"standard"[..]), ws1))
+        .parse(input)
+        .map(|(i, o)| (i, o.is_some()))?;
+    let (input, _) = keyword_package(input)?;
+    let (input, identification) = identification(input)?;
+    let (input, body) = package_body(input)?;
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            LibraryPackage {
+                is_standard,
+                identification,
+                body,
+            },
+        ),
+    ))
 }
 
 /// package Identification PackageBody
@@ -80,6 +109,7 @@ pub(crate) fn root_element(input: Input<'_>) -> IResult<Input<'_>, Node<RootElem
     let (input, elem) = alt((
         map(import_, RootElement::Import),
         map(namespace_decl, RootElement::Namespace),
+        map(library_package_, RootElement::LibraryPackage),
         map(package_, RootElement::Package),
     ))
     .parse(input)?;
@@ -162,12 +192,17 @@ pub(crate) fn package_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<
     let structural_parser = alt((
         map(filter_member, PackageBodyElement::Filter),
         map(attribute_def, PackageBodyElement::AttributeDef),
+        map(library_package_, PackageBodyElement::LibraryPackage),
         map(package_, PackageBodyElement::Package),
         map(import_, PackageBodyElement::Import),
         map(part_def, PackageBodyElement::PartDef),
         map(part_usage, PackageBodyElement::PartUsage),
         map(port_def, PackageBodyElement::PortDef),
         map(interface_def, PackageBodyElement::InterfaceDef),
+        map(connection_def, PackageBodyElement::ConnectionDef),
+        map(metadata_def, PackageBodyElement::MetadataDef),
+        map(enum_def, PackageBodyElement::EnumDef),
+        map(occurrence_def, PackageBodyElement::OccurrenceDef),
         map(alias_def, PackageBodyElement::AliasDef),
         map(action_def, PackageBodyElement::ActionDef),
         map(action_usage, PackageBodyElement::ActionUsage),

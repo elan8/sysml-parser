@@ -10,12 +10,16 @@
 mod action;
 mod alias;
 mod attribute;
+mod connection;
 mod constraint;
 mod item;
+mod enumeration;
 mod expr;
 mod import;
 mod interface;
 mod lex;
+mod metadata;
+mod occurrence;
 mod package;
 mod part;
 mod port;
@@ -223,6 +227,11 @@ fn should_report_error_inside_package(found: &str) -> bool {
         || trimmed.starts_with("viewpoint ")
         || trimmed.starts_with("rendering ")
         || trimmed.starts_with("render ")
+        || trimmed.starts_with("connection ")
+        || trimmed.starts_with("metadata ")
+        || trimmed.starts_with("enum ")
+        || trimmed.starts_with("occurrence ")
+        || trimmed.starts_with("library ")
     {
         return false;
     }
