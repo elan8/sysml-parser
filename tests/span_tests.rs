@@ -1,7 +1,7 @@
 //! Tests that AST node spans (offset, line, column, len) are calculated correctly.
 
 use sysml_parser::ast::{
-    AstNode, PackageBody, PackageBodyElement, PartUsageBody, PartUsageBodyElement,
+    AstNode, PackageBody, PackageBodyElement, PartUsageBody, PartUsageBodyElement, RootElement,
 };
 use sysml_parser::parse;
 
@@ -29,7 +29,7 @@ fn test_single_line_package_span() {
     let elem = &result.elements[0];
     assert_span(elem, 0, 1, 1, 12, "root element covers full input");
 
-    if let PackageBodyElement::Package(pkg) = &**elem {
+    if let RootElement::Package(pkg) = &elem.value {
         assert_span(pkg, 0, 1, 1, 12, "inner package node span");
     } else {
         panic!("expected Package element");
@@ -74,7 +74,7 @@ fn test_nested_expression_span() {
     let input = "package P { part u : T { bind x = 100; } }";
     let result = parse(input).expect("parse should succeed");
     let elem = &result.elements[0];
-    let PackageBodyElement::Package(pkg) = &**elem else {
+    let RootElement::Package(pkg) = &elem.value else {
         panic!("expected Package");
     };
     let body = match &pkg.body {

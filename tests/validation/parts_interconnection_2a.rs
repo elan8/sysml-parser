@@ -6,7 +6,7 @@ use sysml_parser::ast::{
     InterfaceDef, InterfaceDefBody, InterfaceDefBodyElement, InterfaceUsage,
     InterfaceUsageBodyElement, Node, Package, PackageBody, PackageBodyElement, PartDef, PartDefBody,
     PartDefBodyElement, PartUsage, PartUsageBody, PartUsageBodyElement, PortBody, PortDef,
-    PortDefBody, PortDefBodyElement, PortUsage, RefBody, RefDecl, RootNamespace, Span, Visibility,
+    PortDefBody, PortDefBodyElement, PortUsage, RefBody, RefDecl, RootElement, RootNamespace, Span, Visibility,
 };
 use sysml_parser::parse;
 
@@ -42,20 +42,24 @@ fn expr_index(base: &str, index_val: i64) -> Node<Expression> {
 /// Expected AST for `2a-Parts Interconnection.sysml`.
 fn expected_ast() -> RootNamespace {
     RootNamespace {
-        elements: vec![n(PackageBodyElement::Package(n(Package {
+        elements: vec![n(RootElement::Package(n(Package {
             identification: id("2a-Parts Interconnection"),
             body: PackageBody::Brace {
                 elements: vec![
                     n(PackageBodyElement::Import(n(Import {
                         visibility: Some(Visibility::Public),
                         is_import_all: true,
-                        target: "Definitions::*".to_string(),
-                    }))),
-                    n(PackageBodyElement::Import(n(Import {
-                        visibility: Some(Visibility::Public),
-                        is_import_all: true,
-                        target: "Usages::*".to_string(),
-                    }))),
+target: "Definitions::*".to_string(),
+                    is_recursive: false,
+                    filter_members: None,
+                }))),
+                n(PackageBodyElement::Import(n(Import {
+                    visibility: Some(Visibility::Public),
+                    is_import_all: true,
+                    target: "Usages::*".to_string(),
+                    is_recursive: false,
+                    filter_members: None,
+                }))),
                     n(PackageBodyElement::Package(n(definitions_package()))),
                     n(PackageBodyElement::Package(n(usages_package()))),
                 ],

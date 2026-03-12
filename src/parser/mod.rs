@@ -142,7 +142,7 @@ pub fn parse_with_diagnostics(input: &str) -> ParseResult {
     };
 
     while !input.fragment().is_empty() && errors.len() < MAX_RECOVERY_ERRORS {
-        match package::package_body_element(input) {
+        match package::root_element(input) {
             Ok((rest, elem)) => {
                 elements.push(elem);
                 input = rest;

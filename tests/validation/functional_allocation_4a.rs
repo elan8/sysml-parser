@@ -4,7 +4,7 @@ use std::path::Path;
 use sysml_parser::ast::{
     DocComment, Expression, Identification, Import, InOut, Node, Package, PackageBody, PackageBodyElement,
     PartUsage, PartUsageBody, PartUsageBodyElement, Perform, PerformBody, PerformBodyElement,
-    PerformInOutBinding, PortBody, PortUsage, RootNamespace, Span, Visibility,
+    PerformInOutBinding, PortBody, PortUsage, RootElement, RootNamespace, Span, Visibility,
 };
 use sysml_parser::parse;
 
@@ -30,7 +30,7 @@ fn expr_path(path: &str) -> Node<Expression> {
 
 fn expected_ast() -> RootNamespace {
     RootNamespace {
-        elements: vec![n(PackageBodyElement::Package(n(Package {
+        elements: vec![n(RootElement::Package(n(Package {
             identification: id("4a-Functional Allocation"),
             body: PackageBody::Brace {
                 elements: vec![
@@ -38,16 +38,22 @@ fn expected_ast() -> RootNamespace {
                         visibility: Some(Visibility::Private),
                         is_import_all: true,
                         target: "2a-Parts Interconnection::*".to_string(),
+                        is_recursive: false,
+                        filter_members: None,
                     }))),
                     n(PackageBodyElement::Import(n(Import {
                         visibility: Some(Visibility::Private),
                         is_import_all: true,
                         target: "3a-Function-based Behavior-1::*".to_string(),
+                        is_recursive: false,
+                        filter_members: None,
                     }))),
                     n(PackageBodyElement::Import(n(Import {
                         visibility: Some(Visibility::Private),
                         is_import_all: true,
                         target: "3a-Function-based Behavior-1::provide power::*".to_string(),
+                        is_recursive: false,
+                        filter_members: None,
                     }))),
                     n(PackageBodyElement::PartUsage(n(vehicle1_c1_functional_allocation()))),
                 ],
@@ -72,6 +78,8 @@ fn vehicle1_c1_functional_allocation() -> PartUsage {
                     body: PerformBody::Brace {
                         elements: vec![
                             n(PerformBodyElement::Doc(n(DocComment {
+                                identification: None,
+                                locale: None,
                                 text: "\n\t\t * This allocates the action '3a-Function-based Behavior-1'::'provide power' as an enacted \n\t\t * performance of 'vehicle_c1_functional_allocation'.\n\t\t ".to_string(),
                             }))),
                             n(PerformBodyElement::InOut(n(PerformInOutBinding {

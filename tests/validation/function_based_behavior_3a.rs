@@ -5,7 +5,7 @@ use sysml_parser::ast::{
     ActionDef, ActionDefBody, ActionDefBodyElement, ActionUsage, ActionUsageBody, ActionUsageBodyElement, AliasBody,
     AliasDef, AttributeBody, AttributeDef, Bind, ConnectBody, Expression, FirstMergeBody, FirstStmt,
     Flow, Identification, Import, InOut, InOutDecl, MergeStmt, Node, Package, PackageBody,
-    PackageBodyElement, RootNamespace, Span, Visibility,
+    PackageBodyElement, RootElement, RootNamespace, Span, Visibility,
 };
 use sysml_parser::parse;
 
@@ -31,20 +31,24 @@ fn expr_path(path: &str) -> Node<Expression> {
 
 fn expected_ast() -> RootNamespace {
     RootNamespace {
-        elements: vec![n(PackageBodyElement::Package(n(Package {
+        elements: vec![n(RootElement::Package(n(Package {
             identification: id("3a-Function-based Behavior-1"),
             body: PackageBody::Brace {
                 elements: vec![
                     n(PackageBodyElement::Import(n(Import {
                         visibility: Some(Visibility::Public),
                         is_import_all: true,
-                        target: "Definitions::*".to_string(),
-                    }))),
-                    n(PackageBodyElement::Import(n(Import {
-                        visibility: Some(Visibility::Public),
-                        is_import_all: true,
-                        target: "Usages::*".to_string(),
-                    }))),
+target: "Definitions::*".to_string(),
+                    is_recursive: false,
+                    filter_members: None,
+                }))),
+                n(PackageBodyElement::Import(n(Import {
+                    visibility: Some(Visibility::Public),
+                    is_import_all: true,
+                    target: "Usages::*".to_string(),
+                    is_recursive: false,
+                    filter_members: None,
+                }))),
                     n(PackageBodyElement::Package(n(definitions_package()))),
                     n(PackageBodyElement::Package(n(usages_package()))),
                 ],

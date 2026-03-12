@@ -9,12 +9,13 @@ pub mod parser;
 pub use ast::{
     ActionDef, ActionDefBody, ActionDefBodyElement, ActionUsage, ActionUsageBody, ActionUsageBodyElement, AliasBody,
     AliasDef, AstNode, AttributeBody, AttributeDef, AttributeUsage, Bind, Connect, ConnectBody,
-    ConnectStmt, DocComment, EndDecl, Expression, FirstMergeBody, FirstStmt, Flow, Identification, InOut,
+    CommentAnnotation, ConnectStmt, DocComment, EndDecl, Expression, FilterMember, FilterPackageMember, FirstMergeBody, FirstStmt, Flow,
+    Identification, InOut,
     InOutDecl, InterfaceDef, InterfaceDefBody, InterfaceDefBodyElement, InterfaceUsage,
-    InterfaceUsageBodyElement, Import, MergeStmt, Node, Package, PackageBody, PackageBodyElement,
+    InterfaceUsageBodyElement, Import, MergeStmt, NamespaceDecl, Node, Package, PackageBody, PackageBodyElement,
     PartDef, PartDefBody, PartDefBodyElement, PartUsage, PartUsageBody, PartUsageBodyElement,
     Perform, PerformBody, PerformBodyElement, PerformInOutBinding, PortBody, PortDef, PortDefBody, PortDefBodyElement,
-    PortUsage, RefBody, RefDecl, RootNamespace, Span, Visibility,
+    PortUsage, RefBody, RefDecl, RootElement, RootNamespace, Span, TextualRepresentation, Visibility,
 };
 pub use error::{DiagnosticSeverity, ParseError};
 pub use parser::{parse_root, parse_with_diagnostics, ParseResult};

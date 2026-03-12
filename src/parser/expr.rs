@@ -137,12 +137,28 @@ fn parenthesized(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
     .parse(input)
 }
 
-/// Primary expression: literal with unit, literal only, feature ref, or parenthesized.
+/// KerML null or empty sequence ().
+fn null_expression(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
+    let start = input;
+    let (input, _) = ws_and_comments(input)?;
+    let (input, _) = alt((
+        map(tag(&b"null"[..]), |_| ()),
+        map(
+            delimited(tag(&b"("[..]), ws_and_comments, tag(&b")"[..])),
+            |_| (),
+        ),
+    ))
+    .parse(input)?;
+    Ok((input, node_from_to(start, input, Expression::Null)))
+}
+
+/// Primary expression: literal with unit, literal only, feature ref, null, or parenthesized.
 fn primary(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
     let (input, _) = ws_and_comments(input)?;
     alt((
         literal_with_unit,
         literal_only,
+        null_expression,
         feature_ref_primary,
         parenthesized,
     ))
@@ -177,21 +193,30 @@ fn postfix<'a>(
     Ok((input, current))
 }
 
-/// Try to consume a binary infix operator token.
+/// Try to consume a binary infix operator token (KerML BinaryOperator).
 fn binary_op_token(input: Input<'_>) -> IResult<Input<'_>, String> {
     let (input, _) = ws_and_comments(input)?;
-    // Multi-char operators must be tried before single-char subsets.
+    // Multi-char operators must be tried before single-char subsets; ** before *.
     alt((
         map(tag(&b">="[..]), |_| ">=".to_string()),
         map(tag(&b"<="[..]), |_| "<=".to_string()),
+        map(tag(&b"==="[..]), |_| "===".to_string()),
+        map(tag(&b"!=="[..]), |_| "!==".to_string()),
         map(tag(&b"=="[..]), |_| "==".to_string()),
         map(tag(&b"!="[..]), |_| "!=".to_string()),
+        map(tag(&b"**"[..]), |_| "**".to_string()),
         map(tag(&b"&&"[..]), |_| "&&".to_string()),
         map(tag(&b"||"[..]), |_| "||".to_string()),
         map(tag(&b"+"[..]), |_| "+".to_string()),
         map(tag(&b"-"[..]), |_| "-".to_string()),
         map(tag(&b"*"[..]), |_| "*".to_string()),
         map(tag(&b"/"[..]), |_| "/".to_string()),
+        map(tag(&b"%"[..]), |_| "%".to_string()),
+        map(tag(&b"^"[..]), |_| "^".to_string()),
+        map(tag(&b".."[..]), |_| "..".to_string()),
+        map(tag(&b"|"[..]), |_| "|".to_string()),
+        map(tag(&b"&"[..]), |_| "&".to_string()),
+        map(tag(&b"xor"[..]), |_| "xor".to_string()),
         map(tag(&b">"[..]), |_| ">".to_string()),
         map(tag(&b"<"[..]), |_| "<".to_string()),
     ))
@@ -222,12 +247,44 @@ fn binary_chain<'a>(
     }
 }
 
-/// Full expression: primary, postfix, then optional binary operator chain.
+/// Unary operator token: + - ~ not (KerML UnaryOperator).
+fn unary_op_token(input: Input<'_>) -> IResult<Input<'_>, String> {
+    let (input, _) = ws_and_comments(input)?;
+    alt((
+        map(tag(&b"not"[..]), |_| "not".to_string()),
+        map(tag(&b"~"[..]), |_| "~".to_string()),
+        map(tag(&b"+"[..]), |_| "+".to_string()),
+        map(tag(&b"-"[..]), |_| "-".to_string()),
+    ))
+    .parse(input)
+}
+
+/// Parse unary prefixes then primary; build nested UnaryOp from the right.
+fn unary_and_primary(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
+    let start = input;
+    let (input, prefixes) = nom::multi::many0(unary_op_token).parse(input)?;
+    let primary_start = input;
+    let (input, primary_node) = primary(input)?;
+    let (input, after_postfix) = postfix(input, primary_start, primary_node)?;
+    let mut expr = after_postfix;
+    for op in prefixes.into_iter().rev() {
+        expr = node_from_to(
+            start,
+            input,
+            Expression::UnaryOp {
+                op,
+                operand: Box::new(expr),
+            },
+        );
+    }
+    Ok((input, expr))
+}
+
+/// Full expression: optional unary prefixes + primary, postfix, then optional binary operator chain.
 pub(crate) fn expression(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
     let start = input;
-    let (input, primary_node) = primary(input)?;
-    let (input, after_postfix) = postfix(input, start, primary_node)?;
-    binary_chain(input, start, after_postfix)
+    let (input, primary_node) = unary_and_primary(input)?;
+    binary_chain(input, start, primary_node)
 }
 
 /// Path expression: name or name.name.name... (for bind/connect). Returns Node<Expression>.

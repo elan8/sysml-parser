@@ -1,25 +1,29 @@
 //! Package and root namespace parsing.
 
 use crate::ast::{
-    Node, Package, PackageBody, PackageBodyElement, RootNamespace,
+    FilterMember, NamespaceDecl, Node, Package, PackageBody, PackageBodyElement, RootElement,
+    RootNamespace, Visibility,
 };
 use crate::parser::action::{action_def, action_usage};
 use crate::parser::alias::alias_def;
 use crate::parser::attribute::attribute_def;
 use crate::parser::constraint::{calc_def, constraint_def};
+use crate::parser::expr::expression;
 use crate::parser::import::import_;
 use crate::parser::interface::interface_def;
 use crate::parser::lex::{identification, ws1, ws_and_comments};
 use crate::parser::node_from_to;
 use crate::parser::part::{part_def, part_usage};
 use crate::parser::port::port_def;
-use crate::parser::requirement::{doc_comment, requirement_def, requirement_usage, satisfy};
+use crate::parser::requirement::{
+    comment_annotation, doc_comment, requirement_def, requirement_usage, satisfy, textual_representation,
+};
 use crate::parser::state::state_def;
 use crate::parser::usecase::{actor_decl, use_case_def};
 use crate::parser::Input;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
-use nom::combinator::map;
+use nom::combinator::{map, opt};
 use nom::multi::many0;
 use nom::sequence::preceded;
 use nom::Parser;
@@ -47,6 +51,34 @@ fn package_(input: Input<'_>) -> IResult<Input<'_>, Node<Package>> {
             body,
         }),
     ))
+}
+
+/// KerML namespace Identification NamespaceBody
+fn namespace_decl(input: Input<'_>) -> IResult<Input<'_>, Node<NamespaceDecl>> {
+    let start = input;
+    let (input, _) = preceded(ws_and_comments, tag(&b"namespace"[..])).parse(input)?;
+    let (input, _) = ws1(input)?;
+    let (input, identification) = identification(input)?;
+    let (input, body) = package_body(input)?;
+    Ok((
+        input,
+        node_from_to(start, input, NamespaceDecl {
+            identification,
+            body,
+        }),
+    ))
+}
+
+/// One root-level element: package or namespace.
+pub(crate) fn root_element(input: Input<'_>) -> IResult<Input<'_>, Node<RootElement>> {
+    let (input, _) = ws_and_comments(input)?;
+    let start = input;
+    let (input, elem) = alt((
+        map(namespace_decl, RootElement::Namespace),
+        map(package_, RootElement::Package),
+    ))
+    .parse(input)?;
+    Ok((input, node_from_to(start, input, elem)))
 }
 
 /// PackageBody: ';' | '{' PackageBodyElement* '}'
@@ -78,6 +110,33 @@ pub(crate) fn package_body(input: Input<'_>) -> IResult<Input<'_>, PackageBody> 
     result
 }
 
+/// KerML ElementFilterMember: MemberPrefix? 'filter' condition = OwnedExpression ';'
+fn filter_member(input: Input<'_>) -> IResult<Input<'_>, Node<FilterMember>> {
+    let start = input;
+    let (input, _) = ws_and_comments(input)?;
+    let (input, visibility) = opt(alt((
+        map(preceded(tag(&b"public"[..]), ws1), |_| Visibility::Public),
+        map(preceded(tag(&b"private"[..]), ws1), |_| Visibility::Private),
+        map(preceded(tag(&b"protected"[..]), ws1), |_| Visibility::Protected),
+    )))
+    .parse(input)?;
+    let (input, _) = tag(&b"filter"[..]).parse(input)?;
+    let (input, _) = ws1(input)?;
+    let (input, condition) = expression(input)?;
+    let (input, _) = preceded(ws_and_comments, tag(&b";"[..])).parse(input)?;
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            FilterMember {
+                visibility,
+                condition,
+            },
+        ),
+    ))
+}
+
 /// PackageBodyElement: Package | Import | PartDef | PartUsage | PortDef | InterfaceDef | AliasDef | ActionDef | ActionUsage
 pub(crate) fn package_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PackageBodyElement>> {
     let (input, _) = ws_and_comments(input)?;
@@ -88,9 +147,15 @@ pub(crate) fn package_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<
         frag.get(..20.min(frag.len())).unwrap_or(frag),
     );
     // Doc first so "doc /* ... */" at start of package body parses before other elements.
-    // Attribute def before package so inner package body (e.g. "attribute def Real;") parses before "package".
-    let (input, elem) = alt((
+    // Annotation parsers grouped to help type inference.
+    let annotation_parser = alt((
         map(doc_comment, PackageBodyElement::Doc),
+        map(comment_annotation, PackageBodyElement::Comment),
+        map(textual_representation, PackageBodyElement::TextualRep),
+    ));
+    let (input, elem) = alt((
+        annotation_parser,
+        map(filter_member, PackageBodyElement::Filter),
         map(attribute_def, PackageBodyElement::AttributeDef),
         map(package_, PackageBodyElement::Package),
         map(import_, PackageBodyElement::Import),
@@ -114,11 +179,11 @@ pub(crate) fn package_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<
     Ok((input, node_from_to(start, input, elem)))
 }
 
-/// Root: PackageBodyElement*
+/// Root: (package | namespace)*
 pub(crate) fn root_namespace(input: Input<'_>) -> IResult<Input<'_>, RootNamespace> {
     let (input, _) = ws_and_comments(input)?;
     log::debug!("root_namespace: after leading ws, input len={}", input.fragment().len());
-    let (input, elements) = many0(preceded(ws_and_comments, package_body_element)).parse(input)?;
+    let (input, elements) = many0(preceded(ws_and_comments, root_element)).parse(input)?;
     log::debug!(
         "root_namespace: many0 done, elements={}, rest len={}",
         elements.len(),

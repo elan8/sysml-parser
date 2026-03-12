@@ -2,7 +2,7 @@
 //! See plan: fix_surveillancedrone_test — step 1.
 
 use std::path::Path;
-use sysml_parser::ast::{PackageBody, PackageBodyElement};
+use sysml_parser::ast::{PackageBody, PackageBodyElement, RootElement};
 use sysml_parser::parse;
 
 /// Parses "package SurveillanceDrone { attribute def Real; }" (no doc/comment before first element).
@@ -18,7 +18,7 @@ fn test_parse_minimal_package_one_attribute() {
     };
     assert_eq!(root.elements.len(), 1, "expected one root package");
     let pkg = match &root.elements[0].value {
-        sysml_parser::ast::PackageBodyElement::Package(p) => &p.value,
+        sysml_parser::ast::RootElement::Package(p) => &p.value,
         other => panic!("expected Package, got {:?}", other),
     };
     let body = match &pkg.body {
@@ -49,7 +49,7 @@ fn test_parse_package_with_doc_and_line_comment() {
     };
     assert_eq!(root.elements.len(), 1);
     let pkg = match &root.elements[0].value {
-        sysml_parser::ast::PackageBodyElement::Package(p) => &p.value,
+        sysml_parser::ast::RootElement::Package(p) => &p.value,
         other => panic!("expected Package, got {:?}", other),
     };
     let body = match &pkg.body {
@@ -86,7 +86,7 @@ fn test_parse_fixture_exact_start() {
     };
     assert_eq!(root.elements.len(), 1);
     let pkg = match &root.elements[0].value {
-        sysml_parser::ast::PackageBodyElement::Package(p) => &p.value,
+        sysml_parser::ast::RootElement::Package(p) => &p.value,
         other => panic!("expected Package, got {:?}", other),
     };
     let body = match &pkg.body {
@@ -118,7 +118,7 @@ fn test_perform_body_doc_comment_parsed_as_element() {
         Err(e) => panic!("parse should succeed: {:?}", e),
     };
     let pkg = match &root.elements[0].value {
-        PackageBodyElement::Package(p) => &p.value,
+        RootElement::Package(p) => &p.value,
         _ => panic!("expected package"),
     };
     let pkg_body = match &pkg.body {
@@ -156,5 +156,64 @@ fn test_perform_body_doc_comment_parsed_as_element() {
             assert_eq!(b.value.name, "x");
         }
         other => panic!("expected second element InOut, got {:?}", other),
+    }
+}
+
+/// KerML: import with FilterPackage form `QualifiedName [ expr ] [ expr ]+ ;`
+#[test]
+fn test_import_filter_package() {
+    super::init_log();
+    let input = r#"package P {
+    import MyPkg [ 1 ] [ 2 + 3 ];
+    attribute def Real;
+}"#;
+    let result = parse(input);
+    let root = match &result {
+        Ok(ast) => ast,
+        Err(e) => panic!("parse should succeed: {:?}", e),
+    };
+    let pkg = match &root.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected Package"),
+    };
+    let body = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    let imp = match &body[0].value {
+        PackageBodyElement::Import(i) => &i.value,
+        _ => panic!("expected Import"),
+    };
+    assert!(imp.filter_members.is_some(), "expected filter_members");
+    let members = imp.filter_members.as_ref().unwrap();
+    assert_eq!(members.len(), 2, "two filter members [ 1 ] [ 2 + 3 ]");
+    assert_eq!(imp.target, "MyPkg");
+}
+
+/// KerML: top-level namespace declaration (same body as package).
+#[test]
+fn test_namespace_declaration() {
+    super::init_log();
+    let input = r#"namespace N {
+    attribute def Real;
+}"#;
+    let result = parse(input);
+    let root = match &result {
+        Ok(ast) => ast,
+        Err(e) => panic!("parse should succeed: {:?}", e),
+    };
+    let ns = match &root.elements[0].value {
+        RootElement::Namespace(n) => &n.value,
+        _ => panic!("expected Namespace"),
+    };
+    assert_eq!(ns.identification.name.as_deref(), Some("N"));
+    let body = match &ns.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    assert_eq!(body.len(), 1);
+    match &body[0].value {
+        PackageBodyElement::AttributeDef(a) => assert_eq!(a.name, "Real"),
+        _ => panic!("expected AttributeDef Real"),
     }
 }

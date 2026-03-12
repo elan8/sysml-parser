@@ -4,7 +4,7 @@ use std::path::Path;
 use sysml_parser::ast::{
     AttributeBody, AttributeDef, AttributeUsage, Expression, Identification, Import, Node,
     Package, PackageBody, PackageBodyElement, PartDef, PartDefBody, PartDefBodyElement, PartUsage,
-    PartUsageBody, PartUsageBodyElement, RootNamespace, Span, Visibility,
+    PartUsageBody, PartUsageBodyElement, RootElement, RootNamespace, Span, Visibility,
 };
 use sysml_parser::parse;
 
@@ -70,15 +70,17 @@ fn expr_rear_wheel_2() -> Node<Expression> {
 /// Expected AST for `1a-Parts Tree.sysml`: full structure with package, import, part def, part usage.
 fn expected_ast() -> RootNamespace {
     RootNamespace {
-        elements: vec![n(PackageBodyElement::Package(n(Package {
+        elements: vec![n(RootElement::Package(n(Package {
             identification: id("1a-Parts Tree"),
             body: PackageBody::Brace {
                 elements: vec![
                     n(PackageBodyElement::Import(n(Import {
                         visibility: Some(Visibility::Private),
                         is_import_all: false,
-                        target: "SI::kg".to_string(),
-                    }))),
+target: "SI::kg".to_string(),
+                    is_recursive: false,
+                    filter_members: None,
+                }))),
                     n(PackageBodyElement::Package(n(Package {
                         identification: id("Definitions"),
                         body: PackageBody::Brace {
@@ -143,6 +145,8 @@ fn expected_ast() -> RootNamespace {
                                     visibility: Some(Visibility::Private),
                                     is_import_all: true,
                                     target: "Definitions::*".to_string(),
+                                    is_recursive: false,
+                                    filter_members: None,
                                 }))),
                                 n(PackageBodyElement::PartUsage(n(part_vehicle1()))),
                                 n(PackageBodyElement::PartUsage(n(part_vehicle1_c1()))),

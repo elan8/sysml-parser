@@ -1,7 +1,7 @@
 //! Parser test for `tests/fixtures/SurveillanceDrone.sysml`.
 
 use std::path::Path;
-use sysml_parser::ast::PackageBodyElement;
+use sysml_parser::ast::{PackageBodyElement, RootElement};
 use sysml_parser::parse;
 
 /// Path to the SurveillanceDrone fixture (project-local, not sysml-v2-release).
@@ -35,7 +35,7 @@ fn test_parse_surveillance_drone() {
     );
     let first = &root.elements[0];
     let package = match &first.value {
-        PackageBodyElement::Package(p) => &p.value,
+        RootElement::Package(p) => &p.value,
         other => panic!("expected root to be a Package, got {:?}", other),
     };
     assert_eq!(

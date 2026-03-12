@@ -111,18 +111,49 @@ pub enum Expression {
         left: Box<Node<Expression>>,
         right: Box<Node<Expression>>,
     },
+    /// Unary prefix: + - ~ not
+    UnaryOp {
+        op: String,
+        operand: Box<Node<Expression>>,
+    },
+    /// KerML null or empty sequence ().
+    Null,
 }
 
-/// Root of a SysML document: a sequence of package-level elements.
+/// KerML top-level element: either a package or a namespace declaration.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RootElement {
+    Package(Node<Package>),
+    Namespace(Node<NamespaceDecl>),
+}
+
+/// KerML NamespaceDeclaration: `namespace` Identification NamespaceBody (same body structure as Package).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NamespaceDecl {
+    pub identification: Identification,
+    pub body: PackageBody,
+}
+
+/// Root of a SysML/KerML document: a sequence of top-level package or namespace elements.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RootNamespace {
-    pub elements: Vec<Node<PackageBodyElement>>,
+    pub elements: Vec<Node<RootElement>>,
+}
+
+/// KerML ElementFilterMember: MemberPrefix? 'filter' condition ';'
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilterMember {
+    pub visibility: Option<Visibility>,
+    pub condition: Node<Expression>,
 }
 
 /// Top-level element inside a namespace or package body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageBodyElement {
     Doc(Node<DocComment>),
+    Comment(Node<CommentAnnotation>),
+    TextualRep(Node<TextualRepresentation>),
+    Filter(Node<FilterMember>),
     Package(Node<Package>),
     Import(Node<Import>),
     PartDef(Node<PartDef>),
@@ -179,14 +210,24 @@ pub enum Visibility {
     Protected,
 }
 
-/// Import: `private`? `import` `all`? QualifiedName (`::` `*`)? etc.
+/// KerML FilterPackageMember: `[` OwnedExpression `]`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilterPackageMember {
+    pub expression: Node<Expression>,
+}
+
+/// Import: `private`? `import` `all`? QualifiedName (`::` `*`)? or FilterPackage form.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Import {
     pub visibility: Option<Visibility>,
-    /// Whether this is a namespace import (Definitions::*) or membership (SI::kg).
+    /// Whether this is a namespace import (QualifiedName::* or FilterPackage) or membership import (single QualifiedName).
     pub is_import_all: bool,
     /// Import target, e.g. "SI::kg" or "Definitions::*".
     pub target: String,
+    /// KerML: optional recursive import after :: (e.g. QualifiedName::** or QualifiedName::*::**).
+    pub is_recursive: bool,
+    /// KerML FilterPackage form: one or more `[ expr ]` members. When present, this is a namespace import of a filter package.
+    pub filter_members: Option<Vec<Node<FilterPackageMember>>>,
 }
 
 /// Part definition: `part def` Identification (`:>` specializes)? Body.
@@ -796,9 +837,30 @@ pub enum ConstraintBody {
     Brace, // Often contains docs or block of expressions
 }
 
-/// Doc comment: `doc /* ... */`
+/// KerML Documentation: 'doc' Identification? ( 'locale' STRING_VALUE )? body = REGULAR_COMMENT.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DocComment {
+    /// Optional identification after 'doc'.
+    pub identification: Option<Identification>,
+    /// Optional locale string (e.g. "en").
+    pub locale: Option<String>,
+    /// Body text (content between /* and */).
+    pub text: String,
+}
+
+/// KerML Comment: ( 'comment' Identification? )? ( 'locale' STRING_VALUE )? body = REGULAR_COMMENT.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommentAnnotation {
+    pub identification: Option<Identification>,
+    pub locale: Option<String>,
+    pub text: String,
+}
+
+/// KerML TextualRepresentation: ( 'rep' Identification )? 'language' STRING_VALUE body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextualRepresentation {
+    pub rep_identification: Option<Identification>,
+    pub language: String,
     pub text: String,
 }
 

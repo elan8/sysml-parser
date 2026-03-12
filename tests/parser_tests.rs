@@ -1,7 +1,7 @@
 //! TDD tests: SysML snippets with expected AST.
 
 use sysml_parser::ast::{
-    Identification, Node, Package, PackageBody, PackageBodyElement, RootNamespace, Span,
+    Identification, Node, Package, PackageBody, RootElement, RootNamespace, Span,
 };
 use sysml_parser::{parse, parse_with_diagnostics};
 
@@ -33,7 +33,7 @@ fn n_len<T>(len: usize, v: T) -> Node<T> {
 /// Build expected AST for `package Foo;` (input len = 12)
 fn expected_package_foo_semicolon() -> RootNamespace {
     RootNamespace {
-        elements: vec![n_len(12, PackageBodyElement::Package(n_len(12, Package {
+        elements: vec![n_len(12, RootElement::Package(n_len(12, Package {
             identification: id("Foo"),
             body: PackageBody::Semicolon,
         })))],
@@ -43,7 +43,7 @@ fn expected_package_foo_semicolon() -> RootNamespace {
 /// Build expected AST for `package Bar { }` (input len = 15)
 fn expected_package_bar_brace() -> RootNamespace {
     RootNamespace {
-        elements: vec![n_len(15, PackageBodyElement::Package(n_len(15, Package {
+        elements: vec![n_len(15, RootElement::Package(n_len(15, Package {
             identification: id("Bar"),
             body: PackageBody::Brace { elements: vec![] },
         })))],
@@ -88,8 +88,8 @@ fn test_parse_with_diagnostics_partial_ast_and_multiple_errors() {
         .elements
         .iter()
         .filter_map(|n| {
-            if let PackageBodyElement::Package(p) = &n.value {
-                p.identification.name.as_deref()
+            if let RootElement::Package(p) = &n.value {
+                p.value.identification.name.as_deref()
             } else {
                 None
             }
