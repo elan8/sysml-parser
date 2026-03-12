@@ -127,7 +127,22 @@ fn multiplicity(input: Input<'_>) -> IResult<Input<'_>, String> {
     Ok((input, s))
 }
 
-/// Part usage: 'part' name ':' type_name multiplicity? 'ordered'? ( 'subsets' name '=' value )? body
+/// Value part for usages: `= expr` | `:= expr` | `default = expr` | `default := expr`.
+fn usage_value_part(input: Input<'_>) -> IResult<Input<'_>, Node<crate::ast::Expression>> {
+    let (input, _) = ws_and_comments(input)?;
+    let (input, _) = alt((
+        preceded(tag(&b"="[..]), ws_and_comments),
+        preceded(tag(&b":="[..]), ws_and_comments),
+        preceded(
+            preceded(tag(&b"default"[..]), ws1),
+            preceded(alt((tag(&b"="[..]), tag(&b":="[..]))), ws_and_comments),
+        ),
+    ))
+    .parse(input)?;
+    expression(input)
+}
+
+/// Part usage: 'part' (':>>')? name ':' type_name multiplicity? 'ordered'? ( 'subsets' name '=' value )? ( 'redefines'|':>>' qualified_name )? value? body
 pub(crate) fn part_usage(input: Input<'_>) -> IResult<Input<'_>, Node<PartUsage>> {
     let start = input;
     let (input, _) = ws_and_comments(input)?;
@@ -163,6 +178,18 @@ pub(crate) fn part_usage(input: Input<'_>) -> IResult<Input<'_>, Node<PartUsage>
         ),
     ));
     let (input, subsets) = subsets_parser.parse(input)?;
+    let (input, redefines) = opt(alt((
+        preceded(
+            preceded(ws_and_comments, tag(&b"redefines"[..])),
+            preceded(ws1, qualified_name),
+        ),
+        preceded(
+            preceded(ws_and_comments, tag(&b":>>"[..])),
+            preceded(ws_and_comments, qualified_name),
+        ),
+    )))
+    .parse(input)?;
+    let (input, value) = opt(preceded(ws_and_comments, usage_value_part)).parse(input)?;
     let (input, body) = part_usage_body(input)?;
     Ok((
         input,
@@ -172,6 +199,8 @@ pub(crate) fn part_usage(input: Input<'_>) -> IResult<Input<'_>, Node<PartUsage>
             multiplicity: multiplicity_opt,
             ordered: ordered.is_some(),
             subsets: subsets.map(|(n, v)| (n, v)),
+            redefines,
+            value,
             body,
             name_span: Some(name_span),
             type_ref_span,

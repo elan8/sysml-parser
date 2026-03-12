@@ -411,6 +411,8 @@ fn part_vehicle1_c1() -> PartUsage {
         multiplicity: None,
         ordered: false,
         subsets: None,
+        redefines: None,
+        value: None,
         name_span: None,
         type_ref_span: None,
         body: PartUsageBody::Brace {
@@ -426,6 +428,8 @@ fn part_vehicle1_c1() -> PartUsage {
                     multiplicity: None,
                     ordered: false,
                     subsets: None,
+                    redefines: None,
+                    value: None,
                     body: PartUsageBody::Semicolon,
                     name_span: None,
                     type_ref_span: None,
@@ -443,6 +447,8 @@ fn part_vehicle1_c1() -> PartUsage {
                     multiplicity: None,
                     ordered: false,
                     subsets: None,
+                    redefines: None,
+                    value: None,
                     body: PartUsageBody::Semicolon,
                     name_span: None,
                     type_ref_span: None,
@@ -453,6 +459,8 @@ fn part_vehicle1_c1() -> PartUsage {
                     multiplicity: None,
                     ordered: false,
                     subsets: None,
+                    redefines: None,
+                    value: None,
                     body: PartUsageBody::Brace { elements: vec![] },
                     name_span: None,
                     type_ref_span: None,
@@ -530,6 +538,8 @@ fn part_rear_axle_assembly() -> PartUsage {
         multiplicity: None,
         ordered: false,
         subsets: None,
+        redefines: None,
+        value: None,
         name_span: None,
         type_ref_span: None,
         body: PartUsageBody::Brace {
@@ -567,6 +577,8 @@ fn part_rear_axle_assembly() -> PartUsage {
                     multiplicity: Some("[2]".to_string()),
                     ordered: true,
                     subsets: None,
+                    redefines: None,
+                    value: None,
                     body: PartUsageBody::Semicolon,
                     name_span: None,
                     type_ref_span: None,
@@ -580,6 +592,8 @@ fn part_rear_axle_assembly() -> PartUsage {
                         "rearWheel".to_string(),
                         Some(expr_index("rearWheel", 1)),
                     )),
+                    redefines: None,
+                    value: None,
                     body: PartUsageBody::Brace {
                         elements: vec![
                             n(PartUsageBodyElement::PortUsage(n(PortUsage {
@@ -616,6 +630,8 @@ fn part_rear_axle_assembly() -> PartUsage {
                         "rearWheel".to_string(),
                         Some(expr_index("rearWheel", 2)),
                     )),
+                    redefines: None,
+                    value: None,
                     body: PartUsageBody::Brace {
                         elements: vec![
                             n(PartUsageBodyElement::PortUsage(n(PortUsage {
@@ -655,6 +671,8 @@ fn part_differential() -> PartUsage {
         multiplicity: None,
         ordered: false,
         subsets: None,
+        redefines: None,
+        value: None,
         name_span: None,
         type_ref_span: None,
         body: PartUsageBody::Brace {
@@ -701,6 +719,8 @@ fn part_rear_axle() -> PartUsage {
         multiplicity: None,
         ordered: false,
         subsets: None,
+        redefines: None,
+        value: None,
         name_span: None,
         type_ref_span: None,
         body: PartUsageBody::Brace {
@@ -711,6 +731,8 @@ fn part_rear_axle() -> PartUsage {
                     multiplicity: None,
                     ordered: false,
                     subsets: None,
+                    redefines: None,
+                    value: None,
                     body: PartUsageBody::Semicolon,
                     name_span: None,
                     type_ref_span: None,
@@ -721,6 +743,8 @@ fn part_rear_axle() -> PartUsage {
                     multiplicity: None,
                     ordered: false,
                     subsets: None,
+                    redefines: None,
+                    value: None,
                     body: PartUsageBody::Semicolon,
                     name_span: None,
                     type_ref_span: None,

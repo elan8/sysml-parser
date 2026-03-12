@@ -20,6 +20,9 @@ pub use ast::{
 pub use error::{DiagnosticSeverity, ParseError};
 pub use parser::{parse_root, parse_with_diagnostics, ParseResult};
 
+#[cfg(test)]
+mod validation_tests;
+
 /// Parse a SysML v2 textual input into a root namespace AST.
 ///
 /// Returns an error if the input is not valid SysML or if not all input is consumed.

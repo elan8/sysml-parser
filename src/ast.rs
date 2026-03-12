@@ -120,11 +120,12 @@ pub enum Expression {
     Null,
 }
 
-/// KerML top-level element: either a package or a namespace declaration.
+/// KerML top-level element: package, namespace, or import (BNF RootNamespace = PackageBodyElement*).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RootElement {
     Package(Node<Package>),
     Namespace(Node<NamespaceDecl>),
+    Import(Node<Import>),
 }
 
 /// KerML NamespaceDeclaration: `namespace` Identification NamespaceBody (same body structure as Package).
@@ -173,6 +174,12 @@ pub enum PackageBodyElement {
     ItemDef(Node<ItemDef>),
     ConstraintDef(Node<ConstraintDef>),
     CalcDef(Node<CalcDef>),
+    ViewDef(Node<ViewDef>),
+    ViewpointDef(Node<ViewpointDef>),
+    RenderingDef(Node<RenderingDef>),
+    ViewUsage(Node<ViewUsage>),
+    ViewpointUsage(Node<ViewpointUsage>),
+    RenderingUsage(Node<RenderingUsage>),
 }
 
 /// A package declaration: `package` Identification PackageBody
@@ -300,7 +307,7 @@ pub struct ItemDef {
     pub body: AttributeBody,
 }
 
-/// Part usage: `part` name `:` type multiplicity? `ordered`? body.
+/// Part usage: `part` name `:` type multiplicity? `ordered`? (`redefines`|`:>>`)? value? body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartUsage {
     pub name: String,
@@ -311,6 +318,10 @@ pub struct PartUsage {
     pub ordered: bool,
     /// Optional `subsets` feature and value expression.
     pub subsets: Option<(String, Option<Node<Expression>>)>,
+    /// Redefines target, e.g. Some("frontAxleAssembly") or Some("vehicle1::mass").
+    pub redefines: Option<String>,
+    /// Value expression (= expr, default = expr, := expr).
+    pub value: Option<Node<Expression>>,
     pub body: PartUsageBody,
     /// Span of the usage name (for semantic tokens).
     pub name_span: Option<Span>,
@@ -959,6 +970,99 @@ pub struct ReturnDecl {
 }
 
 // ---------------------------------------------------------------------------
+// Views and Viewpoints (SysML v2 Clause 8.2.2.26)
+// ---------------------------------------------------------------------------
+
+/// View definition: `view def` Identification ViewDefinitionBody.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ViewDef {
+    pub identification: Identification,
+    pub body: ViewDefBody,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ViewDefBody {
+    Semicolon,
+    Brace {
+        elements: Vec<Node<ViewDefBodyElement>>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ViewDefBodyElement {
+    Doc(Node<DocComment>),
+    Filter(Node<FilterMember>),
+    ViewRendering(Node<ViewRenderingUsage>),
+}
+
+/// View rendering usage: `render` name `:` type (`;` or body).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ViewRenderingUsage {
+    pub name: String,
+    pub type_name: Option<String>,
+    pub body: ConnectBody,
+}
+
+/// Viewpoint definition: `viewpoint def` Identification RequirementBody.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ViewpointDef {
+    pub identification: Identification,
+    pub body: RequirementDefBody,
+}
+
+/// Rendering definition: `rendering def` Definition.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RenderingDef {
+    pub identification: Identification,
+    pub body: RenderingDefBody,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RenderingDefBody {
+    Semicolon,
+    Brace,
+}
+
+/// View usage: `view` name `:` type? ViewBody.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ViewUsage {
+    pub name: String,
+    pub type_name: Option<String>,
+    pub body: ViewBody,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ViewBody {
+    Semicolon,
+    Brace {
+        elements: Vec<Node<ViewBodyElement>>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ViewBodyElement {
+    Doc(Node<DocComment>),
+    Filter(Node<FilterMember>),
+    ViewRendering(Node<ViewRenderingUsage>),
+}
+
+/// Viewpoint usage: `viewpoint` ConstraintUsageDeclaration RequirementBody.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ViewpointUsage {
+    pub name: String,
+    pub type_name: String,
+    pub body: RequirementDefBody,
+}
+
+/// Rendering usage: `rendering` Usage.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RenderingUsage {
+    pub name: String,
+    pub type_name: Option<String>,
+    pub body: ConnectBody,
+}
+
+// ---------------------------------------------------------------------------
 // Normalization for test comparison (strips optional spans so parsed == expected)
 // ---------------------------------------------------------------------------
 
@@ -986,6 +1090,7 @@ fn normalize_root_element_node(el: &Node<RootElement>) -> Node<RootElement> {
         RootElement::Namespace(n) => {
             RootElement::Namespace(dummy_node(n, normalize_namespace_decl(&n.value)))
         }
+        RootElement::Import(n) => RootElement::Import(dummy_node(n, n.value.clone())),
     };
     dummy_node(el, value)
 }
@@ -1075,6 +1180,20 @@ fn normalize_package_body_element_node(el: &Node<PackageBodyElement>) -> Node<Pa
             PackageBodyElement::ConstraintDef(dummy_node(n, n.value.clone()))
         }
         PackageBodyElement::CalcDef(n) => PackageBodyElement::CalcDef(dummy_node(n, n.value.clone())),
+        PackageBodyElement::ViewDef(n) => PackageBodyElement::ViewDef(dummy_node(n, n.value.clone())),
+        PackageBodyElement::ViewpointDef(n) => {
+            PackageBodyElement::ViewpointDef(dummy_node(n, n.value.clone()))
+        }
+        PackageBodyElement::RenderingDef(n) => {
+            PackageBodyElement::RenderingDef(dummy_node(n, n.value.clone()))
+        }
+        PackageBodyElement::ViewUsage(n) => PackageBodyElement::ViewUsage(dummy_node(n, n.value.clone())),
+        PackageBodyElement::ViewpointUsage(n) => {
+            PackageBodyElement::ViewpointUsage(dummy_node(n, n.value.clone()))
+        }
+        PackageBodyElement::RenderingUsage(n) => {
+            PackageBodyElement::RenderingUsage(dummy_node(n, n.value.clone()))
+        }
     };
     dummy_node(el, value)
 }
@@ -1151,6 +1270,8 @@ fn normalize_part_usage(p: &PartUsage) -> PartUsage {
         multiplicity: p.multiplicity.clone(),
         ordered: p.ordered,
         subsets: p.subsets.clone(),
+        redefines: p.redefines.clone(),
+        value: p.value.clone(),
         body: normalize_part_usage_body(&p.body),
         name_span: None,
         type_ref_span: None,

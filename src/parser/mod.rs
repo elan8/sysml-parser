@@ -23,6 +23,7 @@ mod requirement;
 mod span;
 mod state;
 mod usecase;
+mod view;
 
 pub(crate) use span::{node_from_to, span_from_to, with_span, Input};
 
@@ -167,12 +168,12 @@ pub fn parse_root(input: &str) -> Result<RootNamespace, ParseError> {
         Err(nom::Err::Error(e)) => Err(nom_err_to_parse_error(
             &e,
             None,
-            Some("'package' or 'namespace' at top level"),
+            Some("'package', 'namespace', or 'import' at top level; or valid element in package body"),
         )),
         Err(nom::Err::Failure(e)) => Err(nom_err_to_parse_error(
             &e,
             None,
-            Some("'package' or 'namespace' at top level"),
+            Some("'package', 'namespace', or 'import' at top level; or valid element in package body"),
         )),
         Err(nom::Err::Incomplete(_)) => Err(ParseError::new("unexpected end of input").with_code("unexpected_eof")),
     }
@@ -218,6 +219,10 @@ fn should_report_error_inside_package(found: &str) -> bool {
         || trimmed.starts_with("perform ")
         || trimmed.starts_with("objective ")
         || trimmed.starts_with("transition ")
+        || trimmed.starts_with("view ")
+        || trimmed.starts_with("viewpoint ")
+        || trimmed.starts_with("rendering ")
+        || trimmed.starts_with("render ")
     {
         return false;
     }
@@ -272,7 +277,7 @@ pub fn parse_with_diagnostics(input: &str) -> ParseResult {
                 input = rest;
             }
             Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
-                let pe = nom_err_to_parse_error(&e, None, Some("'package' or 'namespace'"));
+                let pe = nom_err_to_parse_error(&e, None, Some("'package', 'namespace', or 'import'"));
                 let consumed = &bytes[..e.input.location_offset()];
                 let depth = consumed.iter().filter(|&&b| b == b'{').count()
                     - consumed.iter().filter(|&&b| b == b'}').count();

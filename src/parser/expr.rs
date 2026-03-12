@@ -1,7 +1,7 @@
 //! Expression and path parsing for values and bind/connect.
 
 use crate::ast::{Expression, Node};
-use crate::parser::lex::{name, ws_and_comments};
+use crate::parser::lex::{name, qualified_name, ws_and_comments};
 use crate::parser::node_from_to;
 use crate::parser::Input;
 use nom::branch::alt;
@@ -109,7 +109,7 @@ fn literal_with_unit(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
     }
     let (input, _) = tag(&b"["[..]).parse(input)?;
     let (input, _) = ws_and_comments(input)?;
-    let (input, unit_name) = name(input)?;
+    let (input, unit_name) = qualified_name(input)?;
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = tag(&b"]"[..]).parse(input)?;
     let unit = Node::new(

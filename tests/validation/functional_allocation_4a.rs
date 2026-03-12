@@ -69,6 +69,8 @@ fn vehicle1_c1_functional_allocation() -> PartUsage {
         multiplicity: None,
         ordered: false,
         subsets: Some(("vehicle1_c1".to_string(), None)),
+        redefines: None,
+        value: None,
         name_span: None,
         type_ref_span: None,
         body: PartUsageBody::Brace {
@@ -121,6 +123,8 @@ fn part_engine() -> PartUsage {
         multiplicity: None,
         ordered: false,
         subsets: None,
+        redefines: None,
+        value: None,
         name_span: None,
         type_ref_span: None,
         body: PartUsageBody::Brace {
@@ -175,6 +179,8 @@ fn part_transmission() -> PartUsage {
         multiplicity: None,
         ordered: false,
         subsets: None,
+        redefines: None,
+        value: None,
         name_span: None,
         type_ref_span: None,
         body: PartUsageBody::Brace {
@@ -229,6 +235,8 @@ fn part_driveshaft() -> PartUsage {
         multiplicity: None,
         ordered: false,
         subsets: None,
+        redefines: None,
+        value: None,
         name_span: None,
         type_ref_span: None,
         body: PartUsageBody::Brace {
@@ -283,6 +291,8 @@ fn part_rear_axle_assembly() -> PartUsage {
         multiplicity: None,
         ordered: false,
         subsets: None,
+        redefines: None,
+        value: None,
         name_span: None,
         type_ref_span: None,
         body: PartUsageBody::Brace {
@@ -333,6 +343,8 @@ fn part_rear_axle() -> PartUsage {
         multiplicity: None,
         ordered: false,
         subsets: None,
+        redefines: None,
+        value: None,
         name_span: None,
         type_ref_span: None,
         body: PartUsageBody::Brace {
@@ -351,6 +363,8 @@ fn part_left_half_axle() -> PartUsage {
         multiplicity: None,
         ordered: false,
         subsets: None,
+        redefines: None,
+        value: None,
         name_span: None,
         type_ref_span: None,
         body: PartUsageBody::Brace {
@@ -375,6 +389,8 @@ fn part_right_half_axle() -> PartUsage {
         multiplicity: None,
         ordered: false,
         subsets: None,
+        redefines: None,
+        value: None,
         name_span: None,
         type_ref_span: None,
         body: PartUsageBody::Brace {

@@ -29,7 +29,7 @@ pub(crate) fn requirement_def(input: Input<'_>) -> IResult<Input<'_>, Node<Requi
     Ok((input, node_from_to(start, input, RequirementDef { identification: ident, body })))
 }
 
-fn requirement_def_body(input: Input<'_>) -> IResult<Input<'_>, RequirementDefBody> {
+pub(crate) fn requirement_def_body(input: Input<'_>) -> IResult<Input<'_>, RequirementDefBody> {
     alt((
         map(preceded(ws_and_comments, tag(&b";"[..])), |_| RequirementDefBody::Semicolon),
         map(

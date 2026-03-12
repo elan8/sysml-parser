@@ -21,6 +21,9 @@ use crate::parser::requirement::{
 };
 use crate::parser::state::state_def;
 use crate::parser::usecase::{actor_decl, use_case_def};
+use crate::parser::view::{
+    rendering_def, rendering_usage, view_def, view_usage, viewpoint_def, viewpoint_usage,
+};
 use crate::parser::Input;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
@@ -70,11 +73,12 @@ fn namespace_decl(input: Input<'_>) -> IResult<Input<'_>, Node<NamespaceDecl>> {
     ))
 }
 
-/// One root-level element: package or namespace.
+/// One root-level element: import, package, or namespace (BNF PackageBodyElement* at root).
 pub(crate) fn root_element(input: Input<'_>) -> IResult<Input<'_>, Node<RootElement>> {
     let (input, _) = ws_and_comments(input)?;
     let start = input;
     let (input, elem) = alt((
+        map(import_, RootElement::Import),
         map(namespace_decl, RootElement::Namespace),
         map(package_, RootElement::Package),
     ))
@@ -112,7 +116,7 @@ pub(crate) fn package_body(input: Input<'_>) -> IResult<Input<'_>, PackageBody> 
 }
 
 /// KerML ElementFilterMember: MemberPrefix? 'filter' condition = OwnedExpression ';'
-fn filter_member(input: Input<'_>) -> IResult<Input<'_>, Node<FilterMember>> {
+pub(crate) fn filter_member(input: Input<'_>) -> IResult<Input<'_>, Node<FilterMember>> {
     let start = input;
     let (input, _) = ws_and_comments(input)?;
     let (input, visibility) = opt(alt((
@@ -149,13 +153,13 @@ pub(crate) fn package_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<
     );
     // Doc first so "doc /* ... */" at start of package body parses before other elements.
     // Annotation parsers grouped to help type inference.
+    // Split into groups to avoid nom Choice type explosion with too many alts.
     let annotation_parser = alt((
         map(doc_comment, PackageBodyElement::Doc),
         map(comment_annotation, PackageBodyElement::Comment),
         map(textual_representation, PackageBodyElement::TextualRep),
     ));
-    let (input, elem) = alt((
-        annotation_parser,
+    let structural_parser = alt((
         map(filter_member, PackageBodyElement::Filter),
         map(attribute_def, PackageBodyElement::AttributeDef),
         map(package_, PackageBodyElement::Package),
@@ -167,15 +171,31 @@ pub(crate) fn package_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<
         map(alias_def, PackageBodyElement::AliasDef),
         map(action_def, PackageBodyElement::ActionDef),
         map(action_usage, PackageBodyElement::ActionUsage),
+    ));
+    let req_parser = alt((
         map(requirement_def, PackageBodyElement::RequirementDef),
         map(requirement_usage, PackageBodyElement::RequirementUsage),
         map(satisfy, PackageBodyElement::Satisfy),
         map(use_case_def, PackageBodyElement::UseCaseDef),
         map(actor_decl, PackageBodyElement::Actor),
         map(state_def, PackageBodyElement::StateDef),
+    ));
+    let other_parser = alt((
         map(item_def, PackageBodyElement::ItemDef),
         map(constraint_def, PackageBodyElement::ConstraintDef),
         map(calc_def, PackageBodyElement::CalcDef),
+        map(view_def, PackageBodyElement::ViewDef),
+        map(viewpoint_def, PackageBodyElement::ViewpointDef),
+        map(rendering_def, PackageBodyElement::RenderingDef),
+        map(view_usage, PackageBodyElement::ViewUsage),
+        map(viewpoint_usage, PackageBodyElement::ViewpointUsage),
+        map(rendering_usage, PackageBodyElement::RenderingUsage),
+    ));
+    let (input, elem) = alt((
+        annotation_parser,
+        structural_parser,
+        req_parser,
+        other_parser,
     ))
     .parse(input)?;
     Ok((input, node_from_to(start, input, elem)))

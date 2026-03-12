@@ -1,7 +1,8 @@
 //! TDD tests: SysML snippets with expected AST.
 
 use sysml_parser::ast::{
-    Identification, Node, Package, PackageBody, RootElement, RootNamespace, Span,
+    Identification, Node, Package, PackageBody, PackageBodyElement, RootElement, RootNamespace, Span,
+    ViewDefBody, RenderingDefBody, ViewBody,
 };
 use sysml_parser::{parse, parse_with_diagnostics};
 
@@ -148,4 +149,113 @@ fn test_parse_error_display_includes_found_and_location() {
         "Display should include found snippet: {}",
         display
     );
+}
+
+// --- Top-level import (Phase 0: BNF RootNamespace = PackageBodyElement*) ---
+
+#[test]
+fn test_root_level_import_then_package() {
+    let input = "private import Views::*;\npackage P { }";
+    let result = parse(input).expect("parse should succeed");
+    assert_eq!(result.elements.len(), 2);
+    match &result.elements[0].value {
+        sysml_parser::ast::RootElement::Import(_) => {}
+        _ => panic!("expected first element to be Import"),
+    }
+    match &result.elements[1].value {
+        sysml_parser::ast::RootElement::Package(p) => {
+            assert_eq!(p.identification.name.as_deref(), Some("P"));
+        }
+        _ => panic!("expected second element to be Package"),
+    }
+}
+
+// --- View/Viewpoint/Rendering (spec-1: Clause 8.2.2.26) ---
+
+#[test]
+fn test_view_def_parse() {
+    let input = "package P { view def Name { } }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    assert_eq!(elements.len(), 1);
+    match &elements[0].value {
+        PackageBodyElement::ViewDef(vd) => {
+            assert_eq!(vd.identification.name.as_deref(), Some("Name"));
+            assert!(matches!(&vd.body, ViewDefBody::Brace { ref elements } if elements.is_empty()));
+        }
+        _ => panic!("expected ViewDef"),
+    }
+}
+
+#[test]
+fn test_viewpoint_def_parse() {
+    let input = "package P { viewpoint def Name { } }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    assert_eq!(elements.len(), 1);
+    match &elements[0].value {
+        PackageBodyElement::ViewpointDef(vpd) => {
+            assert_eq!(vpd.identification.name.as_deref(), Some("Name"));
+        }
+        _ => panic!("expected ViewpointDef"),
+    }
+}
+
+#[test]
+fn test_rendering_def_parse() {
+    let input = "package P { rendering def Name; }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    assert_eq!(elements.len(), 1);
+    match &elements[0].value {
+        PackageBodyElement::RenderingDef(rd) => {
+            assert_eq!(rd.identification.name.as_deref(), Some("Name"));
+            assert!(matches!(rd.body, RenderingDefBody::Semicolon));
+        }
+        _ => panic!("expected RenderingDef"),
+    }
+}
+
+#[test]
+fn test_view_usage_parse() {
+    let input = "package P { view name : ViewType { } }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    assert_eq!(elements.len(), 1);
+    match &elements[0].value {
+        PackageBodyElement::ViewUsage(vu) => {
+            assert_eq!(vu.name, "name");
+            assert_eq!(vu.type_name.as_deref(), Some("ViewType"));
+            assert!(matches!(&vu.body, ViewBody::Brace { ref elements } if elements.is_empty()));
+        }
+        _ => panic!("expected ViewUsage"),
+    }
 }
