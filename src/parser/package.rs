@@ -23,7 +23,7 @@ use crate::parser::usecase::{actor_decl, use_case_def};
 use crate::parser::Input;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
-use nom::combinator::{map, opt};
+use nom::combinator::{cut, map, opt};
 use nom::multi::many0;
 use nom::sequence::preceded;
 use nom::Parser;
@@ -94,7 +94,7 @@ pub(crate) fn package_body(input: Input<'_>) -> IResult<Input<'_>, PackageBody> 
                     ws_and_comments,
                     many0(preceded(ws_and_comments, package_body_element)),
                 ),
-                preceded(ws_and_comments, tag(&b"}"[..])),
+                cut(preceded(ws_and_comments, tag(&b"}"[..]))),
             ),
             |elements| {
                 log::debug!("package_body: brace form ok, {} elements", elements.len());
