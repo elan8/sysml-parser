@@ -443,17 +443,20 @@ fn part_vehicle1_c1() -> PartUsage {
     }
 }
 
-/// Fixture path for a SysML file under sysml-v2-release/sysml/src/validation/.
+/// Fixture path for a SysML file under SysML v2 release sysml/src/validation/.
+/// Uses SYSML_V2_RELEASE_DIR when set (CI); otherwise sysml-v2-release in repo.
 fn validation_fixture_path(relative: &str) -> std::path::PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("sysml-v2-release")
-        .join("sysml")
+    let root = std::env::var_os("SYSML_V2_RELEASE_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("sysml-v2-release"));
+    root.join("sysml")
         .join("src")
         .join("validation")
         .join(relative)
 }
 
 #[test]
+#[ignore = "requires SysML v2 release fixtures; run with: cargo test --test validation -- --include-ignored"]
 fn test_parse_1a_parts_tree() {
     super::init_log();
     let path = validation_fixture_path("01-Parts Tree").join("1a-Parts Tree.sysml");

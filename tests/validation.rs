@@ -59,6 +59,9 @@ mod function_based_behavior_3a;
 #[path = "validation/functional_allocation_4a.rs"]
 mod functional_allocation_4a;
 
+#[path = "validation/full_validation_suite.rs"]
+mod full_validation_suite;
+
 #[path = "validation/surveillance_drone.rs"]
 mod surveillance_drone;
 
