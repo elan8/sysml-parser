@@ -199,8 +199,19 @@ pub enum PackageBodyElement {
     MetadataDef(Node<MetadataDef>),
     EnumDef(Node<EnumDef>),
     OccurrenceDef(Node<OccurrenceDef>),
+    OccurrenceUsage(Node<OccurrenceUsage>),
     Dependency(Node<Dependency>),
+    AllocationDef(Node<AllocationDef>),
+    AllocationUsage(Node<AllocationUsage>),
+    FlowDef(Node<FlowDef>),
+    FlowUsage(Node<FlowUsage>),
     ConcernUsage(Node<ConcernUsage>),
+    CaseDef(Node<CaseDef>),
+    CaseUsage(Node<CaseUsage>),
+    AnalysisCaseDef(Node<AnalysisCaseDef>),
+    AnalysisCaseUsage(Node<AnalysisCaseUsage>),
+    VerificationCaseDef(Node<VerificationCaseDef>),
+    VerificationCaseUsage(Node<VerificationCaseUsage>),
     UseCaseUsage(Node<UseCaseUsage>),
 }
 
@@ -644,6 +655,16 @@ pub struct OccurrenceDef {
     pub body: DefinitionBody,
 }
 
+/// Occurrence usage: `occurrence` name (`:` type)? body, with optional individual/portion modifiers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OccurrenceUsage {
+    pub is_individual: bool,
+    pub portion_kind: Option<String>,
+    pub name: String,
+    pub type_name: Option<String>,
+    pub body: DefinitionBody,
+}
+
 // ---------------------------------------------------------------------------
 // Library Package (Phase 2)
 // ---------------------------------------------------------------------------
@@ -834,6 +855,23 @@ pub struct Flow {
     pub body: ConnectBody,
 }
 
+/// Flow definition: `flow def` Identification body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FlowDef {
+    pub identification: Identification,
+    pub body: DefinitionBody,
+}
+
+/// Flow usage: `flow` name (`:` type)? [`from` expr `to` expr]? body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FlowUsage {
+    pub name: String,
+    pub type_name: Option<String>,
+    pub from: Option<Node<Expression>>,
+    pub to: Option<Node<Expression>>,
+    pub body: DefinitionBody,
+}
+
 /// First/then control flow: `first` expr `then` expr body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FirstStmt {
@@ -866,6 +904,23 @@ pub struct Allocate {
     pub source: Node<Expression>,
     pub target: Node<Expression>,
     pub body: ConnectBody,
+}
+
+/// Allocation definition: `allocation def` Identification body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AllocationDef {
+    pub identification: Identification,
+    pub body: DefinitionBody,
+}
+
+/// Allocation usage: `allocation` name (`:` type)? [`allocate` source `to` target]? body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AllocationUsage {
+    pub name: String,
+    pub type_name: Option<String>,
+    pub source: Option<Node<Expression>>,
+    pub target: Option<Node<Expression>>,
+    pub body: DefinitionBody,
 }
 
 // ---------------------------------------------------------------------------
@@ -949,6 +1004,51 @@ pub struct ConcernUsage {
     pub name: String,
     pub type_name: Option<String>,
     pub body: RequirementDefBody,
+}
+
+/// Case definition: `case def` Identification body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CaseDef {
+    pub identification: Identification,
+    pub body: UseCaseDefBody,
+}
+
+/// Case usage: `case` name (`:` type)? body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CaseUsage {
+    pub name: String,
+    pub type_name: Option<String>,
+    pub body: UseCaseDefBody,
+}
+
+/// Analysis case definition: `analysis def` Identification body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AnalysisCaseDef {
+    pub identification: Identification,
+    pub body: UseCaseDefBody,
+}
+
+/// Analysis case usage: `analysis` name (`:` type)? body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AnalysisCaseUsage {
+    pub name: String,
+    pub type_name: Option<String>,
+    pub body: UseCaseDefBody,
+}
+
+/// Verification case definition: `verification def` Identification body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerificationCaseDef {
+    pub identification: Identification,
+    pub body: UseCaseDefBody,
+}
+
+/// Verification case usage: `verification` name (`:` type)? body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerificationCaseUsage {
+    pub name: String,
+    pub type_name: Option<String>,
+    pub body: UseCaseDefBody,
 }
 
 /// Use case usage at package level: `use case` name (`:` type)? CaseBody.
@@ -1388,6 +1488,9 @@ fn normalize_package_body_element_node(el: &Node<PackageBodyElement>) -> Node<Pa
         PackageBodyElement::OccurrenceDef(n) => {
             PackageBodyElement::OccurrenceDef(dummy_node(n, normalize_occurrence_def(&n.value)))
         }
+        PackageBodyElement::OccurrenceUsage(n) => {
+            PackageBodyElement::OccurrenceUsage(dummy_node(n, n.value.clone()))
+        }
         PackageBodyElement::AliasDef(n) => PackageBodyElement::AliasDef(dummy_node(n, n.value.clone())),
         PackageBodyElement::AttributeDef(n) => {
             PackageBodyElement::AttributeDef(dummy_node(n, normalize_attribute_def(&n.value)))
@@ -1442,8 +1545,38 @@ fn normalize_package_body_element_node(el: &Node<PackageBodyElement>) -> Node<Pa
         PackageBodyElement::Dependency(n) => {
             PackageBodyElement::Dependency(dummy_node(n, n.value.clone()))
         }
+        PackageBodyElement::AllocationDef(n) => {
+            PackageBodyElement::AllocationDef(dummy_node(n, n.value.clone()))
+        }
+        PackageBodyElement::AllocationUsage(n) => {
+            PackageBodyElement::AllocationUsage(dummy_node(n, n.value.clone()))
+        }
+        PackageBodyElement::FlowDef(n) => {
+            PackageBodyElement::FlowDef(dummy_node(n, n.value.clone()))
+        }
+        PackageBodyElement::FlowUsage(n) => {
+            PackageBodyElement::FlowUsage(dummy_node(n, n.value.clone()))
+        }
         PackageBodyElement::ConcernUsage(n) => {
             PackageBodyElement::ConcernUsage(dummy_node(n, n.value.clone()))
+        }
+        PackageBodyElement::CaseDef(n) => {
+            PackageBodyElement::CaseDef(dummy_node(n, n.value.clone()))
+        }
+        PackageBodyElement::CaseUsage(n) => {
+            PackageBodyElement::CaseUsage(dummy_node(n, n.value.clone()))
+        }
+        PackageBodyElement::AnalysisCaseDef(n) => {
+            PackageBodyElement::AnalysisCaseDef(dummy_node(n, n.value.clone()))
+        }
+        PackageBodyElement::AnalysisCaseUsage(n) => {
+            PackageBodyElement::AnalysisCaseUsage(dummy_node(n, n.value.clone()))
+        }
+        PackageBodyElement::VerificationCaseDef(n) => {
+            PackageBodyElement::VerificationCaseDef(dummy_node(n, n.value.clone()))
+        }
+        PackageBodyElement::VerificationCaseUsage(n) => {
+            PackageBodyElement::VerificationCaseUsage(dummy_node(n, n.value.clone()))
         }
         PackageBodyElement::UseCaseUsage(n) => {
             PackageBodyElement::UseCaseUsage(dummy_node(n, n.value.clone()))

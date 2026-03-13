@@ -5,8 +5,13 @@ use crate::ast::{
     ParseErrorNode, RootElement, RootNamespace, Visibility,
 };
 use crate::parser::action::{action_def, action_usage};
+use crate::parser::allocation::{allocate_usage, allocation_def, allocation_usage};
 use crate::parser::alias::alias_def;
 use crate::parser::attribute::attribute_def;
+use crate::parser::case::{
+    analysis_case_def, analysis_case_usage, case_def, case_usage, verification_case_def,
+    verification_case_usage,
+};
 use crate::parser::connection::connection_def;
 use crate::parser::dependency::dependency;
 use crate::parser::constraint::{calc_def, constraint_def};
@@ -14,7 +19,10 @@ use crate::parser::enumeration::enum_def;
 use crate::parser::individual::individual_def;
 use crate::parser::item::item_def;
 use crate::parser::metadata::metadata_def;
-use crate::parser::occurrence::occurrence_def;
+use crate::parser::occurrence::{
+    individual_usage, occurrence_def, occurrence_usage, snapshot_usage, timeslice_usage,
+};
+use crate::parser::flow::{flow_def, flow_usage};
 use crate::parser::expr::expression;
 use crate::parser::import::import_;
 use crate::parser::interface::interface_def;
@@ -269,65 +277,168 @@ pub(crate) fn filter_member(input: Input<'_>) -> IResult<Input<'_>, Node<FilterM
 pub(crate) fn package_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PackageBodyElement>> {
     let (input, _) = ws_and_comments(input)?;
     let start = input;
-    // Doc first so "doc /* ... */" at start of package body parses before other elements.
-    // Annotation parsers grouped to help type inference.
-    // Split into groups to avoid nom Choice type explosion with too many alts.
-    let annotation_parser = alt((
-        map(doc_comment, PackageBodyElement::Doc),
-        map(comment_annotation, PackageBodyElement::Comment),
-        map(textual_representation, PackageBodyElement::TextualRep),
-    ));
-    let structural_parser = alt((
-        map(filter_member, PackageBodyElement::Filter),
-        map(attribute_def, PackageBodyElement::AttributeDef),
-        map(library_package_, PackageBodyElement::LibraryPackage),
-        map(package_, PackageBodyElement::Package),
-        map(import_, PackageBodyElement::Import),
-        map(part_def_or_usage, |p| match p {
-            PartDefOrUsage::Def(n) => PackageBodyElement::PartDef(n),
-            PartDefOrUsage::Usage(n) => PackageBodyElement::PartUsage(n),
-        }),
-        map(port_def, PackageBodyElement::PortDef),
-        map(interface_def, PackageBodyElement::InterfaceDef),
-        map(connection_def, PackageBodyElement::ConnectionDef),
-        map(dependency, PackageBodyElement::Dependency),
-        map(metadata_def, PackageBodyElement::MetadataDef),
-        map(enum_def, PackageBodyElement::EnumDef),
-        map(occurrence_def, PackageBodyElement::OccurrenceDef),
-        map(alias_def, PackageBodyElement::AliasDef),
-        map(action_def, PackageBodyElement::ActionDef),
-        map(action_usage, PackageBodyElement::ActionUsage),
-    ));
-    let req_parser = alt((
-        map(requirement_def, PackageBodyElement::RequirementDef),
-        map(requirement_usage, PackageBodyElement::RequirementUsage),
-        map(satisfy, PackageBodyElement::Satisfy),
-        map(use_case_def, PackageBodyElement::UseCaseDef),
-        map(use_case_usage, PackageBodyElement::UseCaseUsage),
-        map(concern_usage, PackageBodyElement::ConcernUsage),
-        map(actor_decl, PackageBodyElement::Actor),
-        map(state_def, PackageBodyElement::StateDef),
-        map(state_usage, PackageBodyElement::StateUsage),
-    ));
-    let other_parser = alt((
-        map(item_def, PackageBodyElement::ItemDef),
-        map(individual_def, PackageBodyElement::IndividualDef),
-        map(constraint_def, PackageBodyElement::ConstraintDef),
-        map(calc_def, PackageBodyElement::CalcDef),
-        map(view_def, PackageBodyElement::ViewDef),
-        map(viewpoint_def, PackageBodyElement::ViewpointDef),
-        map(rendering_def, PackageBodyElement::RenderingDef),
-        map(view_usage, PackageBodyElement::ViewUsage),
-        map(viewpoint_usage, PackageBodyElement::ViewpointUsage),
-        map(rendering_usage, PackageBodyElement::RenderingUsage),
-    ));
-    let (input, elem) = alt((
-        annotation_parser,
-        structural_parser,
-        req_parser,
-        other_parser,
-    ))
-    .parse(input)?;
+    if let Ok((input, elem)) = map(doc_comment, PackageBodyElement::Doc).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(comment_annotation, PackageBodyElement::Comment).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(textual_representation, PackageBodyElement::TextualRep).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(filter_member, PackageBodyElement::Filter).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(attribute_def, PackageBodyElement::AttributeDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(library_package_, PackageBodyElement::LibraryPackage).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(package_, PackageBodyElement::Package).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(import_, PackageBodyElement::Import).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(part_def_or_usage, |p| match p {
+        PartDefOrUsage::Def(n) => PackageBodyElement::PartDef(n),
+        PartDefOrUsage::Usage(n) => PackageBodyElement::PartUsage(n),
+    })
+    .parse(input)
+    {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(port_def, PackageBodyElement::PortDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(interface_def, PackageBodyElement::InterfaceDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(connection_def, PackageBodyElement::ConnectionDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(dependency, PackageBodyElement::Dependency).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(metadata_def, PackageBodyElement::MetadataDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(enum_def, PackageBodyElement::EnumDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(occurrence_def, PackageBodyElement::OccurrenceDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(occurrence_usage, PackageBodyElement::OccurrenceUsage).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(individual_usage, PackageBodyElement::OccurrenceUsage).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(snapshot_usage, PackageBodyElement::OccurrenceUsage).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(timeslice_usage, PackageBodyElement::OccurrenceUsage).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(allocation_def, PackageBodyElement::AllocationDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(allocation_usage, PackageBodyElement::AllocationUsage).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(allocate_usage, PackageBodyElement::AllocationUsage).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(flow_def, PackageBodyElement::FlowDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(flow_usage, PackageBodyElement::FlowUsage).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(alias_def, PackageBodyElement::AliasDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(action_def, PackageBodyElement::ActionDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(action_usage, PackageBodyElement::ActionUsage).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(requirement_def, PackageBodyElement::RequirementDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(requirement_usage, PackageBodyElement::RequirementUsage).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(satisfy, PackageBodyElement::Satisfy).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(use_case_def, PackageBodyElement::UseCaseDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(use_case_usage, PackageBodyElement::UseCaseUsage).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(case_def, PackageBodyElement::CaseDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(case_usage, PackageBodyElement::CaseUsage).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(analysis_case_def, PackageBodyElement::AnalysisCaseDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(analysis_case_usage, PackageBodyElement::AnalysisCaseUsage).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(verification_case_def, PackageBodyElement::VerificationCaseDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(verification_case_usage, PackageBodyElement::VerificationCaseUsage).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(concern_usage, PackageBodyElement::ConcernUsage).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(actor_decl, PackageBodyElement::Actor).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(state_def, PackageBodyElement::StateDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(state_usage, PackageBodyElement::StateUsage).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(item_def, PackageBodyElement::ItemDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(individual_def, PackageBodyElement::IndividualDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(constraint_def, PackageBodyElement::ConstraintDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(calc_def, PackageBodyElement::CalcDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(view_def, PackageBodyElement::ViewDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(viewpoint_def, PackageBodyElement::ViewpointDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(rendering_def, PackageBodyElement::RenderingDef).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(view_usage, PackageBodyElement::ViewUsage).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((input, elem)) = map(viewpoint_usage, PackageBodyElement::ViewpointUsage).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
+    let (input, elem) = map(rendering_usage, PackageBodyElement::RenderingUsage).parse(input)?;
     Ok((input, node_from_to(start, input, elem)))
 }
 

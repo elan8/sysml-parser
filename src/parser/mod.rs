@@ -8,8 +8,10 @@
 //! - [package]: package and root namespace
 
 mod action;
+mod allocation;
 mod alias;
 mod attribute;
+mod case;
 mod connection;
 mod constraint;
 mod dependency;
@@ -17,6 +19,7 @@ mod individual;
 mod item;
 mod enumeration;
 mod expr;
+mod flow;
 mod import;
 mod interface;
 mod lex;

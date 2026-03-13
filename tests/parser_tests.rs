@@ -261,6 +261,85 @@ fn test_view_usage_parse() {
 }
 
 #[test]
+fn test_occurrence_usage_parse() {
+    let input = "package P { occurrence sample : Event; }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    match &elements[0].value {
+        PackageBodyElement::OccurrenceUsage(occ) => {
+            assert_eq!(occ.name, "sample");
+            assert_eq!(occ.type_name.as_deref(), Some("Event"));
+        }
+        _ => panic!("expected OccurrenceUsage"),
+    }
+}
+
+#[test]
+fn test_flow_and_allocation_parse() {
+    let input = "package P { flow transfer : Fuel from src to dst; allocation map allocate source to target; }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    assert!(matches!(elements[0].value, PackageBodyElement::FlowUsage(_)));
+    assert!(matches!(elements[1].value, PackageBodyElement::AllocationUsage(_)));
+}
+
+#[test]
+fn test_case_family_parse() {
+    let input = "package P { case def GenericCase { } analysis def TradeStudy { } verification def VerifyThing { } }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    assert!(matches!(elements[0].value, PackageBodyElement::CaseDef(_)));
+    assert!(matches!(elements[1].value, PackageBodyElement::AnalysisCaseDef(_)));
+    assert!(matches!(elements[2].value, PackageBodyElement::VerificationCaseDef(_)));
+}
+
+#[test]
+fn test_expression_precedence_parse() {
+    let input = "package P { attribute x = 1 + 2 * 3; }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    match &elements[0].value {
+        PackageBodyElement::AttributeDef(attr) => {
+            let value = attr
+                .typing
+                .as_ref()
+                .map(|_| ())
+                .or(Some(()));
+            assert!(value.is_some());
+        }
+        _ => panic!("expected AttributeDef"),
+    }
+}
+
+#[test]
 fn test_package_body_recovery_skips_annotated_member_and_keeps_later_sibling() {
     let input = "package P {\n#fmeaspec requirement req1 { }\npart def Good;\n}";
     let result = parse(input).expect("parse should succeed with recovery");

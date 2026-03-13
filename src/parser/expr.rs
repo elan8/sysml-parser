@@ -172,7 +172,7 @@ fn primary(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
         literal_with_unit,
         literal_only,
         null_expression,
-        metadata_ref_primary, // @Name before feature_ref so @ is consumed
+        metadata_ref_primary,
         feature_ref_primary,
         parenthesized,
     ))
@@ -214,67 +214,90 @@ fn postfix<'a>(
     Ok((input, current))
 }
 
-/// Logical operators (keywords and symbols) — tried before other operators.
 fn logical_op_token(input: Input<'_>) -> IResult<Input<'_>, String> {
+    let (input, _) = ws_and_comments(input)?;
     alt((
         map(tag(&b"and"[..]), |_| "&&".to_string()),
         map(tag(&b"or"[..]), |_| "||".to_string()),
+        map(tag(&b"xor"[..]), |_| "xor".to_string()),
         map(tag(&b"&&"[..]), |_| "&&".to_string()),
         map(tag(&b"||"[..]), |_| "||".to_string()),
     ))
     .parse(input)
 }
 
-/// Try to consume a binary infix operator token (KerML BinaryOperator).
-fn binary_op_token(input: Input<'_>) -> IResult<Input<'_>, String> {
+fn equality_op_token(input: Input<'_>) -> IResult<Input<'_>, String> {
     let (input, _) = ws_and_comments(input)?;
-    // Multi-char operators must be tried before single-char subsets; ** before *.
     alt((
-        logical_op_token,
-        map(tag(&b">="[..]), |_| ">=".to_string()),
-        map(tag(&b"<="[..]), |_| "<=".to_string()),
         map(tag(&b"==="[..]), |_| "===".to_string()),
         map(tag(&b"!=="[..]), |_| "!==".to_string()),
         map(tag(&b"=="[..]), |_| "==".to_string()),
         map(tag(&b"!="[..]), |_| "!=".to_string()),
-        map(tag(&b"**"[..]), |_| "**".to_string()),
-        map(tag(&b"+"[..]), |_| "+".to_string()),
-        map(tag(&b"-"[..]), |_| "-".to_string()),
-        map(tag(&b"*"[..]), |_| "*".to_string()),
-        map(tag(&b"/"[..]), |_| "/".to_string()),
-        map(tag(&b"%"[..]), |_| "%".to_string()),
-        map(tag(&b"^"[..]), |_| "^".to_string()),
-        map(tag(&b".."[..]), |_| "..".to_string()),
-        map(tag(&b"|"[..]), |_| "|".to_string()),
-        map(tag(&b"&"[..]), |_| "&".to_string()),
-        map(tag(&b"xor"[..]), |_| "xor".to_string()),
-        map(tag(&b">"[..]), |_| ">".to_string()),
-        map(tag(&b"<"[..]), |_| "<".to_string()),
     ))
     .parse(input)
 }
 
-/// Left-associative binary expression chain.
-fn binary_chain<'a>(
-    input: Input<'a>,
+fn comparison_op_token(input: Input<'_>) -> IResult<Input<'_>, String> {
+    let (input, _) = ws_and_comments(input)?;
+    alt((
+        map(tag(&b">="[..]), |_| ">=".to_string()),
+        map(tag(&b"<="[..]), |_| "<=".to_string()),
+        map(tag(&b">"[..]), |_| ">".to_string()),
+        map(tag(&b"<"[..]), |_| "<".to_string()),
+        map(tag(&b".."[..]), |_| "..".to_string()),
+    ))
+    .parse(input)
+}
+
+fn additive_op_token(input: Input<'_>) -> IResult<Input<'_>, String> {
+    let (input, _) = ws_and_comments(input)?;
+    alt((
+        map(tag(&b"+"[..]), |_| "+".to_string()),
+        map(tag(&b"-"[..]), |_| "-".to_string()),
+        map(tag(&b"|"[..]), |_| "|".to_string()),
+        map(tag(&b"&"[..]), |_| "&".to_string()),
+    ))
+    .parse(input)
+}
+
+fn multiplicative_op_token(input: Input<'_>) -> IResult<Input<'_>, String> {
+    let (input, _) = ws_and_comments(input)?;
+    alt((
+        map(tag(&b"**"[..]), |_| "**".to_string()),
+        map(tag(&b"*"[..]), |_| "*".to_string()),
+        map(tag(&b"/"[..]), |_| "/".to_string()),
+        map(tag(&b"%"[..]), |_| "%".to_string()),
+        map(tag(&b"^"[..]), |_| "^".to_string()),
+    ))
+    .parse(input)
+}
+
+fn binary_chain_with<'a, P, N>(
+    mut input: Input<'a>,
     start: Input<'a>,
-    left: Node<Expression>,
-) -> IResult<Input<'a>, Node<Expression>> {
-    match binary_op_token(input) {
-        Ok((input, op)) => {
-            let (input, _) = ws_and_comments(input)?;
-            let rhs_start = input;
-            let (input, rhs_primary) = primary(input)?;
-            let (input, rhs) = postfix(input, rhs_start, rhs_primary)?;
-            let expr = Expression::BinaryOp {
+    mut left: Node<Expression>,
+    mut op_parser: P,
+    mut next_parser: N,
+) -> IResult<Input<'a>, Node<Expression>>
+where
+    P: Parser<Input<'a>, Output = String, Error = nom::error::Error<Input<'a>>>,
+    N: Parser<Input<'a>, Output = Node<Expression>, Error = nom::error::Error<Input<'a>>>,
+{
+    loop {
+        let Ok((next_input, op)) = op_parser.parse(input) else {
+            return Ok((input, left));
+        };
+        let (next_input, right) = next_parser.parse(next_input)?;
+        left = node_from_to(
+            start,
+            next_input,
+            Expression::BinaryOp {
                 op,
                 left: Box::new(left),
-                right: Box::new(rhs),
-            };
-            let node = node_from_to(start, input, expr);
-            binary_chain(input, start, node)
-        }
-        Err(_) => Ok((input, left)),
+                right: Box::new(right),
+            },
+        );
+        input = next_input;
     }
 }
 
@@ -311,11 +334,35 @@ fn unary_and_primary(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
     Ok((input, expr))
 }
 
-/// Full expression: optional unary prefixes + primary, postfix, then optional binary operator chain.
+fn multiplicative_expression(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
+    let start = input;
+    let (input, left) = unary_and_primary(input)?;
+    binary_chain_with(input, start, left, multiplicative_op_token, unary_and_primary)
+}
+
+fn additive_expression(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
+    let start = input;
+    let (input, left) = multiplicative_expression(input)?;
+    binary_chain_with(input, start, left, additive_op_token, multiplicative_expression)
+}
+
+fn comparison_expression(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
+    let start = input;
+    let (input, left) = additive_expression(input)?;
+    binary_chain_with(input, start, left, comparison_op_token, additive_expression)
+}
+
+fn equality_expression(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
+    let start = input;
+    let (input, left) = comparison_expression(input)?;
+    binary_chain_with(input, start, left, equality_op_token, comparison_expression)
+}
+
+/// Full expression with precedence-aware binary parsing.
 pub(crate) fn expression(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
     let start = input;
-    let (input, primary_node) = unary_and_primary(input)?;
-    binary_chain(input, start, primary_node)
+    let (input, left) = equality_expression(input)?;
+    binary_chain_with(input, start, left, logical_op_token, equality_expression)
 }
 
 /// Path expression: name or name.name.name... (for bind/connect). Returns Node<Expression>.

@@ -77,7 +77,7 @@ pub(crate) fn use_case_def(input: Input<'_>) -> IResult<Input<'_>, Node<UseCaseD
     Ok((input, node_from_to(start, input, UseCaseDef { identification: ident, body })))
 }
 
-fn use_case_def_body(input: Input<'_>) -> IResult<Input<'_>, UseCaseDefBody> {
+pub(crate) fn use_case_def_body(input: Input<'_>) -> IResult<Input<'_>, UseCaseDefBody> {
     alt((
         map(preceded(ws_and_comments, tag(&b";"[..])), |_| UseCaseDefBody::Semicolon),
         use_case_def_body_brace,
@@ -140,7 +140,7 @@ fn use_case_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, UseCaseDefBod
     }
 }
 
-fn use_case_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<UseCaseDefBodyElement>> {
+pub(crate) fn use_case_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<UseCaseDefBodyElement>> {
     let (input, _) = ws_and_comments(input)?;
     let start = input;
     let (input, elem) = alt((
