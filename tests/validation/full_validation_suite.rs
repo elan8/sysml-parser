@@ -151,20 +151,3 @@ fn test_full_validation_suite() {
     log::info!("{}", total_msg);
     eprintln!("{}", total_msg);
 }
-
-/// Parse a single validation file (for debugging). Skips if file is missing.
-#[test]
-#[ignore = "requires SysML v2 release; run with: cargo test --test validation -- --include-ignored"]
-fn test_parts_tree_basic() {
-    super::init_log();
-
-    let file = validation_dir()
-        .join("01-Parts Tree")
-        .join("1a-Parts Tree.sysml");
-
-    if file.exists() {
-        parse_file(&file).map(|_| ()).expect("Failed to parse 1a-Parts Tree.sysml");
-    } else {
-        log::debug!("Test file not found: {:?}", file);
-    }
-}
