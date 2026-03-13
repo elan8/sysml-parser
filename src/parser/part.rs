@@ -92,7 +92,10 @@ fn part_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, PartDefBody> {
                         crate::ast::Span::dummy(),
                         ParseErrorNode {
                             message: "recovered part definition body element".to_string(),
+                            code: "recovered_part_def_body_element".to_string(),
+                            expected: Some("valid part definition body element".to_string()),
                             found: recovery_found_snippet(input),
+                            suggestion: None,
                         },
                     )),
                 ));
@@ -428,7 +431,10 @@ fn part_usage_body_brace(input: Input<'_>) -> IResult<Input<'_>, PartUsageBody> 
                         crate::ast::Span::dummy(),
                         ParseErrorNode {
                             message: "recovered part usage body element".to_string(),
+                            code: "recovered_part_usage_body_element".to_string(),
+                            expected: Some("valid part usage body element".to_string()),
                             found: recovery_found_snippet(input),
+                            suggestion: None,
                         },
                     )),
                 ));

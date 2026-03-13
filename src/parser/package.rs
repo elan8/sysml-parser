@@ -185,7 +185,10 @@ fn package_body_brace(input: Input<'_>) -> IResult<Input<'_>, PackageBody> {
                         crate::ast::Span::dummy(),
                         ParseErrorNode {
                             message: "recovered package body element".to_string(),
+                            code: "recovered_package_body_element".to_string(),
+                            expected: Some("valid package body element".to_string()),
                             found: recovery_found_snippet(input),
+                            suggestion: None,
                         },
                     )),
                 ));

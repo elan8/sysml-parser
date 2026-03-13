@@ -153,7 +153,10 @@ pub struct FilterMember {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseErrorNode {
     pub message: String,
+    pub code: String,
+    pub expected: Option<String>,
     pub found: Option<String>,
+    pub suggestion: Option<String>,
 }
 
 /// Top-level element inside a namespace or package body.
@@ -764,6 +767,7 @@ pub enum ActionDefBody {
 /// Element inside an action definition body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ActionDefBodyElement {
+    Error(Node<ParseErrorNode>),
     InOutDecl(Node<InOutDecl>),
     Doc(Node<DocComment>),
     Perform(Node<Perform>),
@@ -809,6 +813,7 @@ pub enum ActionUsageBody {
 /// Element inside an action usage body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ActionUsageBodyElement {
+    Error(Node<ParseErrorNode>),
     InOutDecl(Node<InOutDecl>),
     Bind(Node<Bind>),
     Flow(Node<Flow>),
@@ -978,6 +983,7 @@ pub enum UseCaseDefBody {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UseCaseDefBodyElement {
+    Error(Node<ParseErrorNode>),
     Doc(Node<DocComment>),
     SubjectDecl(Node<SubjectDecl>),
     ActorUsage(Node<ActorUsage>),
@@ -1018,6 +1024,7 @@ pub enum StateDefBody {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StateDefBodyElement {
+    Error(Node<ParseErrorNode>),
     Doc(Node<DocComment>),
     /// `entry` (`;` or body) - entry action.
     Entry(Node<EntryAction>),
@@ -1837,10 +1844,20 @@ fn normalize_action_def_body(b: &ActionDefBody) -> ActionDefBody {
         ActionDefBody::Brace { elements } => ActionDefBody::Brace {
             elements: elements
                 .iter()
-                .map(|n| dummy_node(n, n.value.clone()))
+                .map(normalize_action_def_body_element_node)
                 .collect(),
         },
     }
+}
+
+fn normalize_action_def_body_element_node(el: &Node<ActionDefBodyElement>) -> Node<ActionDefBodyElement> {
+    let value = match &el.value {
+        ActionDefBodyElement::Error(n) => ActionDefBodyElement::Error(dummy_node(n, n.value.clone())),
+        ActionDefBodyElement::InOutDecl(n) => ActionDefBodyElement::InOutDecl(dummy_node(n, n.value.clone())),
+        ActionDefBodyElement::Doc(n) => ActionDefBodyElement::Doc(dummy_node(n, n.value.clone())),
+        ActionDefBodyElement::Perform(n) => ActionDefBodyElement::Perform(dummy_node(n, normalize_perform(&n.value))),
+    };
+    dummy_node(el, value)
 }
 
 fn normalize_action_usage(a: &ActionUsage) -> ActionUsage {
@@ -1870,6 +1887,7 @@ fn normalize_action_usage_body_element_node(
     el: &Node<ActionUsageBodyElement>,
 ) -> Node<ActionUsageBodyElement> {
     let value = match &el.value {
+        ActionUsageBodyElement::Error(n) => ActionUsageBodyElement::Error(dummy_node(n, n.value.clone())),
         ActionUsageBodyElement::InOutDecl(n) => {
             ActionUsageBodyElement::InOutDecl(dummy_node(n, n.value.clone()))
         }

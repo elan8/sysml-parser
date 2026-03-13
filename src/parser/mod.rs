@@ -34,7 +34,12 @@ mod view;
 
 pub(crate) use span::{node_from_to, span_from_to, with_span, Input};
 
-use crate::ast::RootNamespace;
+use crate::ast::{
+    ActionDefBody, ActionDefBodyElement, ActionUsageBody, ActionUsageBodyElement, PackageBody,
+    PackageBodyElement, ParseErrorNode, PartDefBody, PartDefBodyElement, PartUsageBody,
+    PartUsageBodyElement, RequirementDefBody, RequirementDefBodyElement, RootNamespace,
+    StateDefBody, StateDefBodyElement, UseCaseDefBody, UseCaseDefBodyElement,
+};
 use crate::error::ParseError;
 use nom::error::Error;
 use nom::Parser;
@@ -154,6 +159,172 @@ fn is_only_trailing_closing_braces(mut input: Input<'_>) -> bool {
         }
         return false;
     }
+}
+
+fn parse_error_from_recovery_node(
+    span: &crate::ast::Span,
+    node: &ParseErrorNode,
+) -> ParseError {
+    let mut err = ParseError::new(node.message.clone())
+        .with_location(span.offset, span.line, span.column)
+        .with_length(span.len.max(1))
+        .with_code(node.code.clone());
+    if let Some(expected) = &node.expected {
+        err = err.with_expected(expected.clone());
+    }
+    if let Some(found) = &node.found {
+        err = err.with_found(found.clone());
+    }
+    if let Some(suggestion) = &node.suggestion {
+        err = err.with_suggestion(suggestion.clone());
+    }
+    err
+}
+
+fn collect_requirement_body_errors(body: &RequirementDefBody, errors: &mut Vec<ParseError>) {
+    if let RequirementDefBody::Brace { elements } = body {
+        for element in elements {
+            match &element.value {
+                RequirementDefBodyElement::Error(n) => {
+                    errors.push(parse_error_from_recovery_node(&element.span, &n.value));
+                }
+                RequirementDefBodyElement::Frame(n) => {
+                    collect_requirement_body_errors(&n.value.body, errors)
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+fn collect_action_def_body_errors(body: &ActionDefBody, errors: &mut Vec<ParseError>) {
+    if let ActionDefBody::Brace { elements } = body {
+        for element in elements {
+            if let ActionDefBodyElement::Error(n) = &element.value {
+                errors.push(parse_error_from_recovery_node(&element.span, &n.value));
+            }
+        }
+    }
+}
+
+fn collect_action_usage_body_errors(body: &ActionUsageBody, errors: &mut Vec<ParseError>) {
+    if let ActionUsageBody::Brace { elements } = body {
+        for element in elements {
+            match &element.value {
+                ActionUsageBodyElement::Error(n) => {
+                    errors.push(parse_error_from_recovery_node(&element.span, &n.value));
+                }
+                ActionUsageBodyElement::ActionUsage(n) => {
+                    collect_action_usage_body_errors(&n.value.body, errors)
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+fn collect_state_body_errors(body: &StateDefBody, errors: &mut Vec<ParseError>) {
+    if let StateDefBody::Brace { elements } = body {
+        for element in elements {
+            match &element.value {
+                StateDefBodyElement::Error(n) => {
+                    errors.push(parse_error_from_recovery_node(&element.span, &n.value));
+                }
+                StateDefBodyElement::Entry(n) => collect_state_body_errors(&n.value.body, errors),
+                StateDefBodyElement::StateUsage(n) => {
+                    collect_state_body_errors(&n.value.body, errors)
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+fn collect_use_case_body_errors(body: &UseCaseDefBody, errors: &mut Vec<ParseError>) {
+    if let UseCaseDefBody::Brace { elements } = body {
+        for element in elements {
+            if let UseCaseDefBodyElement::Error(n) = &element.value {
+                errors.push(parse_error_from_recovery_node(&element.span, &n.value));
+            }
+        }
+    }
+}
+
+fn collect_part_def_body_errors(body: &PartDefBody, errors: &mut Vec<ParseError>) {
+    if let PartDefBody::Brace { elements } = body {
+        for element in elements {
+            match &element.value {
+                PartDefBodyElement::Error(n) => {
+                    errors.push(parse_error_from_recovery_node(&element.span, &n.value));
+                }
+                PartDefBodyElement::PartUsage(n) => collect_part_usage_body_errors(&n.value.body, errors),
+                PartDefBodyElement::Perform(n) => collect_perform_body_errors(&n.value.body, errors),
+                _ => {}
+            }
+        }
+    }
+}
+
+fn collect_perform_body_errors(body: &crate::ast::PerformBody, _errors: &mut Vec<ParseError>) {
+    match body {
+        crate::ast::PerformBody::Semicolon => {}
+        crate::ast::PerformBody::Brace { .. } => {}
+    }
+}
+
+fn collect_part_usage_body_errors(body: &PartUsageBody, errors: &mut Vec<ParseError>) {
+    if let PartUsageBody::Brace { elements } = body {
+        for element in elements {
+            match &element.value {
+                PartUsageBodyElement::Error(n) => {
+                    errors.push(parse_error_from_recovery_node(&element.span, &n.value));
+                }
+                PartUsageBodyElement::PartUsage(n) => collect_part_usage_body_errors(&n.value.body, errors),
+                PartUsageBodyElement::Perform(n) => collect_perform_body_errors(&n.value.body, errors),
+                PartUsageBodyElement::StateUsage(n) => collect_state_body_errors(&n.value.body, errors),
+                _ => {}
+            }
+        }
+    }
+}
+
+fn collect_package_body_errors(body: &PackageBody, errors: &mut Vec<ParseError>) {
+    if let PackageBody::Brace { elements } = body {
+        for element in elements {
+            match &element.value {
+                PackageBodyElement::Error(n) => {
+                    errors.push(parse_error_from_recovery_node(&element.span, &n.value));
+                }
+                PackageBodyElement::Package(n) => collect_package_body_errors(&n.value.body, errors),
+                PackageBodyElement::LibraryPackage(n) => collect_package_body_errors(&n.value.body, errors),
+                PackageBodyElement::PartDef(n) => collect_part_def_body_errors(&n.value.body, errors),
+                PackageBodyElement::PartUsage(n) => collect_part_usage_body_errors(&n.value.body, errors),
+                PackageBodyElement::ActionDef(n) => collect_action_def_body_errors(&n.value.body, errors),
+                PackageBodyElement::ActionUsage(n) => collect_action_usage_body_errors(&n.value.body, errors),
+                PackageBodyElement::RequirementDef(n) => collect_requirement_body_errors(&n.value.body, errors),
+                PackageBodyElement::RequirementUsage(n) => collect_requirement_body_errors(&n.value.body, errors),
+                PackageBodyElement::UseCaseDef(n) => collect_use_case_body_errors(&n.value.body, errors),
+                PackageBodyElement::UseCaseUsage(n) => collect_use_case_body_errors(&n.value.body, errors),
+                PackageBodyElement::ConcernUsage(n) => collect_requirement_body_errors(&n.value.body, errors),
+                PackageBodyElement::StateDef(n) => collect_state_body_errors(&n.value.body, errors),
+                PackageBodyElement::StateUsage(n) => collect_state_body_errors(&n.value.body, errors),
+                _ => {}
+            }
+        }
+    }
+}
+
+fn collect_recovery_errors(root: &RootNamespace) -> Vec<ParseError> {
+    let mut errors = Vec::new();
+    for element in &root.elements {
+        match &element.value {
+            crate::ast::RootElement::Package(n) => collect_package_body_errors(&n.value.body, &mut errors),
+            crate::ast::RootElement::LibraryPackage(n) => collect_package_body_errors(&n.value.body, &mut errors),
+            crate::ast::RootElement::Namespace(n) => collect_package_body_errors(&n.value.body, &mut errors),
+            crate::ast::RootElement::Import(_) => {}
+        }
+    }
+    errors
 }
 
 /// Parse full input; must consume entire input. Strips UTF-8 BOM if present.
@@ -323,6 +494,11 @@ pub fn parse_with_diagnostics(input: &str) -> ParseResult {
         }
         errors.push(pe);
     }
+
+    errors.extend(collect_recovery_errors(&RootNamespace {
+        elements: elements.clone(),
+    }));
+    errors.sort_by_key(|e| (e.offset.unwrap_or(usize::MAX), e.line.unwrap_or(u32::MAX)));
 
     ParseResult {
         root: RootNamespace { elements },

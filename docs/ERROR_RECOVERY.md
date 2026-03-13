@@ -1,148 +1,190 @@
 # Error Recovery in the SysML Parser
 
-This document describes the current error recovery implementation and outlines approaches for improving it in the future.
+This document describes the current recovery architecture after the language-server-oriented recovery improvements.
 
-## Current Implementation
+## Current Model
 
-### Overview
+The parser now uses a **hybrid recovery strategy**:
 
-The parser uses a **top-level recovery loop** around the standard nom parser. When `parse_with_diagnostics()` is used (e.g. for language servers), it:
+1. **Grammar-level recovery inside body parsers**
+2. **Top-level recovery in `parse_with_diagnostics()`**
+3. **Explicit AST error nodes for recovered regions**
 
-1. Parses root elements (`package` or `namespace`) one at a time
-2. On success: appends the element to the partial AST and continues
-3. On failure: records the error (conditionally), skips to the next sync point, and retries
-4. Returns a partial AST plus a list of diagnostics
+This is a meaningful step toward language-server use because malformed regions are no longer only "skipped"; they can now remain visible in the AST.
 
-### Key Files
+## Core Behavior
 
-| File | Purpose |
-|------|---------|
-| `src/parser/mod.rs` | `parse_with_diagnostics()`, recovery loop, `should_report_error_inside_package()` |
-| `src/parser/lex.rs` | `skip_to_next_sync_point()`, `skip_to_next_root_element()` |
-| `src/parser/package.rs` | `cut()` on closing `}` in package bodies (error propagation) |
+### 1. Grammar-level recovery
 
-### Sync Points
+Several body parsers recover locally instead of immediately aborting their enclosing construct:
 
-- **`skip_to_next_sync_point`**: Skips to the next line (consumes until newline, then ws/comments). Used for line-by-line recovery.
-- **`skip_to_next_root_element`**: Skips to the next line starting with `package ` or `namespace `, or EOF. Currently unused; was previously used when recovery jumped to the next package.
+- package bodies
+- part definition bodies
+- part usage bodies
+- requirement bodies
+- action definition bodies
+- action usage bodies
+- state bodies
+- use case bodies
 
-### Error Filtering
+These parsers now:
 
-When a failure occurs **inside** a package (brace depth > 0), we only report errors that look like invalid top-level elements. The heuristic `should_report_error_inside_package()`:
+1. try to parse the next known body element
+2. if parsing fails at a plausible body-element starter, recover locally
+3. skip the malformed statement or block
+4. resynchronize to the next likely body element or closing `}`
+5. insert an AST error node covering the skipped region
 
-- **Reports** when `found` contains ` {}` (e.g. `test {}`, `test2 {}`, `xyz {}`)
-- **Skips** when `found` starts with valid keywords (`part `, `port `, `state `, `transition `, etc.)
-- **Skips** when `found` looks like nested content (expressions with ` >= `, ` then `, ` first `, etc.)
+Relevant files:
 
-This avoids a cascade of ~75 errors when the parser fails inside a package and tries to parse each subsequent line as a root element.
+- [`src/parser/package.rs`](C:\Git\sysml-parser\src\parser\package.rs)
+- [`src/parser/part.rs`](C:\Git\sysml-parser\src\parser\part.rs)
+- [`src/parser/requirement.rs`](C:\Git\sysml-parser\src\parser\requirement.rs)
+- [`src/parser/action.rs`](C:\Git\sysml-parser\src\parser\action.rs)
+- [`src/parser/state.rs`](C:\Git\sysml-parser\src\parser\state.rs)
+- [`src/parser/usecase.rs`](C:\Git\sysml-parser\src\parser\usecase.rs)
 
-### Cut for Error Propagation
+### 2. Shared sync-point helpers
 
-In `package_body`, the closing `}` parser is wrapped in `cut()`. Without this, `many0` would swallow the real error when parsing fails inside a package and report a misleading "expected `}`" or similar.
+Recovery now relies on shared helpers in [`src/parser/lex.rs`](C:\Git\sysml-parser\src\parser\lex.rs):
 
----
+- `skip_statement_or_block()`
+- `skip_to_next_body_element_or_end()`
+- `recover_body_element()`
+- shared starter tables such as:
+  - `PACKAGE_BODY_STARTERS`
+  - `PART_BODY_STARTERS`
+  - `REQUIREMENT_BODY_STARTERS`
+  - `ACTION_BODY_STARTERS`
+  - `STATE_BODY_STARTERS`
+  - `USE_CASE_BODY_STARTERS`
 
-## Limitations
+This makes recovery behavior more consistent across grammar scopes.
 
-1. **Fragile heuristic**: `should_report_error_inside_package` uses a long hardcoded list that can break with new SysML constructs
-2. **Recovery at wrong level**: We parse at root level but recover inside packages; the mismatch requires heuristic filtering
-3. **Coarse sync points**: "Next line" is simple but not grammar-aware; skipping to the next `part `, `port `, `}`, etc. would be more precise
-4. **No recovery inside nested structures**: State machines, constraint bodies, etc. are not recovered independently
+### 3. AST error nodes
 
----
+Recovered regions are represented with `ParseErrorNode` in [`src/ast.rs`](C:\Git\sysml-parser\src\ast.rs).
 
-## Research and Best Practices
+Error-node variants currently exist in:
 
-### 1. Academic Approach (Medeiros & Mascarenhas 2018)
+- `PackageBodyElement`
+- `PartDefBodyElement`
+- `PartUsageBodyElement`
+- `RequirementDefBodyElement`
+- `ActionDefBodyElement`
+- `ActionUsageBodyElement`
+- `StateDefBodyElement`
+- `UseCaseDefBodyElement`
 
-**Paper**: ["Syntax error recovery in parsing expression grammars"](https://dl.acm.org/doi/10.1145/3167132.3167261)
+Each `ParseErrorNode` currently stores:
 
-**Blog**: [Error recovery with parser combinators (using nom)](https://eyalkalderon.com/blog/nom-error-recovery/) by Eyal Kalderon
+- `message`
+- `code`
+- `expected`
+- `found`
+- `suggestion`
 
-**Core ideas**:
+### 4. Diagnostics from the AST
 
-- Parsing **never fails** — always produce a tree
-- Use **synchronization tokens** (`)`, `}`, `;`) to skip ahead when needed
-- Recovery expressions annotated with **labels** emit errors but allow parsing to continue
-- Output is `(T, Vec<Error>)`, not `Result<T, Error>`
+`parse_with_diagnostics()` in [`src/parser/mod.rs`](C:\Git\sysml-parser\src\parser\mod.rs) now does two things:
 
-**Example** — `expect()` combinator:
+1. collects top-level parse failures using the outer recovery loop
+2. traverses the resulting AST and turns recovery nodes into `ParseError` diagnostics
 
-```rust
-fn expect<'a, F, T>(parser: F, error_msg: &str) -> impl Fn(Input) -> IResult<Option<T>>
-where F: Fn(Input) -> IResult<T>
-{
-    move |input| match parser(input) {
-        Ok((rest, out)) => Ok((rest, Some(out))),
-        Err(Err::Error(e)) | Err(Err::Failure(e)) => {
-            input.extra.report_error(Error(...));  // Push to external Vec
-            Ok((input, None))  // Parsing continues!
-        }
-        Err(e) => Err(e),
-    }
-}
-```
+This is important because many syntax problems are now captured locally inside the grammar rather than surfacing only as top-level failures.
 
-Errors are collected in shared state (e.g. `RefCell<Vec<Error>>` in `LocatedSpan::extra`).
+## Top-level Recovery
 
-### 2. Cut–Context Pattern
+Top-level recovery still exists for cases where parsing cannot even build the surrounding root/package structure.
 
-**Blog**: [The cut-context pattern with nom](http://blog.vorona.ca/the-cut-context-pattern-with-nom.html)
+The outer loop in `parse_with_diagnostics()`:
 
-Use `cut(context("message", parser))` after commitment points to prevent misleading errors and unnecessary backtracking:
+1. parses one root element at a time
+2. on error, records a diagnostic conditionally
+3. skips to the next sync point
+4. continues parsing
 
-```rust
-let (input, _) = tag("=")(input)?;
-let (input, operator) = cut(context("Expecting operator", parse_operator))(input)?;
-```
+This is still useful, but it is no longer the only or primary recovery mechanism for nested content.
 
-### 3. nom-supreme
+## Current Strengths
 
-**Docs**: [nom-supreme](https://docs.rs/nom-supreme/latest/nom_supreme/)
+- recovery is closer to the grammar than before
+- malformed nested content can remain visible in the AST
+- diagnostics can now originate from recovered body regions
+- shared sync helpers reduce module-specific recovery drift
+- recovery loops explicitly guard against zero progress
 
-- **ErrorTree**: Tree-shaped error representation (not just a stack)
-- **parse_separated_terminated**: Combinators for better error handling with separators/terminators
+## Current Limitations
 
-### 4. matklad / rust-analyzer
+### 1. No central diagnostic state threaded through parsing
 
-**Tutorial**: [Resilient LL Parsing Tutorial](https://matklad.github.io/2023/05/21/resilient-ll-parsing-tutorial.html)
+Diagnostics are still collected after parsing or at top level, not directly emitted from every parser via shared state.
 
-- Hand-written recursive descent with explicit recovery
-- "Don't crash on first error" — localize errors
-- Error nodes in the syntax tree for invalid regions
+That means the parser is more resilient, but not yet fully built around a "parsing never fails" architecture.
 
----
+### 2. Error nodes are not yet everywhere
 
-## Future Improvements
+The most important body scopes are covered, but not every grammar scope or nested construct has explicit error nodes yet.
 
-| Approach | Effort | Benefit |
-|----------|--------|---------|
-| **Grammar-level recovery** | High | Replace top-level loop with `expect()`-style combinators in package body parsing; errors collected via shared state. |
-| **Grammar-aware sync points** | Medium | Instead of "next line", skip to next `part `, `port `, `}`, etc. so we don't land in the middle of nested content. |
-| **nom-supreme ErrorTree** | Medium | Richer error structure and better diagnostics. |
-| **Refine heuristics** | Low | Narrow `should_report_error_inside_package` to "identifier + ` {}`" pattern; avoid keyword lists where possible. |
+### 3. Some diagnostics remain generic
 
-### Recommended Next Steps
+Recovery-node diagnostics now have more specific codes than before, but many parser errors still use generic `nom`-derived messages such as:
 
-1. **Short term**: Implement grammar-aware sync points — e.g. `skip_to_next_package_body_element()` that skips until the next line starting with `part `, `port `, `attribute `, `}`, etc. This would reduce reliance on `should_report_error_inside_package`.
+- `expected keyword or token`
+- `parse error`
 
-2. **Medium term**: Introduce `expect()`-style combinators at key points in the package body (e.g. when parsing each element in `many0`). This would integrate recovery into the grammar rather than relying on an outer loop.
+### 4. Recovery still depends on starter tables
 
-3. **Long term**: Consider nom-supreme ErrorTree for richer error representation, especially if the language server needs more diagnostic detail.
+Starter tables are much better than snippet heuristics, but they are still manually curated. They must evolve with grammar coverage.
 
----
+## Invariants
 
-## Test Fixtures
+The parser should preserve these recovery invariants:
 
-- **SurveillanceDrone-error.sysml**: Contains `test {}` (line 333) and `test2 {}` (line 364); expects exactly 2 errors
-- **SurveillanceDrone-errors.sysml**: Multiple packages with invalid statements (`test {}`, `xyz {}`, `badstmt {}`); expects 3 errors
+- every recovery step must either consume input or stop
+- malformed nested content should not poison later siblings unnecessarily
+- recovered regions should be visible in the AST where practical
+- `parse_with_diagnostics()` should produce partial AST + diagnostics together
+- invalid surveillance fixtures such as `test {}` must still be reported as real errors
 
----
+## Tests
 
-## References
+Recovery behavior is currently exercised by:
 
-- [ACM DL: Syntax error recovery in parsing expression grammars (2018)](https://dl.acm.org/doi/10.1145/3167132.3167261)
-- [LPegLabel](https://github.com/sqmedeiros/lpeglabel) — reference implementation
-- [Eyal Kalderon: fault-tolerant nom parser example](https://github.com/ebkalderon/example-fault-tolerant-parser)
-- [matklad: Modern Parser Generator](https://matklad.github.io/2018/06/06/modern-parser-generator.html)
-- [nom error management](https://github.com/Geal/nom/blob/master/doc/error_management.md)
+- surveillance invalid-fixture tests in [`tests/validation/surveillance_drone.rs`](C:\Git\sysml-parser\tests\validation\surveillance_drone.rs)
+- parser recovery tests in [`tests/parser_tests.rs`](C:\Git\sysml-parser\tests\parser_tests.rs)
+- the full validation suite
+
+The newer parser tests explicitly verify:
+
+- sibling recovery after malformed members
+- AST error node insertion
+- local diagnostics generated from recovery nodes
+
+## Recommended Next Steps
+
+### Short term
+
+- add AST error nodes to more grammar scopes as needed
+- make construct-specific diagnostics more precise
+- remove or narrow remaining generic top-level heuristics where local recovery already covers the case
+
+### Medium term
+
+- move toward parser-state-based diagnostic accumulation instead of post-pass extraction
+- make error codes and suggestions more systematic
+- consider dedicated error-node variants for especially important grammar categories
+
+### Long term
+
+- evaluate a more explicit resilient-parser architecture, such as `expect()`-style combinators or richer error trees
+
+## Summary
+
+The parser is now substantially closer to being language-server-usable than the earlier top-level-only recovery model:
+
+- local recovery exists in important grammar scopes
+- recovered regions can survive as AST nodes
+- diagnostics can be derived from those recovered regions
+
+It is not yet a fully resilient parser architecture, but it now has the right structural pieces to keep improving in that direction.

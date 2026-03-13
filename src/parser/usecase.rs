@@ -1,17 +1,30 @@
 use crate::ast::{
-    Node, ActorDecl, ActorUsage, Objective, UseCaseDef, UseCaseDefBody, UseCaseDefBodyElement,
-    UseCaseUsage,
+    Node, ActorDecl, ActorUsage, Objective, ParseErrorNode, UseCaseDef, UseCaseDefBody,
+    UseCaseDefBodyElement, UseCaseUsage,
 };
-use crate::parser::lex::{identification, name, qualified_name, ws1, ws_and_comments};
+use crate::parser::lex::{
+    identification, name, qualified_name, recover_body_element, starts_with_any_keyword, ws1,
+    ws_and_comments, USE_CASE_BODY_STARTERS,
+};
 use crate::parser::requirement::{doc_comment, subject_decl};
 use crate::parser::node_from_to;
 use crate::parser::Input;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::combinator::{map, opt};
-use nom::multi::many0;
-use nom::sequence::{delimited, preceded};
+use nom::sequence::preceded;
 use nom::{IResult, Parser};
+
+fn recovery_found_snippet(input: Input<'_>) -> Option<String> {
+    let frag = input.fragment();
+    let take = frag
+        .iter()
+        .position(|&b| b == b'\n' || b == b'\r')
+        .unwrap_or(frag.len())
+        .min(60);
+    let snippet = String::from_utf8_lossy(&frag[..take]).trim().to_string();
+    if snippet.is_empty() { None } else { Some(snippet) }
+}
 
 pub(crate) fn actor_decl(input: Input<'_>) -> IResult<Input<'_>, Node<ActorDecl>> {
     let start = input;
@@ -67,16 +80,64 @@ pub(crate) fn use_case_def(input: Input<'_>) -> IResult<Input<'_>, Node<UseCaseD
 fn use_case_def_body(input: Input<'_>) -> IResult<Input<'_>, UseCaseDefBody> {
     alt((
         map(preceded(ws_and_comments, tag(&b";"[..])), |_| UseCaseDefBody::Semicolon),
-        map(
-            delimited(
-                preceded(ws_and_comments, tag(&b"{"[..])),
-                many0(preceded(ws_and_comments, use_case_def_body_element)),
-                preceded(ws_and_comments, tag(&b"}"[..])),
-            ),
-            |elements| UseCaseDefBody::Brace { elements },
-        ),
+        use_case_def_body_brace,
     ))
     .parse(input)
+}
+
+fn use_case_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, UseCaseDefBody> {
+    let (mut input, _) = preceded(ws_and_comments, tag(&b"{"[..])).parse(input)?;
+    let mut elements = Vec::new();
+    loop {
+        let (next, _) = ws_and_comments(input)?;
+        input = next;
+        if input.fragment().starts_with(b"}") {
+            let (input, _) = preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?;
+            return Ok((input, UseCaseDefBody::Brace { elements }));
+        }
+        match use_case_def_body_element(input) {
+            Ok((next, element)) => {
+                if next.location_offset() == input.location_offset() {
+                    return Err(nom::Err::Error(nom::error::Error::new(
+                        input,
+                        nom::error::ErrorKind::Many0,
+                    )));
+                }
+                elements.push(element);
+                input = next;
+            }
+            Err(_) if starts_with_any_keyword(input.fragment(), USE_CASE_BODY_STARTERS) => {
+                let (next, _) = recover_body_element(input, USE_CASE_BODY_STARTERS)?;
+                if next.location_offset() == input.location_offset() {
+                    return Err(nom::Err::Error(nom::error::Error::new(
+                        input,
+                        nom::error::ErrorKind::Many0,
+                    )));
+                }
+                elements.push(node_from_to(
+                    input,
+                    next,
+                    UseCaseDefBodyElement::Error(Node::new(
+                        crate::ast::Span::dummy(),
+                        ParseErrorNode {
+                            message: "recovered use case body element".to_string(),
+                            code: "recovered_use_case_body_element".to_string(),
+                            expected: Some("valid use case body element".to_string()),
+                            found: recovery_found_snippet(input),
+                            suggestion: None,
+                        },
+                    )),
+                ));
+                input = next;
+            }
+            Err(_) => {
+                return Err(nom::Err::Error(nom::error::Error::new(
+                    input,
+                    nom::error::ErrorKind::Tag,
+                )));
+            }
+        }
+    }
 }
 
 fn use_case_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<UseCaseDefBodyElement>> {

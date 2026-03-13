@@ -1,14 +1,14 @@
 //! Action definition and action usage parsing (function-based behavior).
 
 use crate::ast::{
-    ActionDef, ActionDefBody, ActionUsage, ActionUsageBody, ActionUsageBodyElement, FirstMergeBody,
-    FirstStmt, Flow, InOut, InOutDecl, MergeStmt, Node,
+    ActionDef, ActionDefBody, ActionUsage, ActionUsageBody, ActionUsageBodyElement,
+    FirstMergeBody, FirstStmt, Flow, InOut, InOutDecl, MergeStmt, Node, ParseErrorNode,
 };
 use crate::parser::expr::path_expression;
 use crate::parser::interface::connect_body;
 use crate::parser::lex::{
-    identification, name, qualified_name, skip_statement_or_block, skip_until_brace_end, ws1,
-    ws_and_comments,
+    identification, name, qualified_name, recover_body_element, skip_until_brace_end,
+    starts_with_any_keyword, ws1, ws_and_comments, ACTION_BODY_STARTERS,
 };
 use crate::parser::node_from_to;
 use crate::parser::part::bind_;
@@ -20,6 +20,17 @@ use nom::combinator::map;
 use nom::sequence::preceded;
 use nom::Parser;
 use nom::IResult;
+
+fn recovery_found_snippet(input: Input<'_>) -> Option<String> {
+    let frag = input.fragment();
+    let take = frag
+        .iter()
+        .position(|&b| b == b'\n' || b == b'\r')
+        .unwrap_or(frag.len())
+        .min(60);
+    let snippet = String::from_utf8_lossy(&frag[..take]).trim().to_string();
+    if snippet.is_empty() { None } else { Some(snippet) }
+}
 
 /// First/merge body: `;` or `{` ... `}`
 fn first_merge_body(input: Input<'_>) -> IResult<Input<'_>, FirstMergeBody> {
@@ -92,15 +103,35 @@ fn action_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, ActionDefBody> 
                 elements.push(element);
                 input = next;
             }
-            Err(_) => {
-                let (next, _) = skip_statement_or_block(input)?;
+            Err(_) if starts_with_any_keyword(input.fragment(), ACTION_BODY_STARTERS) => {
+                let (next, _) = recover_body_element(input, ACTION_BODY_STARTERS)?;
                 if next.location_offset() == input.location_offset() {
                     return Err(nom::Err::Error(nom::error::Error::new(
                         input,
                         nom::error::ErrorKind::Many0,
                     )));
                 }
+                elements.push(node_from_to(
+                    input,
+                    next,
+                    crate::ast::ActionDefBodyElement::Error(Node::new(
+                        crate::ast::Span::dummy(),
+                        ParseErrorNode {
+                            message: "recovered action definition body element".to_string(),
+                            code: "recovered_action_def_body_element".to_string(),
+                            expected: Some("valid action definition body element".to_string()),
+                            found: recovery_found_snippet(input),
+                            suggestion: None,
+                        },
+                    )),
+                ));
                 input = next;
+            }
+            Err(_) => {
+                return Err(nom::Err::Error(nom::error::Error::new(
+                    input,
+                    nom::error::ErrorKind::Tag,
+                )));
             }
         }
     }
@@ -230,15 +261,35 @@ fn action_usage_body_brace(input: Input<'_>) -> IResult<Input<'_>, ActionUsageBo
                 elements.push(element);
                 input = next;
             }
-            Err(_) => {
-                let (next, _) = skip_statement_or_block(input)?;
+            Err(_) if starts_with_any_keyword(input.fragment(), ACTION_BODY_STARTERS) => {
+                let (next, _) = recover_body_element(input, ACTION_BODY_STARTERS)?;
                 if next.location_offset() == input.location_offset() {
                     return Err(nom::Err::Error(nom::error::Error::new(
                         input,
                         nom::error::ErrorKind::Many0,
                     )));
                 }
+                elements.push(node_from_to(
+                    input,
+                    next,
+                    ActionUsageBodyElement::Error(Node::new(
+                        crate::ast::Span::dummy(),
+                        ParseErrorNode {
+                            message: "recovered action usage body element".to_string(),
+                            code: "recovered_action_usage_body_element".to_string(),
+                            expected: Some("valid action usage body element".to_string()),
+                            found: recovery_found_snippet(input),
+                            suggestion: None,
+                        },
+                    )),
+                ));
                 input = next;
+            }
+            Err(_) => {
+                return Err(nom::Err::Error(nom::error::Error::new(
+                    input,
+                    nom::error::ErrorKind::Tag,
+                )));
             }
         }
     }

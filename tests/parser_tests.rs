@@ -345,3 +345,35 @@ fn test_requirement_body_recovery_keeps_later_require_constraint() {
         "recovered requirement region should remain visible as an AST error node"
     );
 }
+
+#[test]
+fn test_parse_with_diagnostics_reports_local_requirement_recovery() {
+    let input = "package P {\nrequirement def R {\nsubject vehicle : Vehicle;\nattribute massActual: MassValue;\nrequire constraint { }\n}\n}";
+    let result = parse_with_diagnostics(input);
+    assert!(!result.is_ok(), "local recovery should surface as diagnostics");
+    assert!(
+        result
+            .errors
+            .iter()
+            .any(|e| e.code.as_deref() == Some("recovered_requirement_body_element")),
+        "expected a specific local requirement recovery diagnostic, got {:?}",
+        result.errors.iter().map(|e| e.code.clone()).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn test_parse_with_diagnostics_reports_local_package_recovery() {
+    let input = "package P {\n#fmeaspec requirement req1 { }\npart def Good;\n}";
+    let result = parse_with_diagnostics(input);
+    assert!(!result.is_ok(), "package-level recovery should surface as diagnostics");
+    let err = result
+        .errors
+        .iter()
+        .find(|e| e.code.as_deref() == Some("recovered_package_body_element"))
+        .expect("expected local package recovery diagnostic");
+    assert_eq!(err.line, Some(2));
+    assert!(
+        err.found.as_deref().map_or(false, |f| f.contains("#fmeaspec")),
+        "diagnostic should preserve recovered snippet"
+    );
+}

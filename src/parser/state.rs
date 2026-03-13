@@ -1,12 +1,12 @@
 use crate::ast::{
-    EntryAction, Node, RefBody, RefDecl, StateDef, StateDefBody, StateDefBodyElement, StateUsage,
-    ThenStmt, Transition,
+    EntryAction, Node, ParseErrorNode, RefBody, RefDecl, StateDef, StateDefBody,
+    StateDefBodyElement, StateUsage, ThenStmt, Transition,
 };
 use crate::parser::requirement::doc_comment;
 use crate::parser::expr::expression;
 use crate::parser::lex::{
-    identification, name, qualified_name, skip_statement_or_block, skip_until_brace_end, ws1,
-    ws_and_comments,
+    identification, name, qualified_name, recover_body_element, skip_until_brace_end,
+    starts_with_any_keyword, ws1, ws_and_comments, STATE_BODY_STARTERS,
 };
 use crate::parser::node_from_to;
 use crate::parser::Input;
@@ -15,6 +15,17 @@ use nom::bytes::complete::tag;
 use nom::combinator::{map, opt};
 use nom::sequence::{delimited, preceded};
 use nom::{IResult, Parser};
+
+fn recovery_found_snippet(input: Input<'_>) -> Option<String> {
+    let frag = input.fragment();
+    let take = frag
+        .iter()
+        .position(|&b| b == b'\n' || b == b'\r')
+        .unwrap_or(frag.len())
+        .min(60);
+    let snippet = String::from_utf8_lossy(&frag[..take]).trim().to_string();
+    if snippet.is_empty() { None } else { Some(snippet) }
+}
 
 fn keyword_state_def(input: Input<'_>) -> IResult<Input<'_>, ()> {
     let (input, _) = tag(&b"state"[..]).parse(input)?;
@@ -61,15 +72,35 @@ fn state_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, StateDefBody> {
                 elements.push(element);
                 input = next;
             }
-            Err(_) => {
-                let (next, _) = skip_statement_or_block(input)?;
+            Err(_) if starts_with_any_keyword(input.fragment(), STATE_BODY_STARTERS) => {
+                let (next, _) = recover_body_element(input, STATE_BODY_STARTERS)?;
                 if next.location_offset() == input.location_offset() {
                     return Err(nom::Err::Error(nom::error::Error::new(
                         input,
                         nom::error::ErrorKind::Many0,
                     )));
                 }
+                elements.push(node_from_to(
+                    input,
+                    next,
+                    StateDefBodyElement::Error(Node::new(
+                        crate::ast::Span::dummy(),
+                        ParseErrorNode {
+                            message: "recovered state body element".to_string(),
+                            code: "recovered_state_body_element".to_string(),
+                            expected: Some("valid state body element".to_string()),
+                            found: recovery_found_snippet(input),
+                            suggestion: None,
+                        },
+                    )),
+                ));
                 input = next;
+            }
+            Err(_) => {
+                return Err(nom::Err::Error(nom::error::Error::new(
+                    input,
+                    nom::error::ErrorKind::Tag,
+                )));
             }
         }
     }

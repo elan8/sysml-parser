@@ -92,7 +92,10 @@ fn requirement_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, Requiremen
                         crate::ast::Span::dummy(),
                         ParseErrorNode {
                             message: "recovered requirement body element".to_string(),
+                            code: "recovered_requirement_body_element".to_string(),
+                            expected: Some("valid requirement body element".to_string()),
                             found: recovery_found_snippet(input),
+                            suggestion: None,
                         },
                     )),
                 ));

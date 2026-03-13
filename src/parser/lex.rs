@@ -77,6 +77,18 @@ pub(crate) const PART_BODY_STARTERS: &[&[u8]] = &[
     b"satisfy",
 ];
 
+pub(crate) const ACTION_BODY_STARTERS: &[&[u8]] = &[
+    b"action",
+    b"bind",
+    b"doc",
+    b"first",
+    b"flow",
+    b"in",
+    b"merge",
+    b"out",
+    b"perform",
+];
+
 pub(crate) const REQUIREMENT_BODY_STARTERS: &[&[u8]] = &[
     b"attribute",
     b"doc",
@@ -85,6 +97,22 @@ pub(crate) const REQUIREMENT_BODY_STARTERS: &[&[u8]] = &[
     b"require",
     b"requirement",
     b"satisfy",
+    b"subject",
+];
+
+pub(crate) const STATE_BODY_STARTERS: &[&[u8]] = &[
+    b"doc",
+    b"entry",
+    b"ref",
+    b"state",
+    b"then",
+    b"transition",
+];
+
+pub(crate) const USE_CASE_BODY_STARTERS: &[&[u8]] = &[
+    b"actor",
+    b"doc",
+    b"objective",
     b"subject",
 ];
 
