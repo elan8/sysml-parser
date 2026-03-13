@@ -3,8 +3,8 @@
 use crate::ast::{
     Allocate, Bind, Connect, ConnectBody, DefinitionPrefix, ExhibitState, InOut, InterfaceUsage,
     InterfaceUsageBodyElement, Node, PartDef, PartDefBody, PartDefBodyElement, PartUsage,
-    PartUsageBody, PartUsageBodyElement, Perform, PerformBody, PerformBodyElement, PerformInOutBinding,
-    RefBody, RefDecl,
+    PartUsageBody, PartUsageBodyElement, ParseErrorNode, Perform, PerformBody, PerformBodyElement,
+    PerformInOutBinding, RefBody, RefDecl,
 };
 use crate::parser::attribute::{attribute_def, attribute_usage, attribute_usage_shorthand};
 use crate::parser::expr::{expression, path_expression};
@@ -27,6 +27,21 @@ use nom::multi::many0;
 use nom::sequence::preceded;
 use nom::Parser;
 use nom::IResult;
+
+fn recovery_found_snippet(input: Input<'_>) -> Option<String> {
+    let frag = input.fragment();
+    let take = frag
+        .iter()
+        .position(|&b| b == b'\n' || b == b'\r')
+        .unwrap_or(frag.len())
+        .min(60);
+    let snippet = String::from_utf8_lossy(&frag[..take]).trim().to_string();
+    if snippet.is_empty() {
+        None
+    } else {
+        Some(snippet)
+    }
+}
 
 /// Result of parsing either a part definition or part usage (used for package body to avoid part_def consuming "part" before part_usage can run).
 #[derive(Debug)]
@@ -70,6 +85,17 @@ fn part_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, PartDefBody> {
                         nom::error::ErrorKind::Many0,
                     )));
                 }
+                elements.push(node_from_to(
+                    input,
+                    next,
+                    PartDefBodyElement::Error(Node::new(
+                        crate::ast::Span::dummy(),
+                        ParseErrorNode {
+                            message: "recovered part definition body element".to_string(),
+                            found: recovery_found_snippet(input),
+                        },
+                    )),
+                ));
                 input = next;
             }
             Err(_) => {
@@ -395,6 +421,17 @@ fn part_usage_body_brace(input: Input<'_>) -> IResult<Input<'_>, PartUsageBody> 
                         nom::error::ErrorKind::Many0,
                     )));
                 }
+                elements.push(node_from_to(
+                    input,
+                    next,
+                    PartUsageBodyElement::Error(Node::new(
+                        crate::ast::Span::dummy(),
+                        ParseErrorNode {
+                            message: "recovered part usage body element".to_string(),
+                            found: recovery_found_snippet(input),
+                        },
+                    )),
+                ));
                 input = next;
             }
             Err(_) => {

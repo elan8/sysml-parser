@@ -1,7 +1,7 @@
 use crate::ast::{
     CommentAnnotation, ConcernUsage, DocComment, FrameMember, Node, RequireConstraint,
-    RequirementDef, RequirementDefBody, RequirementDefBodyElement, SubjectDecl, Satisfy,
-    RequirementUsage, ConstraintBody, TextualRepresentation,
+    RequirementDef, RequirementDefBody, RequirementDefBodyElement, RequirementUsage,
+    ConstraintBody, ParseErrorNode, SubjectDecl, Satisfy, TextualRepresentation,
 };
 use crate::parser::expr::expression;
 use crate::parser::import::import_;
@@ -16,6 +16,21 @@ use nom::bytes::complete::tag;
 use nom::combinator::{map, opt};
 use nom::sequence::{delimited, preceded};
 use nom::{IResult, Parser};
+
+fn recovery_found_snippet(input: Input<'_>) -> Option<String> {
+    let frag = input.fragment();
+    let take = frag
+        .iter()
+        .position(|&b| b == b'\n' || b == b'\r')
+        .unwrap_or(frag.len())
+        .min(60);
+    let snippet = String::from_utf8_lossy(&frag[..take]).trim().to_string();
+    if snippet.is_empty() {
+        None
+    } else {
+        Some(snippet)
+    }
+}
 
 fn keyword_requirement_def(input: Input<'_>) -> IResult<Input<'_>, ()> {
     let (input, _) = tag(&b"requirement"[..]).parse(input)?;
@@ -70,6 +85,17 @@ fn requirement_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, Requiremen
                         nom::error::ErrorKind::Many0,
                     )));
                 }
+                elements.push(node_from_to(
+                    input,
+                    next,
+                    RequirementDefBodyElement::Error(Node::new(
+                        crate::ast::Span::dummy(),
+                        ParseErrorNode {
+                            message: "recovered requirement body element".to_string(),
+                            found: recovery_found_snippet(input),
+                        },
+                    )),
+                ));
                 input = next;
             }
             Err(_) => {

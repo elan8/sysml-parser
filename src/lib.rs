@@ -13,6 +13,7 @@ pub use ast::{
     Identification, InOut,
     InOutDecl, InterfaceDef, InterfaceDefBody, InterfaceDefBodyElement, InterfaceUsage,
     InterfaceUsageBodyElement, Import, MergeStmt, NamespaceDecl, Node, Package, PackageBody, PackageBodyElement,
+    ParseErrorNode,
     PartDef, PartDefBody, PartDefBodyElement, PartUsage, PartUsageBody, PartUsageBodyElement,
     Perform, PerformBody, PerformBodyElement, PerformInOutBinding, PortBody, PortDef, PortDefBody, PortDefBodyElement,
     PortUsage, RefBody, RefDecl, RootElement, RootNamespace, Span, TextualRepresentation, Visibility,

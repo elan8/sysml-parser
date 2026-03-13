@@ -149,9 +149,17 @@ pub struct FilterMember {
     pub condition: Node<Expression>,
 }
 
+/// Placeholder node inserted when resilient parsing skips malformed input.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseErrorNode {
+    pub message: String,
+    pub found: Option<String>,
+}
+
 /// Top-level element inside a namespace or package body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageBodyElement {
+    Error(Node<ParseErrorNode>),
     Doc(Node<DocComment>),
     Comment(Node<CommentAnnotation>),
     TextualRep(Node<TextualRepresentation>),
@@ -281,6 +289,7 @@ pub enum PartDefBody {
 /// Element inside a part definition body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PartDefBodyElement {
+    Error(Node<ParseErrorNode>),
     Doc(Node<DocComment>),
     AttributeDef(Node<AttributeDef>),
     AttributeUsage(Node<AttributeUsage>),
@@ -377,6 +386,7 @@ pub struct MetadataAnnotation {
 /// Element inside a part usage body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PartUsageBodyElement {
+    Error(Node<ParseErrorNode>),
     Doc(Node<DocComment>),
     AttributeUsage(Node<AttributeUsage>),
     PartUsage(Box<Node<PartUsage>>),
@@ -871,6 +881,7 @@ pub enum RequirementDefBody {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RequirementDefBodyElement {
+    Error(Node<ParseErrorNode>),
     Import(Node<Import>),
     SubjectDecl(Node<SubjectDecl>),
     RequireConstraint(Node<RequireConstraint>),
@@ -1324,6 +1335,7 @@ fn normalize_package_body(b: &PackageBody) -> PackageBody {
 
 fn normalize_package_body_element_node(el: &Node<PackageBodyElement>) -> Node<PackageBodyElement> {
     let value = match &el.value {
+        PackageBodyElement::Error(n) => PackageBodyElement::Error(dummy_node(n, n.value.clone())),
         PackageBodyElement::Doc(n) => PackageBodyElement::Doc(dummy_node(n, n.value.clone())),
         PackageBodyElement::Comment(n) => {
             PackageBodyElement::Comment(dummy_node(n, n.value.clone()))
@@ -1463,6 +1475,7 @@ fn normalize_part_def_body(b: &PartDefBody) -> PartDefBody {
 
 fn normalize_part_def_body_element_node(el: &Node<PartDefBodyElement>) -> Node<PartDefBodyElement> {
     let value = match &el.value {
+        PartDefBodyElement::Error(n) => PartDefBodyElement::Error(dummy_node(n, n.value.clone())),
         PartDefBodyElement::Doc(n) => PartDefBodyElement::Doc(dummy_node(n, n.value.clone())),
         PartDefBodyElement::AttributeDef(n) => {
             PartDefBodyElement::AttributeDef(dummy_node(n, normalize_attribute_def(&n.value)))
@@ -1599,6 +1612,7 @@ fn normalize_part_usage_body_element_node(
     el: &Node<PartUsageBodyElement>,
 ) -> Node<PartUsageBodyElement> {
     let value = match &el.value {
+        PartUsageBodyElement::Error(n) => PartUsageBodyElement::Error(dummy_node(n, n.value.clone())),
         PartUsageBodyElement::Doc(n) => PartUsageBodyElement::Doc(dummy_node(n, n.value.clone())),
         PartUsageBodyElement::AttributeUsage(n) => {
             PartUsageBodyElement::AttributeUsage(dummy_node(n, normalize_attribute_usage(&n.value)))

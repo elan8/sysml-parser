@@ -276,6 +276,10 @@ fn test_package_body_recovery_skips_annotated_member_and_keeps_later_sibling() {
         elements.iter().any(|e| matches!(e.value, PackageBodyElement::PartDef(_))),
         "later valid sibling should still be present after recovering from annotated unsupported member"
     );
+    assert!(
+        elements.iter().any(|e| matches!(e.value, PackageBodyElement::Error(_))),
+        "recovered package region should be represented explicitly in the AST"
+    );
 }
 
 #[test]
@@ -297,6 +301,10 @@ fn test_package_body_recovery_skips_malformed_abstract_part_and_keeps_next_membe
             .count(),
         1,
         "recovery should skip malformed abstract part and continue with the next valid definition"
+    );
+    assert!(
+        elements.iter().any(|e| matches!(e.value, PackageBodyElement::Error(_))),
+        "skipped malformed package member should produce an AST error node"
     );
 }
 
@@ -329,5 +337,11 @@ fn test_requirement_body_recovery_keeps_later_require_constraint() {
             sysml_parser::ast::RequirementDefBodyElement::RequireConstraint(_)
         )),
         "later known requirement member should survive recovery over unsupported members"
+    );
+    assert!(
+        body_elements
+            .iter()
+            .any(|e| matches!(e.value, sysml_parser::ast::RequirementDefBodyElement::Error(_))),
+        "recovered requirement region should remain visible as an AST error node"
     );
 }

@@ -2,7 +2,7 @@
 
 use crate::ast::{
     FilterMember, LibraryPackage, NamespaceDecl, Node, Package, PackageBody, PackageBodyElement,
-    RootElement, RootNamespace, Visibility,
+    ParseErrorNode, RootElement, RootNamespace, Visibility,
 };
 use crate::parser::action::{action_def, action_usage};
 use crate::parser::alias::alias_def;
@@ -43,6 +43,21 @@ use nom::multi::many0;
 use nom::sequence::preceded;
 use nom::Parser;
 use nom::IResult;
+
+fn recovery_found_snippet(input: Input<'_>) -> Option<String> {
+    let frag = input.fragment();
+    let take = frag
+        .iter()
+        .position(|&b| b == b'\n' || b == b'\r')
+        .unwrap_or(frag.len())
+        .min(60);
+    let snippet = String::from_utf8_lossy(&frag[..take]).trim().to_string();
+    if snippet.is_empty() {
+        None
+    } else {
+        Some(snippet)
+    }
+}
 
 /// Keyword "package" with following whitespace.
 fn keyword_package(input: Input<'_>) -> IResult<Input<'_>, ()> {
@@ -163,6 +178,17 @@ fn package_body_brace(input: Input<'_>) -> IResult<Input<'_>, PackageBody> {
                         nom::error::ErrorKind::Many0,
                     )));
                 }
+                elements.push(node_from_to(
+                    input,
+                    next,
+                    PackageBodyElement::Error(Node::new(
+                        crate::ast::Span::dummy(),
+                        ParseErrorNode {
+                            message: "recovered package body element".to_string(),
+                            found: recovery_found_snippet(input),
+                        },
+                    )),
+                ));
                 input = next;
             }
             Err(_) => {
