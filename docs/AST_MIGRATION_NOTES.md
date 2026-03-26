@@ -19,6 +19,7 @@ Where each node carries:
 - Existing node shapes for all previously supported dedicated constructs remain unchanged.
 - Diagnostics behavior changed for unsupported package-level declarations: many declarations that previously produced `recovered_package_body_element` diagnostics are now represented as modeled declaration nodes and no longer emit that recovery diagnostic.
 - For several standard-library-heavy declaration families, parser coverage now prefers dedicated top-level node mapping (e.g. `RequirementDef`, `UseCaseDef`, `PartDef`, `PortDef`, `ViewpointDef`, `EnumDef`) while allowing permissive body consumption to avoid fallback at package level.
+- Quantities/Units and related metadata families now map to dedicated top-level nodes without `ExtendedLibraryDecl` fallback in full std-library node-shape validation.
 
 ### Suggested downstream handling (Spec42)
 

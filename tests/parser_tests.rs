@@ -395,6 +395,42 @@ fn test_stdlib_part_port_viewpoint_map_to_dedicated_nodes() {
 }
 
 #[test]
+fn test_quantities_abstract_attribute_def_maps_dedicated() {
+    let input = "package P { abstract attribute def TensorQuantityValue :> Array { attribute num: Number[1..*]; } }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    assert!(matches!(elements[0].value, PackageBodyElement::AttributeDef(_)));
+}
+
+#[test]
+fn test_enum_def_with_specialization_and_assigned_literals_maps_dedicated() {
+    let input = "package P { enum def LevelEnum :> Level { low = 0.25; medium = 0.5; high = 0.75; } }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    assert!(matches!(elements[0].value, PackageBodyElement::EnumDef(_)));
+    assert!(
+        !elements
+            .iter()
+            .any(|e| matches!(e.value, PackageBodyElement::ExtendedLibraryDecl(_))),
+        "enum specialization sample should not fall back to ExtendedLibraryDecl"
+    );
+}
+
+#[test]
 fn test_expression_precedence_parse() {
     let input = "package P { attribute x = 1 + 2 * 3; }";
     let result = parse(input).expect("parse should succeed");

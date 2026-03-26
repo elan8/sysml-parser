@@ -3,7 +3,8 @@
 use crate::ast::{AttributeBody, AttributeDef, AttributeUsage, Node};
 use crate::parser::expr::expression;
 use crate::parser::lex::{
-    name, qualified_name, skip_until_brace_end, take_until_terminator, ws1, ws_and_comments,
+    identification, name, qualified_name, skip_until_brace_end, take_until_terminator, ws1,
+    ws_and_comments,
 };
 use crate::parser::node_from_to;
 use crate::parser::with_span;
@@ -102,10 +103,21 @@ pub(crate) fn attribute_body(input: Input<'_>) -> IResult<Input<'_>, AttributeBo
 pub(crate) fn attribute_def(input: Input<'_>) -> IResult<Input<'_>, Node<AttributeDef>> {
     let start = input;
     let (input, _) = ws_and_comments(input)?;
+    let (input, _) = nom::combinator::opt(preceded(
+        alt((
+            tag(&b"private"[..]),
+            tag(&b"protected"[..]),
+            tag(&b"public"[..]),
+        )),
+        ws1,
+    ))
+    .parse(input)?;
+    let (input, _) = nom::combinator::opt(preceded(tag(&b"abstract"[..]), ws1)).parse(input)?;
     let (input, _) = tag(&b"attribute"[..]).parse(input)?;
     let (input, _) = ws1(input)?;
     let (input, _) = nom::combinator::opt(preceded(tag(&b"def"[..]), ws1)).parse(input)?;
-    let (input, (name_span, name_str)) = with_span(name).parse(input)?;
+    let (input, ident) = identification(input)?;
+    let name_str = ident.name.clone().unwrap_or_default();
     let (input, typing_result) = nom::combinator::opt(alt((
         preceded(
             preceded(ws_and_comments, tag(&b":>"[..])),
@@ -120,7 +132,11 @@ pub(crate) fn attribute_def(input: Input<'_>) -> IResult<Input<'_>, Node<Attribu
     let (typing_span, typing) = typing_result
         .map(|(span, s)| (Some(span), Some(s)))
         .unwrap_or((None, None));
+    // Quantities/Units declarations often contain rich suffixes before body (`:>>`, lists, defaults,
+    // multiple typed references). Consume the remainder up to `;`/`{` to keep dedicated mapping.
     let (input, _) = nom::combinator::opt(skip_value_part).parse(input)?;
+    let (input, _) = ws_and_comments(input)?;
+    let (input, _) = take_until_terminator(input, b";{")?;
     let (input, body) = attribute_body(input)?;
     Ok((
         input,
@@ -128,7 +144,7 @@ pub(crate) fn attribute_def(input: Input<'_>) -> IResult<Input<'_>, Node<Attribu
             name: name_str,
             typing,
             body,
-            name_span: Some(name_span),
+            name_span: None,
             typing_span,
         }),
     ))

@@ -210,6 +210,20 @@ fn collect_body_type_counts(body: &PackageBody, counts: &mut BTreeMap<String, us
     }
 }
 
+fn collect_extended_texts(body: &PackageBody, out: &mut Vec<String>) {
+    let PackageBody::Brace { elements } = body else {
+        return;
+    };
+    for element in elements {
+        match &element.value {
+            PackageBodyElement::ExtendedLibraryDecl(n) => out.push(n.value.text.clone()),
+            PackageBodyElement::Package(n) => collect_extended_texts(&n.value.body, out),
+            PackageBodyElement::LibraryPackage(n) => collect_extended_texts(&n.value.body, out),
+            _ => {}
+        }
+    }
+}
+
 /// Full library suite: parse all SysML/KerML library sources from SysML-v2-Release.
 ///
 /// Run with: `cargo test --test validation test_full_library_suite -- --include-ignored --nocapture`
@@ -480,6 +494,7 @@ fn test_systems_library_node_types_no_extended() {
 
     let mut type_counts: BTreeMap<String, usize> = BTreeMap::new();
     let mut extended_by_file = Vec::new();
+    let mut sample_texts = Vec::new();
 
     for file in &files {
         let relative = file
@@ -496,6 +511,20 @@ fn test_systems_library_node_types_no_extended() {
         collect_package_body_type_counts(&result.root, &mut file_counts);
         let n_extended = *file_counts.get("ExtendedLibraryDecl").unwrap_or(&0);
         if n_extended > 0 {
+            let mut snippets = Vec::new();
+            for root in &result.root.elements {
+                match &root.value {
+                    RootElement::Package(n) => collect_extended_texts(&n.value.body, &mut snippets),
+                    RootElement::LibraryPackage(n) => {
+                        collect_extended_texts(&n.value.body, &mut snippets)
+                    }
+                    RootElement::Namespace(n) => collect_extended_texts(&n.value.body, &mut snippets),
+                    RootElement::Import(_) => {}
+                }
+            }
+            for s in snippets.into_iter().take(2) {
+                sample_texts.push((relative.clone(), s));
+            }
             extended_by_file.push((relative, n_extended));
         }
     }
@@ -520,5 +549,96 @@ fn test_systems_library_node_types_no_extended() {
         n_extended_total, 0,
         "Systems Library still contains ExtendedLibraryDecl nodes ({} total)",
         n_extended_total
+    );
+}
+
+/// Node-shape quality gate for the full SysML standard library.
+///
+/// Run with:
+/// `cargo test --test validation test_full_library_node_types_no_extended -- --include-ignored --nocapture`
+#[test]
+#[ignore = "quality gate: ensure full std library maps to dedicated node types"]
+fn test_full_library_node_types_no_extended() {
+    super::init_log();
+
+    let full_path = library_dir();
+    if !full_path.exists() {
+        log::debug!("Library directory not found: {:?}", full_path);
+        return;
+    }
+
+    let mut files = find_library_files(&full_path).expect("Failed to find full library files");
+    files.sort();
+    assert!(!files.is_empty(), "No full library files found");
+
+    let mut type_counts: BTreeMap<String, usize> = BTreeMap::new();
+    let mut extended_by_file = Vec::new();
+    let mut sample_texts = Vec::new();
+
+    for file in &files {
+        let relative = file
+            .strip_prefix(&full_path)
+            .unwrap_or(file)
+            .to_string_lossy()
+            .to_string();
+        let content = fs::read_to_string(file)
+            .unwrap_or_else(|e| panic!("failed to read {}: {}", relative, e));
+        let result = parse_with_diagnostics(&content);
+        collect_package_body_type_counts(&result.root, &mut type_counts);
+
+        let mut file_counts = BTreeMap::new();
+        collect_package_body_type_counts(&result.root, &mut file_counts);
+        let n_extended = *file_counts.get("ExtendedLibraryDecl").unwrap_or(&0);
+        if n_extended > 0 {
+            let mut snippets = Vec::new();
+            for root in &result.root.elements {
+                match &root.value {
+                    RootElement::Package(n) => collect_extended_texts(&n.value.body, &mut snippets),
+                    RootElement::LibraryPackage(n) => {
+                        collect_extended_texts(&n.value.body, &mut snippets)
+                    }
+                    RootElement::Namespace(n) => collect_extended_texts(&n.value.body, &mut snippets),
+                    RootElement::Import(_) => {}
+                }
+            }
+            for s in snippets.into_iter().take(2) {
+                sample_texts.push((relative.clone(), s));
+            }
+            extended_by_file.push((relative, n_extended));
+        }
+    }
+
+    let n_extended_total = *type_counts.get("ExtendedLibraryDecl").unwrap_or(&0);
+    // Staged burn-down support:
+    // - historical checkpoints: 1206 -> <=900 -> <=600 -> <=300 -> 0
+    // - default is strict hard-0 once migration is complete.
+    let threshold = std::env::var("FULL_LIBRARY_EXTENDED_MAX")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(0);
+    eprintln!("Full library node-type counts:");
+    let mut sorted_counts = type_counts.into_iter().collect::<Vec<_>>();
+    sorted_counts.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    for (k, v) in sorted_counts {
+        eprintln!("  - {}: {}", k, v);
+    }
+
+    if n_extended_total > 0 {
+        extended_by_file.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        eprintln!("Files still mapped as ExtendedLibraryDecl:");
+        for (path, n) in extended_by_file.iter().take(20) {
+            eprintln!("  - {}: {}", path, n);
+        }
+        eprintln!("ExtendedLibraryDecl samples:");
+        for (path, sample) in sample_texts.iter().take(20) {
+            eprintln!("  - {} => {}", path, sample.replace('\n', " "));
+        }
+    }
+
+    assert!(
+        n_extended_total <= threshold,
+        "Full std library still contains ExtendedLibraryDecl nodes ({} total, threshold {})",
+        n_extended_total,
+        threshold
     );
 }

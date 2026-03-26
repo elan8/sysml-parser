@@ -1,7 +1,9 @@
 //! Enumeration definition parsing (BNF EnumerationDefinition).
 
 use crate::ast::{EnumDef, EnumerationBody, Node};
-use crate::parser::lex::{identification, name, skip_until_brace_end, ws1, ws_and_comments};
+use crate::parser::lex::{
+    identification, name, skip_until_brace_end, take_until_terminator, ws1, ws_and_comments,
+};
 use crate::parser::node_from_to;
 use crate::parser::Input;
 use nom::branch::alt;
@@ -20,9 +22,13 @@ fn enumerated_value(input: Input<'_>) -> IResult<Input<'_>, String> {
         map(
             (
                 name,
+                nom::combinator::opt(preceded(
+                    preceded(ws_and_comments, tag(&b"="[..])),
+                    preceded(ws_and_comments, |i| take_until_terminator(i, b";")),
+                )),
                 preceded(ws_and_comments, tag(&b";"[..])),
             ),
-            |(n, _)| n,
+            |(n, _, _)| n,
         ),
         map(
             nom::sequence::terminated(
@@ -65,6 +71,8 @@ pub(crate) fn enum_def(input: Input<'_>) -> IResult<Input<'_>, Node<EnumDef>> {
     let (input, _) = tag(&b"def"[..]).parse(input)?;
     let (input, _) = ws1(input)?;
     let (input, identification) = identification(input)?;
+    let (input, _) = ws_and_comments(input)?;
+    let (input, _) = take_until_terminator(input, b";{")?;
     let (input, body) = enumeration_body(input)?;
     Ok((
         input,
