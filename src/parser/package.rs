@@ -74,14 +74,26 @@ fn keyword_package(input: Input<'_>) -> IResult<Input<'_>, ()> {
     Ok((input, ()))
 }
 
-/// library (optional standard) package Identification PackageBody (BNF LibraryPackage)
+/// [standard] library package Identification PackageBody (BNF LibraryPackage)
 fn library_package_(input: Input<'_>) -> IResult<Input<'_>, Node<LibraryPackage>> {
     let start = input;
-    let (input, _) = preceded(ws_and_comments, tag(&b"library"[..])).parse(input)?;
-    let (input, _) = ws1(input)?;
-    let (input, is_standard) = opt(preceded(tag(&b"standard"[..]), ws1))
-        .parse(input)
-        .map(|(i, o)| (i, o.is_some()))?;
+    let (input, _) = ws_and_comments(input)?;
+    // Accept both `standard library package` (current SysML v2 stdlib)
+    // and legacy `library standard package`.
+    let (input, is_standard) = if input.fragment().starts_with(b"standard") {
+        let (input, _) = tag(&b"standard"[..]).parse(input)?;
+        let (input, _) = ws1(input)?;
+        let (input, _) = tag(&b"library"[..]).parse(input)?;
+        let (input, _) = ws1(input)?;
+        (input, true)
+    } else {
+        let (input, _) = tag(&b"library"[..]).parse(input)?;
+        let (input, _) = ws1(input)?;
+        let (input, is_standard) = opt(preceded(tag(&b"standard"[..]), ws1))
+            .parse(input)
+            .map(|(i, o)| (i, o.is_some()))?;
+        (input, is_standard)
+    };
     let (input, _) = keyword_package(input)?;
     let (input, identification) = identification(input)?;
     let (input, body) = package_body(input)?;

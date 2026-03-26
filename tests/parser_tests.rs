@@ -1,7 +1,7 @@
 //! TDD tests: SysML snippets with expected AST.
 
 use sysml_parser::ast::{
-    Identification, Node, Package, PackageBody, PackageBodyElement, RootElement, RootNamespace, Span,
+    Identification, LibraryPackage, Node, Package, PackageBody, PackageBodyElement, RootElement, RootNamespace, Span,
     ViewDefBody, RenderingDefBody, ViewBody,
 };
 use sysml_parser::{parse, parse_with_diagnostics};
@@ -11,11 +11,6 @@ fn id(name: &str) -> Identification {
         short_name: None,
         name: Some(name.to_string()),
     }
-}
-
-/// Wrap value in a node with dummy span for expected AST construction.
-fn n<T>(v: T) -> Node<T> {
-    Node::new(Span::dummy(), v)
 }
 
 /// Node with span matching parser output for full-input parses (offset 0, line 1, column 1).
@@ -67,6 +62,43 @@ fn test_package_with_brace_body() {
     assert_eq!(
         result, expected,
         "AST should match expected for package Bar {{ }}"
+    );
+}
+
+#[test]
+fn test_standard_library_package_header_parses() {
+    let input = "standard library package SysML { }";
+    let result = parse(input).expect("parse should succeed");
+    assert_eq!(result.elements.len(), 1);
+    match &result.elements[0].value {
+        RootElement::LibraryPackage(lp) => {
+            assert!(lp.value.is_standard);
+            assert_eq!(lp.value.identification.name.as_deref(), Some("SysML"));
+            assert!(matches!(lp.value.body, PackageBody::Brace { ref elements } if elements.is_empty()));
+        }
+        other => panic!("expected library package, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_legacy_library_standard_package_header_still_parses() {
+    let input = "library standard package LegacyStd;";
+    let result = parse(input).expect("parse should succeed");
+    assert_eq!(
+        result,
+        RootNamespace {
+            elements: vec![n_len(
+                input.len(),
+                RootElement::LibraryPackage(n_len(
+                    input.len(),
+                    LibraryPackage {
+                        is_standard: true,
+                        identification: id("LegacyStd"),
+                        body: PackageBody::Semicolon,
+                    }
+                ))
+            )]
+        }
     );
 }
 
