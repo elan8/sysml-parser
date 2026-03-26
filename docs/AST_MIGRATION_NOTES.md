@@ -18,6 +18,7 @@ Where each node carries:
 - These are additive enum variants, so existing exhaustive matches over `PackageBodyElement` must add corresponding branches.
 - Existing node shapes for all previously supported dedicated constructs remain unchanged.
 - Diagnostics behavior changed for unsupported package-level declarations: many declarations that previously produced `recovered_package_body_element` diagnostics are now represented as modeled declaration nodes and no longer emit that recovery diagnostic.
+- For several standard-library-heavy declaration families, parser coverage now prefers dedicated top-level node mapping (e.g. `RequirementDef`, `UseCaseDef`, `PartDef`, `PortDef`, `ViewpointDef`, `EnumDef`) while allowing permissive body consumption to avoid fallback at package level.
 
 ### Suggested downstream handling (Spec42)
 
@@ -25,3 +26,4 @@ Where each node carries:
 - For indexing/symbol extraction pipelines, either:
   - skip these nodes, or
   - parse each node `.text` with downstream heuristics if partial symbol extraction is desired.
+- If downstream logic depends on fully detailed nested body members, treat empty/partial body element vectors as "parsed declaration shell" rather than parse failure; the declaration kind is now authoritative at package level.

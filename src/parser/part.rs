@@ -1,4 +1,5 @@
 //! Part definition and part usage parsing.
+#![allow(dead_code, unused_imports)]
 
 use crate::ast::{
     Allocate, Bind, Connect, ConnectBody, DefinitionPrefix, ExhibitState, Expression, InOut, InterfaceUsage,

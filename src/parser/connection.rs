@@ -1,4 +1,5 @@
 //! Connection definition parsing (BNF ConnectionDefinition).
+#![allow(dead_code, unused_imports)]
 
 use crate::ast::{
     ConnectionDef, ConnectionDefBody, ConnectionDefBodyElement, ConnectStmt, EndDecl, Node,

@@ -1,4 +1,5 @@
 //! View, viewpoint, and rendering parsing (SysML v2 Clause 8.2.2.26).
+#![allow(dead_code, unused_imports)]
 
 use crate::ast::{
     ExposeMember, FilterMember, Node, SatisfyViewMember, ViewBody, ViewBodyElement, ViewDef,

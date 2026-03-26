@@ -1,3 +1,5 @@
+#![allow(dead_code, unused_imports)]
+
 use crate::ast::{
     CommentAnnotation, ConcernUsage, DocComment, FrameMember, Node, RequireConstraint,
     RequirementDef, RequirementDefBody, RequirementDefBodyElement, RequirementUsage,

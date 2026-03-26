@@ -1,4 +1,5 @@
 //! Port definition and port usage parsing.
+#![allow(dead_code, unused_imports)]
 
 use crate::ast::{Node, PortBody, PortDef, PortDefBody, PortDefBodyElement, PortUsage};
 use crate::parser::attribute::{attribute_def, attribute_usage};

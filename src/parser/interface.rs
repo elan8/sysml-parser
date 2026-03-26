@@ -1,4 +1,5 @@
 //! Interface definition and usage parsing.
+#![allow(dead_code, unused_imports)]
 
 use crate::ast::{
     ConnectBody, ConnectStmt, EndDecl, InterfaceDef, InterfaceDefBody, InterfaceDefBodyElement,

@@ -1,3 +1,5 @@
+#![allow(dead_code, unused_imports)]
+
 use crate::ast::{
     Node, ActorDecl, ActorUsage, Objective, ParseErrorNode, UseCaseDef, UseCaseDefBody,
     UseCaseDefBodyElement, UseCaseUsage,

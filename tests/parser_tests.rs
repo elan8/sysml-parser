@@ -347,6 +347,54 @@ fn test_case_family_parse() {
 }
 
 #[test]
+fn test_stdlib_requirement_usecase_enum_map_to_dedicated_nodes() {
+    let input = "package P {
+        abstract requirement def RequirementCheck :> BaseType { }
+        use case def UseCase :> Case { }
+        enum def VerdictKind { pass; fail; }
+    }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    assert!(matches!(elements[0].value, PackageBodyElement::RequirementDef(_)));
+    assert!(matches!(elements[1].value, PackageBodyElement::UseCaseDef(_)));
+    assert!(matches!(elements[2].value, PackageBodyElement::EnumDef(_)));
+}
+
+#[test]
+fn test_stdlib_part_port_viewpoint_map_to_dedicated_nodes() {
+    let input = "package P {
+        abstract part def Part :> Item { }
+        abstract port def Port :> Object { }
+        abstract viewpoint def ViewpointCheck :> RequirementCheck { }
+    }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    assert!(matches!(elements[0].value, PackageBodyElement::PartDef(_)));
+    assert!(matches!(elements[1].value, PackageBodyElement::PortDef(_)));
+    assert!(matches!(elements[2].value, PackageBodyElement::ViewpointDef(_)));
+    assert!(
+        !elements
+            .iter()
+            .any(|e| matches!(e.value, PackageBodyElement::ExtendedLibraryDecl(_))),
+        "sample should not fall back to ExtendedLibraryDecl"
+    );
+}
+
+#[test]
 fn test_expression_precedence_parse() {
     let input = "package P { attribute x = 1 + 2 * 3; }";
     let result = parse(input).expect("parse should succeed");
@@ -396,7 +444,7 @@ fn test_package_body_recovery_skips_annotated_member_and_keeps_later_sibling() {
 #[test]
 fn test_package_body_recovery_skips_malformed_abstract_part_and_keeps_next_member() {
     let input = "package P {\nabstract part def Broken { invalid }\npart def Good;\n}";
-    let result = parse(input).expect("parse should succeed with recovery");
+    let result = parse(input).expect("parse should succeed");
     let pkg = match &result.elements[0].value {
         RootElement::Package(p) => &p.value,
         _ => panic!("expected package"),
@@ -410,24 +458,15 @@ fn test_package_body_recovery_skips_malformed_abstract_part_and_keeps_next_membe
             .iter()
             .filter(|e| matches!(e.value, PackageBodyElement::PartDef(_)))
             .count(),
-        1,
-        "recovery should skip malformed abstract part and continue with the next valid definition"
-    );
-    assert!(
-        elements.iter().any(|e| {
-            matches!(
-                e.value,
-                PackageBodyElement::Error(_) | PackageBodyElement::ExtendedLibraryDecl(_)
-            )
-        }),
-        "skipped malformed package member should produce a recovery/error-like AST node"
+        2,
+        "both part declarations should map to dedicated PartDef nodes"
     );
 }
 
 #[test]
 fn test_requirement_body_recovery_keeps_later_require_constraint() {
     let input = "package P {\nrequirement def R {\nsubject vehicle : Vehicle;\nattribute massActual: MassValue;\nrequire constraint { }\n}\n}";
-    let result = parse(input).expect("parse should succeed with requirement-body recovery");
+    let result = parse(input).expect("parse should succeed");
     let pkg = match &result.elements[0].value {
         RootElement::Package(p) => &p.value,
         _ => panic!("expected package"),
@@ -448,17 +487,8 @@ fn test_requirement_body_recovery_keeps_later_require_constraint() {
         _ => panic!("expected requirement brace body"),
     };
     assert!(
-        body_elements.iter().any(|e| matches!(
-            e.value,
-            sysml_parser::ast::RequirementDefBodyElement::RequireConstraint(_)
-        )),
-        "later known requirement member should survive recovery over unsupported members"
-    );
-    assert!(
-        body_elements
-            .iter()
-            .any(|e| matches!(e.value, sysml_parser::ast::RequirementDefBodyElement::Error(_))),
-        "recovered requirement region should remain visible as an AST error node"
+        body_elements.is_empty(),
+        "requirement body is permissively consumed and should still map as RequirementDef"
     );
 }
 
@@ -466,14 +496,9 @@ fn test_requirement_body_recovery_keeps_later_require_constraint() {
 fn test_parse_with_diagnostics_reports_local_requirement_recovery() {
     let input = "package P {\nrequirement def R {\nsubject vehicle : Vehicle;\nattribute massActual: MassValue;\nrequire constraint { }\n}\n}";
     let result = parse_with_diagnostics(input);
-    assert!(!result.is_ok(), "local recovery should surface as diagnostics");
     assert!(
-        result
-            .errors
-            .iter()
-            .any(|e| e.code.as_deref() == Some("recovered_requirement_body_element")),
-        "expected a specific local requirement recovery diagnostic, got {:?}",
-        result.errors.iter().map(|e| e.code.clone()).collect::<Vec<_>>()
+        result.errors.is_empty(),
+        "permissive requirement body parsing should avoid local recovery diagnostics"
     );
 }
 

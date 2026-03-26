@@ -23,3 +23,9 @@ Status labels:
 - `test_systems_library_strict_no_diagnostics`: required green
 - `test_full_library_strict_no_diagnostics`: required green
 - `test_full_library_suite`: broad integration visibility
+- `test_systems_library_node_types_no_extended`: required green (**hard 0 `ExtendedLibraryDecl` for Systems Library**)
+
+## Current quality baseline (2026-03-26)
+
+- Systems Library node-shape gate now passes with `ExtendedLibraryDecl = 0`.
+- Remaining improvement track is no longer package-level fallback elimination, but deeper body-level modeling precision for currently permissive declaration bodies.
