@@ -329,6 +329,7 @@ fn collect_recovery_errors(root: &RootNamespace) -> Vec<ParseError> {
 }
 
 /// Parse full input; must consume entire input. Strips UTF-8 BOM if present.
+#[allow(clippy::result_large_err)]
 pub fn parse_root(input: &str) -> Result<RootNamespace, ParseError> {
     let bytes = input
         .strip_prefix('\u{FEFF}')

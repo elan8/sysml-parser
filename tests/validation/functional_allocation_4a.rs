@@ -1,6 +1,5 @@
 //! Parser test for `04-Functional Allocation/4a-Functional Allocation.sysml`.
 
-use std::path::Path;
 use sysml_parser::ast::{
     DocComment, Expression, Identification, Import, InOut, Node, Package, PackageBody, PackageBodyElement,
     PartUsage, PartUsageBody, PartUsageBodyElement, Perform, PerformBody, PerformBodyElement,

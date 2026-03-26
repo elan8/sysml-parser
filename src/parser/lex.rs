@@ -108,6 +108,7 @@ pub(crate) const REQUIREMENT_BODY_STARTERS: &[&[u8]] = &[
     b"subject",
 ];
 
+#[allow(dead_code)]
 pub(crate) const STATE_BODY_STARTERS: &[&[u8]] = &[
     b"doc",
     b"entry",
@@ -206,6 +207,7 @@ pub(crate) fn skip_to_next_sync_point(input: Input<'_>) -> IResult<Input<'_>, ()
 /// after ws/comments), or to end of input. Used when recovery from a failure inside a package body.
 /// Skip to the next root-level package or namespace, or to end of input.
 /// Used when recovering from a failure inside a package body (avoids reporting errors on every line).
+#[allow(dead_code)]
 pub(crate) fn skip_to_next_root_element(mut input: Input<'_>) -> IResult<Input<'_>, ()> {
     loop {
         if input.fragment().is_empty() {

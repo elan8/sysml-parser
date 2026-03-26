@@ -1,6 +1,5 @@
 //! Parser test for `02-Parts Interconnection/2a-Parts Interconnection.sysml`.
 
-use std::path::Path;
 use sysml_parser::ast::{
     Bind, Connect, ConnectBody, ConnectStmt, EndDecl, Expression, Identification, Import,
     InterfaceDef, InterfaceDefBody, InterfaceDefBodyElement, InterfaceUsage,

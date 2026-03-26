@@ -139,7 +139,9 @@ fn test_parse_with_diagnostics_partial_ast_and_multiple_errors() {
             err.message
         );
         assert!(
-            err.expected.as_deref().map_or(false, |e| e.contains("package") || e.contains("namespace")),
+            err.expected
+                .as_deref()
+                .is_some_and(|e| e.contains("package") || e.contains("namespace")),
             "expected should mention package or namespace: {:?}",
             err.expected
         );
@@ -147,7 +149,10 @@ fn test_parse_with_diagnostics_partial_ast_and_multiple_errors() {
     }
     // First error is at "not valid"
     assert!(
-        result.errors[0].found.as_deref().map_or(false, |f| f.contains("not")),
+        result.errors[0]
+            .found
+            .as_deref()
+            .is_some_and(|f| f.contains("not")),
         "first error found should mention invalid token: {:?}",
         result.errors[0].found
     );
@@ -165,7 +170,11 @@ fn test_parse_error_expected_end_of_input_has_found() {
         err
     );
     assert!(err.found.is_some(), "expected end of input error should have 'found': {}", err);
-    assert!(err.found.as_deref().map_or(false, |f| f.contains("garbage")), "found should show trailing text: {:?}", err.found);
+    assert!(
+        err.found.as_deref().is_some_and(|f| f.contains("garbage")),
+        "found should show trailing text: {:?}",
+        err.found
+    );
     assert_eq!(err.code.as_deref(), Some("expected_end_of_input"));
 }
 
@@ -177,7 +186,7 @@ fn test_parse_error_display_includes_found_and_location() {
     let display = err.to_string();
     assert!(display.contains("line"), "Display should include line number");
     assert!(
-        err.found.as_ref().map_or(false, |f| display.contains(f)),
+        err.found.as_ref().is_some_and(|f| display.contains(f)),
         "Display should include found snippet: {}",
         display
     );
@@ -550,7 +559,9 @@ fn test_parse_with_diagnostics_reports_local_package_recovery() {
         .expect("expected local package recovery diagnostic");
     assert_eq!(err.line, Some(2));
     assert!(
-        err.found.as_deref().map_or(false, |f| f.contains("#fmeaspec")),
+        err.found
+            .as_deref()
+            .is_some_and(|f| f.contains("#fmeaspec")),
         "diagnostic should preserve recovered snippet"
     );
 }

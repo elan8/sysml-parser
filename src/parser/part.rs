@@ -46,6 +46,7 @@ fn recovery_found_snippet(input: Input<'_>) -> Option<String> {
 
 /// Result of parsing either a part definition or part usage (used for package body to avoid part_def consuming "part" before part_usage can run).
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum PartDefOrUsage {
     Def(Node<PartDef>),
     Usage(Node<PartUsage>),
@@ -356,7 +357,7 @@ fn part_usage_named<'a>(
             type_name,
             multiplicity: multiplicity_opt,
             ordered: ordered.is_some(),
-            subsets: subsets.map(|(n, v)| (n, v)),
+            subsets,
             redefines,
             value,
             body,
@@ -392,7 +393,7 @@ fn part_usage_body(input: Input<'_>) -> IResult<Input<'_>, PartUsageBody> {
         part_usage_body_brace,
     ))
     .parse(input);
-    if let Err(_) = &result {
+    if result.is_err() {
         log::debug!(
             "part_usage_body: failed at: {:?}",
             String::from_utf8_lossy(frag.get(..60.min(frag.len())).unwrap_or(frag)),

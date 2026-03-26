@@ -1,6 +1,5 @@
 //! Parser test for `03-Function-based Behavior/3a-Function-based Behavior-1.sysml`.
 
-use std::path::Path;
 use sysml_parser::ast::{
     ActionDef, ActionDefBody, ActionDefBodyElement, ActionUsage, ActionUsageBody, ActionUsageBodyElement, AliasBody,
     AliasDef, AttributeBody, AttributeDef, Bind, ConnectBody, Expression, FirstMergeBody, FirstStmt,

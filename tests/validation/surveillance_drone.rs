@@ -160,7 +160,7 @@ fn test_surveillance_drone_error_reports_error_on_line_333() {
         err.found
     );
     assert!(
-        err.found.as_deref().map_or(false, |f| f.contains("test")),
+        err.found.as_deref().is_some_and(|f| f.contains("test")),
         "error at line 333 should have 'found' containing 'test', got: {:?}",
         err.found
     );
@@ -197,7 +197,7 @@ fn test_surveillance_drone_error_reports_exactly_one_error() {
         result.errors[0]
             .found
             .as_deref()
-            .map_or(false, |f| f.contains("test")),
+            .is_some_and(|f| f.contains("test")),
         "first error should have 'found' containing 'test'"
     );
     assert_eq!(result.errors[1].line, Some(364));
@@ -205,7 +205,7 @@ fn test_surveillance_drone_error_reports_exactly_one_error() {
         result.errors[1]
             .found
             .as_deref()
-            .map_or(false, |f| f.contains("test2")),
+            .is_some_and(|f| f.contains("test2")),
         "second error should have 'found' containing 'test2'"
     );
 }
@@ -255,7 +255,9 @@ fn test_surveillance_drone_errors_reports_all_errors() {
             err.found
         );
         assert!(
-            err.found.as_deref().map_or(false, |f| f.contains(expected_found)),
+            err.found
+                .as_deref()
+                .is_some_and(|f| f.contains(expected_found)),
             "error {} should have 'found' containing '{}'; got: {:?}",
             i + 1,
             expected_found,

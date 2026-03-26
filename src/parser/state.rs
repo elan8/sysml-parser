@@ -1,3 +1,5 @@
+#![allow(dead_code, unused_imports)]
+
 use crate::ast::{
     EntryAction, Node, ParseErrorNode, RefBody, RefDecl, StateDef, StateDefBody,
     StateDefBodyElement, StateUsage, ThenStmt, Transition,

@@ -70,6 +70,7 @@ fn count_packages_and_elements(root: &RootNamespace) -> (usize, usize) {
     (n_pkgs, n_elements)
 }
 
+#[allow(clippy::result_large_err)]
 fn parse_file(file_path: &Path) -> Result<(RootNamespace, usize), ParseError> {
     let content = fs::read_to_string(file_path)
         .map_err(|e| ParseError::new(format!("failed to read file: {}", e)))?;

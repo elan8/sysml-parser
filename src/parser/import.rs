@@ -49,7 +49,7 @@ pub(crate) fn import_(input: Input<'_>) -> IResult<Input<'_>, Node<Import>> {
     let (input, target, is_import_all, is_recursive, filter_members) = if input.fragment().starts_with(b"::") {
         let (input, _) = preceded(ws_and_comments, tag(&b"::"[..])).parse(input)?;
         let (input, _) = ws_and_comments(input)?;
-        if input.fragment().starts_with(b"*") && !input.fragment().get(1).map_or(false, |c| *c == b'*') {
+        if input.fragment().starts_with(b"*") && input.fragment().get(1).is_none_or(|c| *c != b'*') {
             let (input, _) = preceded(ws_and_comments, tag(&b"*"[..])).parse(input)?;
             let (input, rec_opt) = opt((
                 preceded(ws_and_comments, tag(&b"::"[..])),

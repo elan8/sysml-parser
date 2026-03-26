@@ -29,6 +29,7 @@ pub use parser::{parse_root, parse_with_diagnostics, ParseResult};
 /// Parse a SysML v2 textual input into a root namespace AST.
 ///
 /// Returns an error if the input is not valid SysML or if not all input is consumed.
+#[allow(clippy::result_large_err)]
 pub fn parse(input: &str) -> Result<RootNamespace, ParseError> {
     parse_root(input)
 }
