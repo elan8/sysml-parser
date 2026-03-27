@@ -11,7 +11,7 @@ use crate::parser::attribute::{attribute_def, attribute_usage, attribute_usage_s
 use crate::parser::expr::{expression, path_expression};
 use crate::parser::interface::connect_body;
 use crate::parser::lex::{
-    identification, name, qualified_name, recover_body_element, skip_until_brace_end,
+    identification, looks_like_missing_semicolon, name, qualified_name, recover_body_element, skip_until_brace_end,
     starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments, PART_BODY_STARTERS,
 };
 use nom::sequence::delimited;
@@ -92,12 +92,27 @@ fn part_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, PartDefBody> {
                     next,
                     PartDefBodyElement::Error(Node::new(
                         crate::ast::Span::dummy(),
-                        ParseErrorNode {
-                            message: "recovered part definition body element".to_string(),
-                            code: "recovered_part_def_body_element".to_string(),
-                            expected: Some("valid part definition body element".to_string()),
-                            found: recovery_found_snippet(input),
-                            suggestion: None,
+                        if looks_like_missing_semicolon(input, PART_BODY_STARTERS) {
+                            ParseErrorNode {
+                                message: "missing semicolon before next declaration".to_string(),
+                                code: "missing_semicolon".to_string(),
+                                expected: Some("';'".to_string()),
+                                found: recovery_found_snippet(input),
+                                suggestion: Some(
+                                    "Insert ';' before this declaration.".to_string(),
+                                ),
+                            }
+                        } else {
+                            ParseErrorNode {
+                                message: "recovered part definition body element".to_string(),
+                                code: "recovered_part_def_body_element".to_string(),
+                                expected: Some("valid part definition body element".to_string()),
+                                found: recovery_found_snippet(input),
+                                suggestion: Some(
+                                    "Fix this part definition member and re-run parsing."
+                                        .to_string(),
+                                ),
+                            }
                         },
                     )),
                 ));
@@ -437,12 +452,26 @@ fn part_usage_body_brace(input: Input<'_>) -> IResult<Input<'_>, PartUsageBody> 
                     next,
                     PartUsageBodyElement::Error(Node::new(
                         crate::ast::Span::dummy(),
-                        ParseErrorNode {
-                            message: "recovered part usage body element".to_string(),
-                            code: "recovered_part_usage_body_element".to_string(),
-                            expected: Some("valid part usage body element".to_string()),
-                            found: recovery_found_snippet(input),
-                            suggestion: None,
+                        if looks_like_missing_semicolon(input, PART_BODY_STARTERS) {
+                            ParseErrorNode {
+                                message: "missing semicolon before next declaration".to_string(),
+                                code: "missing_semicolon".to_string(),
+                                expected: Some("';'".to_string()),
+                                found: recovery_found_snippet(input),
+                                suggestion: Some(
+                                    "Insert ';' before this declaration.".to_string(),
+                                ),
+                            }
+                        } else {
+                            ParseErrorNode {
+                                message: "recovered part usage body element".to_string(),
+                                code: "recovered_part_usage_body_element".to_string(),
+                                expected: Some("valid part usage body element".to_string()),
+                                found: recovery_found_snippet(input),
+                                suggestion: Some(
+                                    "Fix this part usage member and re-run parsing.".to_string(),
+                                ),
+                            }
                         },
                     )),
                 ));

@@ -246,6 +246,21 @@ pub(crate) fn starts_with_any_keyword(fragment: &[u8], keywords: &[&[u8]]) -> bo
         .any(|keyword| starts_with_keyword(fragment, keyword))
 }
 
+pub(crate) fn looks_like_missing_semicolon(input: Input<'_>, starters: &[&[u8]]) -> bool {
+    let (input, _) = ws_and_comments(input).unwrap_or((input, ()));
+    let fragment = input.fragment();
+    if fragment.starts_with(b"}") {
+        return true;
+    }
+    if fragment.starts_with(b"//") || fragment.starts_with(b"/*") {
+        return false;
+    }
+    if starts_with_keyword(fragment, b"#") || starts_with_keyword(fragment, b"@") {
+        return false;
+    }
+    starts_with_any_keyword(fragment, starters)
+}
+
 /// Skip to the next likely body element starter for the current grammar scope, or to the closing `}` / EOF.
 pub(crate) fn skip_to_next_body_element_or_end<'a>(
     mut input: Input<'a>,

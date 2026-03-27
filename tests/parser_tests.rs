@@ -565,3 +565,49 @@ fn test_parse_with_diagnostics_reports_local_package_recovery() {
         "diagnostic should preserve recovered snippet"
     );
 }
+
+#[test]
+fn test_parse_with_diagnostics_reports_missing_semicolon_between_package_members() {
+    let input = "package P {\npart def A {\nexhibit state s : S\npart b : B;\n}\n}";
+    let result = parse_with_diagnostics(input);
+    assert!(!result.is_ok(), "missing semicolon should produce diagnostics");
+    let err = result
+        .errors
+        .iter()
+        .find(|e| e.code.as_deref() == Some("missing_semicolon"))
+        .expect("expected missing_semicolon diagnostic");
+    assert_eq!(err.expected.as_deref(), Some("';'"));
+    assert!(
+        err.suggestion
+            .as_deref()
+            .is_some_and(|s| s.contains("Insert ';'")),
+        "diagnostic should include a semicolon suggestion"
+    );
+}
+
+#[test]
+fn test_parse_with_diagnostics_reports_illegal_top_level_part_definition() {
+    let input = "part def TopLevel;";
+    let result = parse_with_diagnostics(input);
+    assert!(!result.is_ok(), "top-level part def should fail");
+    let err = &result.errors[0];
+    assert_eq!(err.code.as_deref(), Some("illegal_top_level_definition"));
+    assert!(
+        err.message.contains("illegal top-level"),
+        "message should describe illegal top-level declaration"
+    );
+    assert!(
+        err.suggestion
+            .as_deref()
+            .is_some_and(|s| s.contains("package") && s.contains("namespace")),
+        "diagnostic should suggest wrapping in package or namespace"
+    );
+}
+
+#[test]
+fn test_parse_reports_illegal_top_level_part_definition() {
+    let input = "part def TopLevel;";
+    let err = parse(input).expect_err("top-level part def should fail");
+    assert_eq!(err.code.as_deref(), Some("illegal_top_level_definition"));
+    assert_eq!(err.expected.as_deref(), Some("'package', 'namespace', or 'import'"));
+}

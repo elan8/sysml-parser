@@ -65,6 +65,39 @@ impl ParseResult {
 }
 
 const FOUND_SNIPPET_MAX_LEN: usize = 40;
+const ILLEGAL_TOP_LEVEL_STARTERS: &[&[u8]] = &[
+    b"action",
+    b"actor",
+    b"alias",
+    b"allocate",
+    b"allocation",
+    b"attribute",
+    b"bind",
+    b"calc",
+    b"case",
+    b"concern",
+    b"connection",
+    b"constraint",
+    b"dependency",
+    b"enum",
+    b"flow",
+    b"interface",
+    b"item",
+    b"metadata",
+    b"occurrence",
+    b"part",
+    b"perform",
+    b"port",
+    b"ref",
+    b"require",
+    b"requirement",
+    b"satisfy",
+    b"state",
+    b"use",
+    b"verification",
+    b"view",
+    b"viewpoint",
+];
 
 /// Take a short snippet from the input at the error position for "found" display.
 /// Uses first line or first FOUND_SNIPPET_MAX_LEN bytes, UTF-8 with replacement char.
@@ -140,7 +173,38 @@ fn nom_err_to_parse_error(
     if let Some(ctx) = expected_context {
         pe = pe.with_expected(ctx);
     }
+    let at_root = expected_context.is_some_and(|ctx| {
+        ctx.contains("'package', 'namespace', or 'import'") || ctx.contains("top level")
+    });
+    if at_root && is_illegal_top_level_definition(fragment) {
+        pe.message = "illegal top-level definition".to_string();
+        pe.code = Some("illegal_top_level_definition".to_string());
+        pe.expected = Some("'package', 'namespace', or 'import'".to_string());
+        pe.suggestion = Some(
+            "Wrap this declaration in `package ... { ... }` or `namespace ... { ... }`."
+                .to_string(),
+        );
+    }
     pe
+}
+
+fn is_illegal_top_level_definition(fragment: &[u8]) -> bool {
+    let trimmed = trim_ascii_start(fragment);
+    !trimmed.starts_with(b"}")
+        && !trimmed.starts_with(b"//")
+        && !trimmed.starts_with(b"/*")
+        && lex::starts_with_any_keyword(trimmed, ILLEGAL_TOP_LEVEL_STARTERS)
+}
+
+fn trim_ascii_start(mut fragment: &[u8]) -> &[u8] {
+    while let Some(first) = fragment.first() {
+        if first.is_ascii_whitespace() {
+            fragment = &fragment[1..];
+            continue;
+        }
+        break;
+    }
+    fragment
 }
 
 fn is_only_trailing_closing_braces(mut input: Input<'_>) -> bool {
@@ -257,7 +321,9 @@ fn collect_part_def_body_errors(body: &PartDefBody, errors: &mut Vec<ParseError>
     if let PartDefBody::Brace { elements } = body {
         for element in elements {
             match &element.value {
-                PartDefBodyElement::Error(_) => {}
+                PartDefBodyElement::Error(n) => {
+                    errors.push(parse_error_from_recovery_node(&element.span, &n.value));
+                }
                 PartDefBodyElement::PartUsage(n) => collect_part_usage_body_errors(&n.value.body, errors),
                 PartDefBodyElement::Perform(n) => collect_perform_body_errors(&n.value.body, errors),
                 _ => {}
@@ -363,6 +429,15 @@ pub fn parse_root(input: &str) -> Result<RootNamespace, ParseError> {
                     .with_code("expected_end_of_input");
                 if !found_snippet.is_empty() {
                     pe = pe.with_found(found_snippet);
+                }
+                if root.elements.is_empty() && is_illegal_top_level_definition(rest.fragment()) {
+                    pe = pe
+                        .with_code("illegal_top_level_definition")
+                        .with_expected("'package', 'namespace', or 'import'")
+                        .with_suggestion(
+                            "Wrap this declaration in `package ... { ... }` or `namespace ... { ... }`.",
+                        );
+                    pe.message = "illegal top-level definition".to_string();
                 }
                 Err(pe)
             }

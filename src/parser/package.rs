@@ -28,7 +28,7 @@ use crate::parser::expr::expression;
 use crate::parser::import::import_;
 use crate::parser::interface::interface_def;
 use crate::parser::lex::{
-    identification, recover_body_element, skip_statement_or_block, starts_with_any_keyword,
+    identification, looks_like_missing_semicolon, recover_body_element, skip_statement_or_block, starts_with_any_keyword,
     starts_with_keyword, ws1, ws_and_comments, PACKAGE_BODY_STARTERS,
 };
 use crate::parser::node_from_to;
@@ -409,12 +409,27 @@ fn package_body_brace(input: Input<'_>) -> IResult<Input<'_>, PackageBody> {
                     next,
                     PackageBodyElement::Error(Node::new(
                         crate::ast::Span::dummy(),
-                        ParseErrorNode {
-                            message: "recovered package body element".to_string(),
-                            code: "recovered_package_body_element".to_string(),
-                            expected: Some("valid package body element".to_string()),
-                            found: recovery_found_snippet(input),
-                            suggestion: None,
+                        if looks_like_missing_semicolon(input, PACKAGE_BODY_STARTERS) {
+                            ParseErrorNode {
+                                message: "missing semicolon before next declaration".to_string(),
+                                code: "missing_semicolon".to_string(),
+                                expected: Some("';'".to_string()),
+                                found: recovery_found_snippet(input),
+                                suggestion: Some(
+                                    "Insert ';' before this declaration.".to_string(),
+                                ),
+                            }
+                        } else {
+                            ParseErrorNode {
+                                message: "recovered package body element".to_string(),
+                                code: "recovered_package_body_element".to_string(),
+                                expected: Some("valid package body element".to_string()),
+                                found: recovery_found_snippet(input),
+                                suggestion: Some(
+                                    "Fix this declaration so parsing can continue cleanly."
+                                        .to_string(),
+                                ),
+                            }
                         },
                     )),
                 ));
