@@ -611,3 +611,27 @@ fn test_parse_reports_illegal_top_level_part_definition() {
     assert_eq!(err.code.as_deref(), Some("illegal_top_level_definition"));
     assert_eq!(err.expected.as_deref(), Some("'package', 'namespace', or 'import'"));
 }
+
+#[test]
+fn test_invalid_input_corpus_is_handled_gracefully() {
+    let invalid_inputs = [
+        "package P {",
+        "package P { part def A {",
+        "package P { @@@ ??? }",
+        "package P { /* unterminated",
+        "namespace N { part def X { ;;; }",
+        "part def TopLevel;",
+    ];
+
+    for input in invalid_inputs {
+        let strict = std::panic::catch_unwind(|| parse(input));
+        assert!(strict.is_ok(), "parse should not panic for {:?}", input);
+
+        let recovered = std::panic::catch_unwind(|| parse_with_diagnostics(input));
+        assert!(
+            recovered.is_ok(),
+            "parse_with_diagnostics should not panic for {:?}",
+            input
+        );
+    }
+}

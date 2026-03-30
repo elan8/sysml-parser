@@ -11,3 +11,4 @@ nom_locate = "5"
 [dev-dependencies]
 env_logger = "0.11"
 log = "0.4"
+proptest = "1"

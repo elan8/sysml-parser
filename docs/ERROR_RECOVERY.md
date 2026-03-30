@@ -146,6 +146,7 @@ The parser should preserve these recovery invariants:
 - recovered regions should be visible in the AST where practical
 - `parse_with_diagnostics()` should produce partial AST + diagnostics together
 - invalid surveillance fixtures such as `test {}` must still be reported as real errors
+- parser entrypoints (`parse`, `parse_with_diagnostics`) must never panic on user input; malformed input must be surfaced as `Err` and/or diagnostics
 
 ## Tests
 
@@ -160,6 +161,12 @@ The newer parser tests explicitly verify:
 - sibling recovery after malformed members
 - AST error node insertion
 - local diagnostics generated from recovery nodes
+- panic-safety over malformed corpora and generated arbitrary text
+
+Enforcement points:
+
+- compile-time lint policy in [`src/lib.rs`](C:\Git\sysml-parser\src\lib.rs) denies `unwrap`, `expect`, and `panic!` in non-test code paths
+- panic-safety integration tests in [`tests/parser_panic_safety.rs`](C:\Git\sysml-parser\tests\parser_panic_safety.rs)
 
 ## Recommended Next Steps
 

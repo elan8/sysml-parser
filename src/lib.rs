@@ -1,6 +1,10 @@
 //! SysML v2 textual notation parser.
 //!
 //! Reusable library for parsing SysML v2 textual syntax into an AST.
+#![cfg_attr(
+    not(test),
+    deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
+)]
 
 pub mod ast;
 pub mod error;
