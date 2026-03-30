@@ -7,8 +7,9 @@ use crate::ast::{
 use crate::parser::requirement::doc_comment;
 use crate::parser::expr::expression;
 use crate::parser::lex::{
-    identification, name, qualified_name, recover_body_element, skip_until_brace_end,
-    starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments, STATE_BODY_STARTERS,
+    identification, looks_like_missing_semicolon, name, qualified_name, recover_body_element,
+    skip_until_brace_end, starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments,
+    STATE_BODY_STARTERS,
 };
 use crate::parser::node_from_to;
 use crate::parser::Input;
@@ -57,10 +58,69 @@ fn state_def_body(input: Input<'_>) -> IResult<Input<'_>, StateDefBody> {
 }
 
 fn state_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, StateDefBody> {
-    let (input, _) = preceded(ws_and_comments, tag(&b"{"[..])).parse(input)?;
-    let (input, _) = skip_until_brace_end(input)?;
-    let (input, _) = preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?;
-    Ok((input, StateDefBody::Brace { elements: vec![] }))
+    let (mut input, _) = preceded(ws_and_comments, tag(&b"{"[..])).parse(input)?;
+    let mut elements = Vec::new();
+    loop {
+        let (next, _) = ws_and_comments(input)?;
+        input = next;
+        if input.fragment().starts_with(b"}") {
+            let (input, _) = preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?;
+            return Ok((input, StateDefBody::Brace { elements }));
+        }
+        match state_def_body_element(input) {
+            Ok((next, element)) => {
+                if next.location_offset() == input.location_offset() {
+                    return Err(nom::Err::Error(nom::error::Error::new(
+                        input,
+                        nom::error::ErrorKind::Many0,
+                    )));
+                }
+                elements.push(element);
+                input = next;
+            }
+            Err(_) if starts_with_any_keyword(input.fragment(), STATE_BODY_STARTERS) => {
+                let (next, _) = recover_body_element(input, STATE_BODY_STARTERS)?;
+                if next.location_offset() == input.location_offset() {
+                    return Err(nom::Err::Error(nom::error::Error::new(
+                        input,
+                        nom::error::ErrorKind::Many0,
+                    )));
+                }
+                elements.push(node_from_to(
+                    input,
+                    next,
+                    StateDefBodyElement::Error(Node::new(
+                        crate::ast::Span::dummy(),
+                        if looks_like_missing_semicolon(input, STATE_BODY_STARTERS) {
+                            ParseErrorNode {
+                                message: "missing semicolon before next declaration".to_string(),
+                                code: "missing_semicolon".to_string(),
+                                expected: Some("';'".to_string()),
+                                found: recovery_found_snippet(input),
+                                suggestion: Some("Insert ';' before this declaration.".to_string()),
+                            }
+                        } else {
+                            ParseErrorNode {
+                                message: "recovered state body element".to_string(),
+                                code: "recovered_state_body_element".to_string(),
+                                expected: Some("valid state body element".to_string()),
+                                found: recovery_found_snippet(input),
+                                suggestion: Some(
+                                    "Fix this state member and re-run parsing.".to_string(),
+                                ),
+                            }
+                        },
+                    )),
+                ));
+                input = next;
+            }
+            Err(_) => {
+                let (input, _) = skip_until_brace_end(input)?;
+                let (input, _) = preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?;
+                return Ok((input, StateDefBody::Brace { elements }));
+            }
+        }
+    }
 }
 
 /// Entry action: `entry` (`;` or body)  or  `entry action` name body

@@ -648,13 +648,14 @@ pub(crate) fn perform_action_decl(input: Input<'_>) -> IResult<Input<'_>, Node<P
         preceded(ws_and_comments, qualified_name),
     ))
     .parse(input)?;
-    let (input, body_cb) = connect_body(input)?;
-    let body = match body_cb {
-        ConnectBody::Semicolon => PerformBody::Semicolon,
-        ConnectBody::Brace => PerformBody::Brace {
-            elements: vec![],
-        },
-    };
+    let (input, body) = preceded(
+        ws_and_comments,
+        alt((
+            map(tag(&b";"[..]), |_| PerformBody::Semicolon),
+            perform_body,
+        )),
+    )
+    .parse(input)?;
     Ok((
         input,
         node_from_to(

@@ -3,8 +3,7 @@ use crate::ast::{
     VerificationCaseDef, VerificationCaseUsage,
 };
 use crate::parser::lex::{
-    identification, name, qualified_name, skip_until_brace_end, take_until_terminator, ws1,
-    ws_and_comments,
+    identification, name, qualified_name, take_until_terminator, ws1, ws_and_comments,
 };
 use crate::parser::node_from_to;
 use crate::parser::Input;
@@ -103,13 +102,5 @@ fn case_like_usage_body(input: Input<'_>) -> IResult<Input<'_>, CaseUsage> {
 }
 
 fn loose_use_case_body(input: Input<'_>) -> IResult<Input<'_>, crate::ast::UseCaseDefBody> {
-    let (input, _) = ws_and_comments(input)?;
-    if input.fragment().starts_with(b";") {
-        let (input, _) = tag(&b";"[..]).parse(input)?;
-        return Ok((input, crate::ast::UseCaseDefBody::Semicolon));
-    }
-    let (input, _) = tag(&b"{"[..]).parse(input)?;
-    let (input, _) = skip_until_brace_end(input)?;
-    let (input, _) = preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?;
-    Ok((input, crate::ast::UseCaseDefBody::Brace { elements: vec![] }))
+    crate::parser::usecase::use_case_def_body(input)
 }

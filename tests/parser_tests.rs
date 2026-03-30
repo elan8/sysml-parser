@@ -302,6 +302,145 @@ fn test_view_usage_parse() {
 }
 
 #[test]
+fn test_use_case_def_body_parses_members() {
+    let input = "package P { use case def U { subject s : System; actor a : Operator; objective { } } }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    let use_case = match &elements[0].value {
+        PackageBodyElement::UseCaseDef(uc) => &uc.value,
+        _ => panic!("expected UseCaseDef"),
+    };
+    let body_elements = match &use_case.body {
+        sysml_parser::ast::UseCaseDefBody::Brace { elements } => elements,
+        _ => panic!("expected use case brace body"),
+    };
+    assert!(
+        body_elements
+            .iter()
+            .any(|e| matches!(e.value, sysml_parser::ast::UseCaseDefBodyElement::SubjectDecl(_)))
+    );
+    assert!(
+        body_elements
+            .iter()
+            .any(|e| matches!(e.value, sysml_parser::ast::UseCaseDefBodyElement::ActorUsage(_)))
+    );
+    assert!(
+        body_elements
+            .iter()
+            .any(|e| matches!(e.value, sysml_parser::ast::UseCaseDefBodyElement::Objective(_)))
+    );
+}
+
+#[test]
+fn test_state_def_body_parses_members() {
+    let input =
+        "package P { state def S { then Ready; state Running : Mode; transition t then Ready; } }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    let state_def = match &elements[0].value {
+        PackageBodyElement::StateDef(sd) => &sd.value,
+        _ => panic!("expected StateDef"),
+    };
+    let body_elements = match &state_def.body {
+        sysml_parser::ast::StateDefBody::Brace { elements } => elements,
+        _ => panic!("expected state brace body"),
+    };
+    assert!(
+        body_elements
+            .iter()
+            .any(|e| matches!(e.value, sysml_parser::ast::StateDefBodyElement::Then(_)))
+    );
+    assert!(
+        body_elements
+            .iter()
+            .any(|e| matches!(e.value, sysml_parser::ast::StateDefBodyElement::StateUsage(_)))
+    );
+    assert!(
+        body_elements
+            .iter()
+            .any(|e| matches!(e.value, sysml_parser::ast::StateDefBodyElement::Transition(_)))
+    );
+}
+
+#[test]
+fn test_constraint_and_calc_bodies_parse_members() {
+    let input = "package P { constraint def C { in x : Real; out y : Real; x >= y; } calc def K { in x : Real; return r : Real; x; } }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    let constraint_def = match &elements[0].value {
+        PackageBodyElement::ConstraintDef(cd) => &cd.value,
+        _ => panic!("expected ConstraintDef"),
+    };
+    let constraint_elements = match &constraint_def.body {
+        sysml_parser::ast::ConstraintDefBody::Brace { elements } => elements,
+        _ => panic!("expected constraint brace body"),
+    };
+    assert!(!constraint_elements.is_empty(), "constraint body should not be empty");
+    let calc_def = match &elements[1].value {
+        PackageBodyElement::CalcDef(cd) => &cd.value,
+        _ => panic!("expected CalcDef"),
+    };
+    let calc_elements = match &calc_def.body {
+        sysml_parser::ast::CalcDefBody::Brace { elements } => elements,
+        _ => panic!("expected calc brace body"),
+    };
+    assert!(!calc_elements.is_empty(), "calc body should not be empty");
+}
+
+#[test]
+fn test_view_and_connection_bodies_parse_members() {
+    let input = "package P { view def V { doc /*d*/ filter x > 0; render r : Renderer; } view v : V { expose Model::*; satisfy VP; } connection def C { end from : A; end to : B; connect from to to; } }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    let view_def = match &elements[0].value {
+        PackageBodyElement::ViewDef(vd) => &vd.value,
+        _ => panic!("expected ViewDef"),
+    };
+    assert!(matches!(&view_def.body, ViewDefBody::Brace { elements } if !elements.is_empty()));
+    let view_usage = match &elements[1].value {
+        PackageBodyElement::ViewUsage(v) => &v.value,
+        _ => panic!("expected ViewUsage"),
+    };
+    assert!(matches!(&view_usage.body, ViewBody::Brace { elements } if !elements.is_empty()));
+    let connection_def = match &elements[2].value {
+        PackageBodyElement::ConnectionDef(c) => &c.value,
+        _ => panic!("expected ConnectionDef"),
+    };
+    assert!(matches!(
+        &connection_def.body,
+        sysml_parser::ast::ConnectionDefBody::Brace { elements } if !elements.is_empty()
+    ));
+}
+
+#[test]
 fn test_occurrence_usage_parse() {
     let input = "package P { occurrence sample : Event; }";
     let result = parse(input).expect("parse should succeed");
@@ -353,6 +492,57 @@ fn test_case_family_parse() {
     assert!(matches!(elements[0].value, PackageBodyElement::CaseDef(_)));
     assert!(matches!(elements[1].value, PackageBodyElement::AnalysisCaseDef(_)));
     assert!(matches!(elements[2].value, PackageBodyElement::VerificationCaseDef(_)));
+}
+
+#[test]
+fn test_case_family_bodies_parse_use_case_members() {
+    let input = "package P { case def C { actor a : Operator; } analysis def A { subject s : System; } verification def V { objective { } } }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    let case_def = match &elements[0].value {
+        PackageBodyElement::CaseDef(c) => &c.value,
+        _ => panic!("expected CaseDef"),
+    };
+    assert!(
+        matches!(&case_def.body, sysml_parser::ast::UseCaseDefBody::Brace { elements } if !elements.is_empty())
+    );
+}
+
+#[test]
+fn test_perform_action_decl_body_parses_bindings() {
+    let input = "package P { part def Carrier { perform action run : Runner { in speed = speedInput; out torque = torqueOutput; } } }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    let part_def = match &elements[0].value {
+        PackageBodyElement::PartDef(pd) => &pd.value,
+        _ => panic!("expected PartDef"),
+    };
+    let part_body = match &part_def.body {
+        sysml_parser::ast::PartDefBody::Brace { elements } => elements,
+        _ => panic!("expected part def brace body"),
+    };
+    let perform = match &part_body[0].value {
+        sysml_parser::ast::PartDefBodyElement::Perform(p) => &p.value,
+        _ => panic!("expected perform action declaration"),
+    };
+    assert!(
+        matches!(&perform.body, sysml_parser::ast::PerformBody::Brace { elements } if !elements.is_empty()),
+        "perform action brace body should retain parsed in/out bindings"
+    );
 }
 
 #[test]

@@ -8,7 +8,9 @@ use crate::ast::{
 };
 use crate::parser::interface::connect_body;
 use crate::parser::lex::{
-    identification, name, qualified_name, take_until_terminator, ws1, ws_and_comments,
+    identification, name, qualified_name, recover_body_element, skip_until_brace_end,
+    starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments,
+    VIEW_BODY_STARTERS, VIEW_DEF_BODY_STARTERS,
 };
 use crate::parser::node_from_to;
 use crate::parser::requirement::{doc_comment, requirement_def_body};
@@ -71,15 +73,49 @@ fn view_rendering_usage(input: Input<'_>) -> IResult<Input<'_>, Node<ViewRenderi
 }
 
 fn view_def_body(input: Input<'_>) -> IResult<Input<'_>, ViewDefBody> {
-    let (input, _) = ws_and_comments(input)?;
+    let (mut input, _) = ws_and_comments(input)?;
     if input.fragment().starts_with(b";") {
         let (input, _) = tag(&b";"[..]).parse(input)?;
         return Ok((input, ViewDefBody::Semicolon));
     }
-    let (input, _) = tag(&b"{"[..]).parse(input)?;
-    let (input, _) = crate::parser::lex::skip_until_brace_end(input)?;
-    let (input, _) = preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?;
-    Ok((input, ViewDefBody::Brace { elements: vec![] }))
+    let (next, _) = tag(&b"{"[..]).parse(input)?;
+    input = next;
+    let mut elements = Vec::new();
+    loop {
+        let (next, _) = ws_and_comments(input)?;
+        input = next;
+        if input.fragment().starts_with(b"}") {
+            let (input, _) = preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?;
+            return Ok((input, ViewDefBody::Brace { elements }));
+        }
+        match view_def_body_element(input) {
+            Ok((next, element)) => {
+                if next.location_offset() == input.location_offset() {
+                    return Err(nom::Err::Error(nom::error::Error::new(
+                        input,
+                        nom::error::ErrorKind::Many0,
+                    )));
+                }
+                elements.push(element);
+                input = next;
+            }
+            Err(_) if starts_with_any_keyword(input.fragment(), VIEW_DEF_BODY_STARTERS) => {
+                let (next, _) = recover_body_element(input, VIEW_DEF_BODY_STARTERS)?;
+                if next.location_offset() == input.location_offset() {
+                    return Err(nom::Err::Error(nom::error::Error::new(
+                        input,
+                        nom::error::ErrorKind::Many0,
+                    )));
+                }
+                input = next;
+            }
+            Err(_) => {
+                let (input, _) = skip_until_brace_end(input)?;
+                let (input, _) = preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?;
+                return Ok((input, ViewDefBody::Brace { elements }));
+            }
+        }
+    }
 }
 
 pub(crate) fn view_def(input: Input<'_>) -> IResult<Input<'_>, Node<ViewDef>> {
@@ -231,15 +267,49 @@ fn satisfy_view_member(input: Input<'_>) -> IResult<Input<'_>, Node<SatisfyViewM
 }
 
 fn view_body(input: Input<'_>) -> IResult<Input<'_>, ViewBody> {
-    let (input, _) = ws_and_comments(input)?;
+    let (mut input, _) = ws_and_comments(input)?;
     if input.fragment().starts_with(b";") {
         let (input, _) = tag(&b";"[..]).parse(input)?;
         return Ok((input, ViewBody::Semicolon));
     }
-    let (input, _) = tag(&b"{"[..]).parse(input)?;
-    let (input, _) = crate::parser::lex::skip_until_brace_end(input)?;
-    let (input, _) = preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?;
-    Ok((input, ViewBody::Brace { elements: vec![] }))
+    let (next, _) = tag(&b"{"[..]).parse(input)?;
+    input = next;
+    let mut elements = Vec::new();
+    loop {
+        let (next, _) = ws_and_comments(input)?;
+        input = next;
+        if input.fragment().starts_with(b"}") {
+            let (input, _) = preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?;
+            return Ok((input, ViewBody::Brace { elements }));
+        }
+        match view_body_element(input) {
+            Ok((next, element)) => {
+                if next.location_offset() == input.location_offset() {
+                    return Err(nom::Err::Error(nom::error::Error::new(
+                        input,
+                        nom::error::ErrorKind::Many0,
+                    )));
+                }
+                elements.push(element);
+                input = next;
+            }
+            Err(_) if starts_with_any_keyword(input.fragment(), VIEW_BODY_STARTERS) => {
+                let (next, _) = recover_body_element(input, VIEW_BODY_STARTERS)?;
+                if next.location_offset() == input.location_offset() {
+                    return Err(nom::Err::Error(nom::error::Error::new(
+                        input,
+                        nom::error::ErrorKind::Many0,
+                    )));
+                }
+                input = next;
+            }
+            Err(_) => {
+                let (input, _) = skip_until_brace_end(input)?;
+                let (input, _) = preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?;
+                return Ok((input, ViewBody::Brace { elements }));
+            }
+        }
+    }
 }
 
 pub(crate) fn view_usage(input: Input<'_>) -> IResult<Input<'_>, Node<ViewUsage>> {
