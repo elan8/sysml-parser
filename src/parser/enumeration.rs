@@ -5,12 +5,11 @@ use crate::parser::lex::{
     identification, name, skip_until_brace_end, take_until_terminator, ws1, ws_and_comments,
 };
 use crate::parser::node_from_to;
+use crate::parser::requirement::{comment_annotation, doc_comment};
 use crate::parser::Input;
-use nom::branch::alt;
 use nom::bytes::complete::tag;
-use nom::combinator::map;
-use nom::multi::many0;
-use nom::sequence::preceded;
+use nom::combinator::opt;
+use nom::sequence::{delimited, preceded};
 use nom::IResult;
 use nom::Parser;
 
@@ -18,27 +17,25 @@ use nom::Parser;
 fn enumerated_value(input: Input<'_>) -> IResult<Input<'_>, String> {
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = nom::combinator::opt(preceded(tag(&b"enum"[..]), ws1)).parse(input)?;
-    alt((
-        map(
-            (
-                name,
-                nom::combinator::opt(preceded(
-                    preceded(ws_and_comments, tag(&b"="[..])),
-                    preceded(ws_and_comments, |i| take_until_terminator(i, b";")),
-                )),
-                preceded(ws_and_comments, tag(&b";"[..])),
-            ),
-            |(n, _, _)| n,
-        ),
-        map(
-            nom::sequence::terminated(
-                nom::bytes::complete::take_until(&b";"[..]),
-                preceded(ws_and_comments, tag(&b";"[..])),
-            ),
-            |raw: Input<'_>| String::from_utf8_lossy(raw.fragment()).trim().to_string(),
-        ),
-    ))
-    .parse(input)
+    let (input, n) = name(input)?;
+    let (input, _) = ws_and_comments(input)?;
+    if input.fragment().starts_with(b"{") {
+        let (input, _) = delimited(
+            tag(&b"{"[..]),
+            skip_until_brace_end,
+            preceded(ws_and_comments, tag(&b"}"[..])),
+        )
+        .parse(input)?;
+        Ok((input, n))
+    } else {
+        let (input, _) = opt(preceded(
+            preceded(ws_and_comments, tag(&b"="[..])),
+            preceded(ws_and_comments, |i| take_until_terminator(i, b";")),
+        ))
+        .parse(input)?;
+        let (input, _) = preceded(ws_and_comments, tag(&b";"[..])).parse(input)?;
+        Ok((input, n))
+    }
 }
 
 fn enumeration_body(input: Input<'_>) -> IResult<Input<'_>, EnumerationBody> {
@@ -47,19 +44,35 @@ fn enumeration_body(input: Input<'_>) -> IResult<Input<'_>, EnumerationBody> {
         let (input, _) = tag(&b";"[..]).parse(input)?;
         return Ok((input, EnumerationBody::Semicolon));
     }
-    let (input, _) = tag(&b"{"[..]).parse(input)?;
-    let (after_values, values) = preceded(
-        ws_and_comments,
-        many0(preceded(ws_and_comments, enumerated_value)),
-    )
-    .parse(input)?;
-    let (input, _) = if after_values.fragment().starts_with(b"}") {
-        preceded(ws_and_comments, tag(&b"}"[..])).parse(after_values)?
-    } else {
-        let (input, _) = skip_until_brace_end(after_values)?;
-        preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?
-    };
-    Ok((input, EnumerationBody::Brace { values }))
+    let (mut input, _) = tag(&b"{"[..]).parse(input)?;
+    let mut values = Vec::new();
+    loop {
+        let (next, _) = ws_and_comments(input)?;
+        input = next;
+        if input.fragment().starts_with(b"}") {
+            let (input, _) = preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?;
+            return Ok((input, EnumerationBody::Brace { values }));
+        }
+        if let Ok((next, _)) = doc_comment(input) {
+            input = next;
+            continue;
+        }
+        if let Ok((next, _)) = comment_annotation(input) {
+            input = next;
+            continue;
+        }
+        match enumerated_value(input) {
+            Ok((next, value)) => {
+                values.push(value);
+                input = next;
+            }
+            Err(_) => {
+                let (input, _) = skip_until_brace_end(input)?;
+                let (input, _) = preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?;
+                return Ok((input, EnumerationBody::Brace { values }));
+            }
+        }
+    }
 }
 
 /// Enumeration definition: `enum def` Identification EnumerationBody.

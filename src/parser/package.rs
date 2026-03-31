@@ -61,6 +61,18 @@ fn keyword_package(input: Input<'_>) -> IResult<Input<'_>, ()> {
     Ok((input, ()))
 }
 
+fn required_identification(input: Input<'_>) -> IResult<Input<'_>, crate::ast::Identification> {
+    let (input, identification) = identification(input)?;
+    if identification.short_name.is_some() || identification.name.is_some() {
+        Ok((input, identification))
+    } else {
+        Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::Tag,
+        )))
+    }
+}
+
 /// [standard] library package Identification PackageBody (BNF LibraryPackage)
 fn library_package_(input: Input<'_>) -> IResult<Input<'_>, Node<LibraryPackage>> {
     let start = input;
@@ -82,7 +94,7 @@ fn library_package_(input: Input<'_>) -> IResult<Input<'_>, Node<LibraryPackage>
         (input, is_standard)
     };
     let (input, _) = keyword_package(input)?;
-    let (input, identification) = identification(input)?;
+    let (input, identification) = required_identification(input)?;
     let (input, body) = package_body(input)?;
     Ok((
         input,
@@ -102,7 +114,7 @@ fn library_package_(input: Input<'_>) -> IResult<Input<'_>, Node<LibraryPackage>
 fn package_(input: Input<'_>) -> IResult<Input<'_>, Node<Package>> {
     let start = input;
     let (input, _) = keyword_package(input)?;
-    let (input, identification) = identification(input)?;
+    let (input, identification) = required_identification(input)?;
     let (input, body) = package_body(input)?;
     Ok((
         input,
@@ -122,7 +134,7 @@ fn namespace_decl(input: Input<'_>) -> IResult<Input<'_>, Node<NamespaceDecl>> {
     let start = input;
     let (input, _) = preceded(ws_and_comments, tag(&b"namespace"[..])).parse(input)?;
     let (input, _) = ws1(input)?;
-    let (input, identification) = identification(input)?;
+    let (input, identification) = required_identification(input)?;
     let (input, body) = package_body(input)?;
     Ok((
         input,
@@ -736,6 +748,31 @@ mod tests {
         assert!(
             result.is_ok(),
             "part_def_or_usage should parse Display tail directly, got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn primitive_data_types_validation_fixture_package_parses_directly() {
+        let input = include_str!(
+            "../../sysml-v2-release/sysml/src/validation/15-Properties-Values-Expressions/15_10-Primitive Data Types.sysml"
+        );
+        let located = LocatedSpan::new(input.as_bytes());
+        let result = package_(located);
+        assert!(result.is_ok(), "package_ should parse fixture, got {:?}", result);
+    }
+
+    #[test]
+    fn primitive_data_types_validation_fixture_package_body_parses_directly() {
+        let input = include_str!(
+            "../../sysml-v2-release/sysml/src/validation/15-Properties-Values-Expressions/15_10-Primitive Data Types.sysml"
+        );
+        let start = input.find('{').expect("fixture should contain package body");
+        let located = LocatedSpan::new(&input.as_bytes()[start..]);
+        let result = package_body_brace(located);
+        assert!(
+            result.is_ok(),
+            "package_body_brace should parse fixture body, got {:?}",
             result
         );
     }

@@ -153,8 +153,16 @@ fn frame_member(input: Input<'_>) -> IResult<Input<'_>, Node<FrameMember>> {
 pub(crate) fn subject_decl(input: Input<'_>) -> IResult<Input<'_>, Node<SubjectDecl>> {
     let start = input;
     let (input, _) = preceded(ws_and_comments, tag(&b"subject"[..])).parse(input)?;
-    let (input, _) = ws1(input)?;
-    let (input, n) = name(input)?;
+    let (input, n) = {
+        let (after_gap, _) = ws_and_comments(input)?;
+        if after_gap.fragment().starts_with(b":") {
+            (after_gap, "subject".to_string())
+        } else {
+            let (input, _) = ws1(input)?;
+            let (input, n) = name(input)?;
+            (input, n)
+        }
+    };
     let (input, _) = preceded(ws_and_comments, tag(&b":"[..])).parse(input)?;
     let (input, type_name) = preceded(ws_and_comments, qualified_name).parse(input)?;
     let (input, _) = alt((

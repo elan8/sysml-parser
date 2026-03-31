@@ -812,26 +812,10 @@ fn test_parse_with_diagnostics_reports_local_requirement_recovery() {
 }
 
 #[test]
-fn test_parse_with_diagnostics_reports_missing_subject_name_in_requirement_body() {
+fn test_parse_requirement_subject_shorthand_without_name() {
     let input = "package P {\nrequirement def R {\nsubject: Laptop;\nrequire constraint { }\n}\n}";
-    let result = parse_with_diagnostics(input);
-    assert!(
-        !result.is_ok(),
-        "missing subject name should produce diagnostics"
-    );
-    let err = result
-        .errors
-        .iter()
-        .find(|e| e.code.as_deref() == Some("missing_member_name"))
-        .expect("expected missing_member_name diagnostic");
-    assert_eq!(err.expected.as_deref(), Some("subject name before ':'"));
-    assert!(
-        err.suggestion
-            .as_deref()
-            .is_some_and(|s| s.contains("subject laptop: Laptop;")),
-        "diagnostic should show an example fix"
-    );
-    let pkg = match &result.root.elements[0].value {
+    let result = parse(input).expect("subject shorthand should parse");
+    let pkg = match &result.elements[0].value {
         RootElement::Package(p) => &p.value,
         _ => panic!("expected package"),
     };
@@ -850,31 +834,29 @@ fn test_parse_with_diagnostics_reports_missing_subject_name_in_requirement_body(
         sysml_parser::ast::RequirementDefBody::Brace { elements } => elements,
         _ => panic!("expected requirement brace body"),
     };
+    let subject = body_elements
+        .iter()
+        .find_map(|e| match &e.value {
+            sysml_parser::ast::RequirementDefBodyElement::SubjectDecl(s) => Some(&s.value),
+            _ => None,
+        })
+        .expect("subject decl should be present");
+    assert_eq!(subject.name, "subject");
+    assert_eq!(subject.type_name, "Laptop");
     assert!(
         body_elements.iter().any(|e| matches!(
             e.value,
             sysml_parser::ast::RequirementDefBodyElement::RequireConstraint(_)
         )),
-        "later requirement members should still parse after recovering from invalid subject syntax"
+        "later requirement members should still parse after subject shorthand"
     );
 }
 
 #[test]
-fn test_parse_with_diagnostics_reports_missing_subject_name_in_use_case_body() {
+fn test_parse_use_case_subject_shorthand_without_name() {
     let input = "package P {\nuse case def U {\nsubject: Laptop;\nobjective { }\n}\n}";
-    let result = parse_with_diagnostics(input);
-    assert!(
-        !result.is_ok(),
-        "missing subject name should produce diagnostics"
-    );
-    assert!(
-        result
-            .errors
-            .iter()
-            .any(|e| e.code.as_deref() == Some("missing_member_name")),
-        "expected missing_member_name diagnostic in use case body"
-    );
-    let pkg = match &result.root.elements[0].value {
+    let result = parse(input).expect("subject shorthand should parse");
+    let pkg = match &result.elements[0].value {
         RootElement::Package(p) => &p.value,
         _ => panic!("expected package"),
     };
@@ -893,12 +875,48 @@ fn test_parse_with_diagnostics_reports_missing_subject_name_in_use_case_body() {
         sysml_parser::ast::UseCaseDefBody::Brace { elements } => elements,
         _ => panic!("expected use case brace body"),
     };
+    let subject = body_elements
+        .iter()
+        .find_map(|e| match &e.value {
+            sysml_parser::ast::UseCaseDefBodyElement::SubjectDecl(s) => Some(&s.value),
+            _ => None,
+        })
+        .expect("subject decl should be present");
+    assert_eq!(subject.name, "subject");
+    assert_eq!(subject.type_name, "Laptop");
     assert!(
         body_elements.iter().any(|e| matches!(
             e.value,
             sysml_parser::ast::UseCaseDefBodyElement::Objective(_)
         )),
-        "later use case members should still parse after recovering from invalid subject syntax"
+        "later use case members should still parse after subject shorthand"
+    );
+}
+
+#[test]
+fn test_parse_package_with_quoted_name() {
+    let input = "package '15.10-Primitive Data Types' { }";
+    let result = parse(input).expect("quoted package names should parse");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    assert_eq!(
+        pkg.identification.name.as_deref(),
+        Some("15.10-Primitive Data Types")
+    );
+}
+
+#[test]
+fn test_parse_primitive_data_types_validation_fixture() {
+    let input = include_str!(
+        "../sysml-v2-release/sysml/src/validation/15-Properties-Values-Expressions/15_10-Primitive Data Types.sysml"
+    );
+    let result = parse(input);
+    assert!(
+        result.is_ok(),
+        "fixture should parse cleanly; diagnostics: {:?}",
+        parse_with_diagnostics(input).errors
     );
 }
 
