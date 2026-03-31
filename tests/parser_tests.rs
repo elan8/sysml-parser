@@ -863,6 +863,44 @@ fn test_parse_with_diagnostics_reports_missing_actor_name_in_use_case_body() {
 }
 
 #[test]
+fn test_parse_with_diagnostics_reports_missing_subject_type_in_requirement_body() {
+    let input = "package P {\nrequirement def R {\nsubject laptop: ;\nrequire constraint { }\n}\n}";
+    let result = parse_with_diagnostics(input);
+    assert!(!result.is_ok(), "missing subject type should produce diagnostics");
+    let err = result
+        .errors
+        .iter()
+        .find(|e| e.code.as_deref() == Some("missing_type_reference"))
+        .expect("expected missing_type_reference diagnostic");
+    assert_eq!(err.expected.as_deref(), Some("subject type after ':'"));
+    assert!(
+        err.suggestion
+            .as_deref()
+            .is_some_and(|s| s.contains("subject laptop: Laptop;")),
+        "diagnostic should show a subject type example fix"
+    );
+}
+
+#[test]
+fn test_parse_with_diagnostics_reports_missing_actor_type_in_use_case_body() {
+    let input = "package P {\nuse case def U {\nactor user: ;\nobjective { }\n}\n}";
+    let result = parse_with_diagnostics(input);
+    assert!(!result.is_ok(), "missing actor type should produce diagnostics");
+    let err = result
+        .errors
+        .iter()
+        .find(|e| e.code.as_deref() == Some("missing_type_reference"))
+        .expect("expected missing_type_reference diagnostic");
+    assert_eq!(err.expected.as_deref(), Some("actor type after ':'"));
+    assert!(
+        err.suggestion
+            .as_deref()
+            .is_some_and(|s| s.contains("actor user: User;")),
+        "diagnostic should show an actor type example fix"
+    );
+}
+
+#[test]
 fn test_parse_with_diagnostics_reports_missing_state_name_in_state_body() {
     let input = "package P {\nstate def Machine {\nstate: Mode;\ntransition t then Ready;\n}\n}";
     let result = parse_with_diagnostics(input);
@@ -877,6 +915,24 @@ fn test_parse_with_diagnostics_reports_missing_state_name_in_state_body() {
             .as_deref()
             .is_some_and(|s| s.contains("state ready: Mode;")),
         "diagnostic should show a state example fix"
+    );
+}
+
+#[test]
+fn test_parse_with_diagnostics_reports_missing_part_type_in_part_body() {
+    let input = "package P {\npart def Vehicle {\npart wheel: ;\nattribute mass: MassValue;\n}\n}";
+    let result = parse_with_diagnostics(input);
+    assert!(!result.is_ok(), "missing part type should produce diagnostics");
+    let err = result
+        .errors
+        .iter()
+        .find(|e| e.expected.as_deref() == Some("part type after ':'"))
+        .expect("expected part-type diagnostic");
+    assert!(
+        err.suggestion
+            .as_deref()
+            .is_some_and(|s| s.contains("part wheel: Wheel;")),
+        "diagnostic should show a part type example fix"
     );
 }
 

@@ -254,6 +254,74 @@ fn starts_with_missing_name_after_keyword(
     fragment.starts_with(b":")
 }
 
+fn starts_with_missing_type_after_keyword(
+    fragment: &[u8],
+    keyword: &[u8],
+    trailing_keywords: &[&[u8]],
+) -> bool {
+    let mut fragment = trim_ascii_start(fragment);
+    if !lex::starts_with_keyword(fragment, keyword) {
+        return false;
+    }
+    fragment = &fragment[keyword.len()..];
+    while let Some(first) = fragment.first() {
+        if first.is_ascii_whitespace() {
+            fragment = &fragment[1..];
+            continue;
+        }
+        break;
+    }
+    for trailing in trailing_keywords {
+        if lex::starts_with_keyword(fragment, trailing) {
+            fragment = &fragment[trailing.len()..];
+            while let Some(first) = fragment.first() {
+                if first.is_ascii_whitespace() {
+                    fragment = &fragment[1..];
+                    continue;
+                }
+                break;
+            }
+        }
+    }
+
+    let mut name_len = 0usize;
+    while name_len < fragment.len()
+        && (fragment[name_len].is_ascii_alphanumeric() || fragment[name_len] == b'_')
+    {
+        name_len += 1;
+    }
+    if name_len == 0 {
+        return false;
+    }
+    fragment = &fragment[name_len..];
+    while let Some(first) = fragment.first() {
+        if first.is_ascii_whitespace() {
+            fragment = &fragment[1..];
+            continue;
+        }
+        break;
+    }
+    if !fragment.starts_with(b":") {
+        return false;
+    }
+    fragment = &fragment[1..];
+    while let Some(first) = fragment.first() {
+        if first.is_ascii_whitespace() {
+            fragment = &fragment[1..];
+            continue;
+        }
+        break;
+    }
+
+    fragment.is_empty()
+        || fragment.starts_with(b";")
+        || fragment.starts_with(b"{")
+        || fragment.starts_with(b"}")
+        || lex::starts_with_keyword(fragment, b"then")
+        || lex::starts_with_keyword(fragment, b"if")
+        || lex::starts_with_keyword(fragment, b"do")
+}
+
 fn missing_name_diagnostic(fragment: &[u8]) -> Option<(&'static str, String, String, String)> {
     let cases: &[(&[u8], &[&[u8]], &str, &str)] = &[
         (b"subject", &[], "subject name", "Use `subject laptop: Laptop;`."),
@@ -280,6 +348,83 @@ fn missing_name_diagnostic(fragment: &[u8]) -> Option<(&'static str, String, Str
                 format!("expected {missing_what} before ':'"),
                 format!("{missing_what} before ':'"),
                 format!("{suggestion}"),
+            ));
+        }
+    }
+    None
+}
+
+fn missing_type_diagnostic(fragment: &[u8]) -> Option<(&'static str, String, String, String)> {
+    let cases: &[(&[u8], &[&[u8]], &str)] = &[
+        (b"subject", &[], "subject type"),
+        (b"actor", &[], "actor type"),
+        (b"state", &[], "state type"),
+        (b"part", &[], "part type"),
+        (b"ref", &[], "reference type"),
+        (b"port", &[], "port type"),
+        (b"attribute", &[], "attribute type"),
+        (b"in", &[], "input type"),
+        (b"out", &[], "output type"),
+        (b"perform", &[b"action"], "action type"),
+    ];
+
+    for &(keyword, trailing, missing_what) in cases {
+        if starts_with_missing_type_after_keyword(fragment, keyword, trailing) {
+            let keyword_label = String::from_utf8_lossy(keyword);
+            let sample_name = if keyword == &b"subject"[..] {
+                "laptop"
+            } else if keyword == &b"actor"[..] {
+                "user"
+            } else if keyword == &b"state"[..] {
+                "ready"
+            } else if keyword == &b"part"[..] {
+                "wheel"
+            } else if keyword == &b"ref"[..] {
+                "sensor"
+            } else if keyword == &b"port"[..] {
+                "power"
+            } else if keyword == &b"attribute"[..] {
+                "mass"
+            } else if keyword == &b"in"[..] {
+                "speed"
+            } else if keyword == &b"out"[..] {
+                "result"
+            } else if keyword == &b"perform"[..] {
+                "run"
+            } else {
+                "member"
+            };
+            let sample_type = if keyword == &b"subject"[..] {
+                "Laptop"
+            } else if keyword == &b"actor"[..] {
+                "User"
+            } else if keyword == &b"state"[..] {
+                "Mode"
+            } else if keyword == &b"part"[..] {
+                "Wheel"
+            } else if keyword == &b"ref"[..] {
+                "Sensor"
+            } else if keyword == &b"port"[..] {
+                "PowerPort"
+            } else if keyword == &b"attribute"[..] {
+                "MassValue"
+            } else if keyword == &b"in"[..] || keyword == &b"out"[..] {
+                "Real"
+            } else if keyword == &b"perform"[..] {
+                "Runner"
+            } else {
+                "Type"
+            };
+            let suggestion = if keyword == &b"perform"[..] {
+                format!("Use `perform action {sample_name}: {sample_type};`.")
+            } else {
+                format!("Use `{keyword_label} {sample_name}: {sample_type};`.")
+            };
+            return Some((
+                "missing_type_reference",
+                format!("expected {missing_what} after ':'"),
+                format!("{missing_what} after ':'"),
+                suggestion,
             ));
         }
     }
@@ -338,6 +483,16 @@ pub(crate) fn build_recovery_error_node(
     let trimmed = trim_ascii_start(input.fragment());
 
     if let Some((code, message, expected, suggestion)) = missing_name_diagnostic(trimmed) {
+        return ParseErrorNode {
+            message,
+            code: code.to_string(),
+            expected: Some(expected),
+            found: recovery_found_snippet(input),
+            suggestion: Some(suggestion),
+        };
+    }
+
+    if let Some((code, message, expected, suggestion)) = missing_type_diagnostic(trimmed) {
         return ParseErrorNode {
             message,
             code: code.to_string(),

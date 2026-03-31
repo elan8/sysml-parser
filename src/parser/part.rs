@@ -354,11 +354,16 @@ fn part_usage_named<'a>(
     let (input, _) = opt(preceded(ws_and_comments, tag(&b":>>"[..]))).parse(input)?;
     let (input, _) = ws_and_comments(input)?;
     let (input, (name_span, name_str)) = with_span(name).parse(input)?;
-    let (input, type_result) = opt(preceded(
-        preceded(ws_and_comments, tag(&b":"[..])),
-        preceded(ws_and_comments, with_span(qualified_name)),
-    ))
-    .parse(input)?;
+    let (input, type_result) = {
+        let (peek, _) = ws_and_comments(input)?;
+        if peek.fragment().starts_with(b":") && !peek.fragment().starts_with(b":>") {
+            let (input, _) = preceded(ws_and_comments, tag(&b":"[..])).parse(input)?;
+            let (input, result) = preceded(ws_and_comments, with_span(qualified_name)).parse(input)?;
+            (input, Some(result))
+        } else {
+            (input, None)
+        }
+    };
     let (type_ref_span, type_name) = type_result
         .map(|(s, t)| (Some(s), t))
         .unwrap_or((None, String::new()));

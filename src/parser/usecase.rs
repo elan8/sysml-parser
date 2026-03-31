@@ -49,11 +49,16 @@ pub(crate) fn use_case_usage(input: Input<'_>) -> IResult<Input<'_>, Node<UseCas
     let (input, _) = tag(&b"case"[..]).parse(input)?;
     let (input, _) = ws1(input)?;
     let (input, ident) = name(input)?;
-    let (input, type_name) = opt(preceded(
-        preceded(ws_and_comments, tag(&b":"[..])),
-        preceded(ws_and_comments, qualified_name),
-    ))
-    .parse(input)?;
+    let (input, type_name) = {
+        let (peek, _) = ws_and_comments(input)?;
+        if peek.fragment().starts_with(b":") && !peek.fragment().starts_with(b":>") {
+            let (input, _) = preceded(ws_and_comments, tag(&b":"[..])).parse(input)?;
+            let (input, type_name) = preceded(ws_and_comments, qualified_name).parse(input)?;
+            (input, Some(type_name))
+        } else {
+            (input, None)
+        }
+    };
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = take_until_terminator(input, b";{")?;
     let (input, body) = use_case_def_body(input)?;

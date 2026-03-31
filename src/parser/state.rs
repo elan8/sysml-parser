@@ -198,7 +198,16 @@ pub(crate) fn state_usage(input: Input<'_>) -> IResult<Input<'_>, Node<StateUsag
     let (input, _) = tag(&b"state"[..]).parse(input)?;
     let (input, _) = ws1(input)?;
     let (input, n) = name(input)?;
-    let (input, typ) = opt(preceded(preceded(ws_and_comments, tag(&b":"[..])), preceded(ws_and_comments, qualified_name))).parse(input)?;
+    let (input, typ) = {
+        let (peek, _) = ws_and_comments(input)?;
+        if peek.fragment().starts_with(b":") && !peek.fragment().starts_with(b":>") {
+            let (input, _) = preceded(ws_and_comments, tag(&b":"[..])).parse(input)?;
+            let (input, typ) = preceded(ws_and_comments, qualified_name).parse(input)?;
+            (input, Some(typ))
+        } else {
+            (input, None)
+        }
+    };
     // Optional modifier before body: `parallel` or `initial` (SysML state usage)
     let (input, _) = opt(alt((
         preceded(preceded(ws_and_comments, tag(&b"parallel"[..])), ws1),
