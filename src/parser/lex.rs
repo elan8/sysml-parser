@@ -7,8 +7,8 @@ use nom::bytes::complete::{tag, take_until, take_while, take_while1};
 use nom::combinator::{map, opt, rest, value};
 use nom::multi::many0;
 use nom::sequence::{delimited, preceded};
-use nom::Parser;
 use nom::IResult;
+use nom::Parser;
 
 pub(crate) const PACKAGE_BODY_STARTERS: &[&[u8]] = &[
     b"#",
@@ -86,15 +86,7 @@ pub(crate) const PART_BODY_STARTERS: &[&[u8]] = &[
 ];
 
 pub(crate) const ACTION_BODY_STARTERS: &[&[u8]] = &[
-    b"action",
-    b"bind",
-    b"doc",
-    b"first",
-    b"flow",
-    b"in",
-    b"merge",
-    b"out",
-    b"perform",
+    b"action", b"bind", b"doc", b"first", b"flow", b"in", b"merge", b"out", b"perform",
 ];
 
 pub(crate) const REQUIREMENT_BODY_STARTERS: &[&[u8]] = &[
@@ -109,58 +101,26 @@ pub(crate) const REQUIREMENT_BODY_STARTERS: &[&[u8]] = &[
 ];
 
 #[allow(dead_code)]
-pub(crate) const STATE_BODY_STARTERS: &[&[u8]] = &[
-    b"doc",
-    b"entry",
-    b"ref",
-    b"state",
-    b"then",
-    b"transition",
-];
+pub(crate) const STATE_BODY_STARTERS: &[&[u8]] =
+    &[b"doc", b"entry", b"ref", b"state", b"then", b"transition"];
 
-pub(crate) const USE_CASE_BODY_STARTERS: &[&[u8]] = &[
-    b"actor",
-    b"doc",
-    b"objective",
-    b"subject",
-];
+pub(crate) const USE_CASE_BODY_STARTERS: &[&[u8]] = &[b"actor", b"doc", b"objective", b"subject"];
 
-pub(crate) const CONSTRAINT_DEF_BODY_STARTERS: &[&[u8]] = &[
-    b"doc",
-    b"in",
-    b"out",
-];
+pub(crate) const CONSTRAINT_DEF_BODY_STARTERS: &[&[u8]] = &[b"doc", b"in", b"out"];
 
-pub(crate) const CALC_DEF_BODY_STARTERS: &[&[u8]] = &[
-    b"doc",
-    b"in",
-    b"out",
-    b"return",
-];
+pub(crate) const CALC_DEF_BODY_STARTERS: &[&[u8]] = &[b"doc", b"in", b"out", b"return"];
 
-pub(crate) const VIEW_DEF_BODY_STARTERS: &[&[u8]] = &[
-    b"doc",
-    b"filter",
-    b"render",
-];
+pub(crate) const VIEW_DEF_BODY_STARTERS: &[&[u8]] = &[b"doc", b"filter", b"render"];
 
-pub(crate) const VIEW_BODY_STARTERS: &[&[u8]] = &[
-    b"doc",
-    b"expose",
-    b"filter",
-    b"render",
-    b"satisfy",
-];
+pub(crate) const VIEW_BODY_STARTERS: &[&[u8]] =
+    &[b"doc", b"expose", b"filter", b"render", b"satisfy"];
 
-pub(crate) const CONNECTION_DEF_BODY_STARTERS: &[&[u8]] = &[
-    b"connect",
-    b"end",
-    b"ref",
-];
+pub(crate) const CONNECTION_DEF_BODY_STARTERS: &[&[u8]] = &[b"connect", b"end", b"ref"];
 
 /// Skip optional whitespace (space, tab, newline).
 pub(crate) fn ws(input: Input<'_>) -> IResult<Input<'_>, ()> {
-    let (input, _) = take_while(|c: u8| c == b' ' || c == b'\t' || c == b'\n' || c == b'\r').parse(input)?;
+    let (input, _) =
+        take_while(|c: u8| c == b' ' || c == b'\t' || c == b'\n' || c == b'\r').parse(input)?;
     Ok((input, ()))
 }
 
@@ -172,14 +132,11 @@ pub(crate) fn ws_and_comments(input: Input<'_>) -> IResult<Input<'_>, ()> {
     let mut input = input;
     loop {
         let start = input.location_offset();
-        let (next, _) = take_while(|c: u8| c == b' ' || c == b'\t' || c == b'\n' || c == b'\r').parse(input)?;
+        let (next, _) =
+            take_while(|c: u8| c == b' ' || c == b'\t' || c == b'\n' || c == b'\r').parse(input)?;
         input = next;
-        let (next, _) = many0(alt((
-            block_comment,
-            block_comment_slash_star,
-            line_comment,
-        )))
-        .parse(input)?;
+        let (next, _) =
+            many0(alt((block_comment, block_comment_slash_star, line_comment))).parse(input)?;
         input = next;
         if input.location_offset() == start {
             return Ok((input, ()));
@@ -215,7 +172,8 @@ fn line_comment(input: Input<'_>) -> IResult<Input<'_>, ()> {
 
 /// Parse one or more whitespace characters (consumes at least one).
 pub(crate) fn ws1(input: Input<'_>) -> IResult<Input<'_>, ()> {
-    let (input, _) = take_while1(|c: u8| c == b' ' || c == b'\t' || c == b'\n' || c == b'\r').parse(input)?;
+    let (input, _) =
+        take_while1(|c: u8| c == b' ' || c == b'\t' || c == b'\n' || c == b'\r').parse(input)?;
     Ok((input, ()))
 }
 
@@ -248,9 +206,7 @@ pub(crate) fn skip_to_next_root_element(mut input: Input<'_>) -> IResult<Input<'
         }
         let (after_ws, _) = ws_and_comments(input).unwrap_or((input, ()));
         let frag = after_ws.fragment();
-        if frag.len() >= 8
-            && (frag.starts_with(b"package ") || frag.starts_with(b"namespace "))
-        {
+        if frag.len() >= 8 && (frag.starts_with(b"package ") || frag.starts_with(b"namespace ")) {
             return Ok((after_ws, ()));
         }
         match skip_to_next_sync_point(input) {
@@ -441,7 +397,10 @@ pub(crate) fn identification(input: Input<'_>) -> IResult<Input<'_>, Identificat
 }
 
 /// Take input until we hit one of the terminator bytes (e.g. '{' or ';'), return as string (trimmed).
-pub(crate) fn take_until_terminator<'a>(input: Input<'a>, terminators: &'a [u8]) -> IResult<Input<'a>, String> {
+pub(crate) fn take_until_terminator<'a>(
+    input: Input<'a>,
+    terminators: &'a [u8],
+) -> IResult<Input<'a>, String> {
     let frag = input.fragment();
     let mut i = 0;
     while i < frag.len() {

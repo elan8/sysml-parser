@@ -8,8 +8,8 @@ use crate::parser::Input;
 use nom::bytes::complete::tag;
 use nom::combinator::opt;
 use nom::sequence::preceded;
-use nom::Parser;
 use nom::IResult;
+use nom::Parser;
 
 /// Individual definition: `individual def` Identification ( `:>` qualified_name )? body
 pub(crate) fn individual_def(input: Input<'_>) -> IResult<Input<'_>, Node<IndividualDef>> {

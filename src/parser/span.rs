@@ -24,7 +24,9 @@ pub fn node_from_to<T>(start: Input<'_>, rest: Input<'_>, value: T) -> Node<T> {
 
 /// Run a parser and return the value together with the span of the consumed input.
 /// Use this to capture sub-spans for semantic tokens (e.g. name, type reference).
-pub fn with_span<'a, F, O, E>(mut f: F) -> impl FnMut(Input<'a>) -> nom::IResult<Input<'a>, (Span, O), E>
+pub fn with_span<'a, F, O, E>(
+    mut f: F,
+) -> impl FnMut(Input<'a>) -> nom::IResult<Input<'a>, (Span, O), E>
 where
     E: nom::error::ParseError<Input<'a>>,
     F: FnMut(Input<'a>) -> nom::IResult<Input<'a>, O, E>,
@@ -49,7 +51,9 @@ mod tests {
     fn span_from_to_consumed_region() {
         let bytes = b"package Foo;" as &[u8];
         let start = LocatedSpan::new(bytes);
-        let (rest, _) = tag::<_, Input<'_>, Error<Input<'_>>>(&b"package"[..]).parse(start).unwrap();
+        let (rest, _) = tag::<_, Input<'_>, Error<Input<'_>>>(&b"package"[..])
+            .parse(start)
+            .unwrap();
         let span = span_from_to(start, rest);
         assert_eq!(
             span,

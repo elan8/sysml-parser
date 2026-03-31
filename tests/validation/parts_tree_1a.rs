@@ -2,8 +2,8 @@
 
 use std::path::Path;
 use sysml_parser::ast::{
-    AttributeBody, AttributeDef, AttributeUsage, Expression, Identification, Import, Node,
-    Package, PackageBody, PackageBodyElement, PartDef, PartDefBody, PartDefBodyElement, PartUsage,
+    AttributeBody, AttributeDef, AttributeUsage, Expression, Identification, Import, Node, Package,
+    PackageBody, PackageBodyElement, PartDef, PartDefBody, PartDefBodyElement, PartUsage,
     PartUsageBody, PartUsageBodyElement, RootElement, RootNamespace, Span, Visibility,
 };
 use sysml_parser::parse;
@@ -23,7 +23,9 @@ fn n<T>(v: T) -> Node<T> {
 fn expr_1750_kg() -> Node<Expression> {
     n(Expression::LiteralWithUnit {
         value: Box::new(n(Expression::LiteralInteger(1750))),
-        unit: Box::new(n(Expression::Bracket(Box::new(n(Expression::FeatureRef("kg".to_string())))))),
+        unit: Box::new(n(Expression::Bracket(Box::new(n(Expression::FeatureRef(
+            "kg".to_string(),
+        )))))),
     })
 }
 
@@ -31,7 +33,9 @@ fn expr_1750_kg() -> Node<Expression> {
 fn expr_2000_kg() -> Node<Expression> {
     n(Expression::LiteralWithUnit {
         value: Box::new(n(Expression::LiteralInteger(2000))),
-        unit: Box::new(n(Expression::Bracket(Box::new(n(Expression::FeatureRef("kg".to_string())))))),
+        unit: Box::new(n(Expression::Bracket(Box::new(n(Expression::FeatureRef(
+            "kg".to_string(),
+        )))))),
     })
 }
 
@@ -77,10 +81,10 @@ fn expected_ast() -> RootNamespace {
                     n(PackageBodyElement::Import(n(Import {
                         visibility: Some(Visibility::Private),
                         is_import_all: false,
-target: "SI::kg".to_string(),
-                    is_recursive: false,
-                    filter_members: None,
-                }))),
+                        target: "SI::kg".to_string(),
+                        is_recursive: false,
+                        filter_members: None,
+                    }))),
                     n(PackageBodyElement::Package(n(Package {
                         identification: id("Definitions"),
                         body: PackageBody::Brace {
@@ -264,10 +268,10 @@ fn part_vehicle1() -> PartUsage {
                                 type_name: "Wheel".to_string(),
                                 multiplicity: Some("[2]".to_string()),
                                 ordered: true,
-        subsets: None,
-        redefines: None,
-        value: None,
-        body: PartUsageBody::Semicolon,
+                                subsets: None,
+                                redefines: None,
+                                value: None,
+                                body: PartUsageBody::Semicolon,
                                 name_span: None,
                                 type_ref_span: None,
                             })))),
@@ -317,10 +321,10 @@ fn part_vehicle1_c1() -> PartUsage {
                                 type_name: "FrontAxle".to_string(),
                                 multiplicity: None,
                                 ordered: false,
-        subsets: None,
-        redefines: None,
-        value: None,
-        body: PartUsageBody::Brace { elements: vec![] },
+                                subsets: None,
+                                redefines: None,
+                                value: None,
+                                body: PartUsageBody::Brace { elements: vec![] },
                                 name_span: None,
                                 type_ref_span: None,
                             })))),
@@ -398,10 +402,10 @@ fn part_vehicle1_c1() -> PartUsage {
                                 type_name: "Wheel".to_string(),
                                 multiplicity: Some("[2]".to_string()),
                                 ordered: true,
-        subsets: None,
-        redefines: None,
-        value: None,
-        body: PartUsageBody::Semicolon,
+                                subsets: None,
+                                redefines: None,
+                                value: None,
+                                body: PartUsageBody::Semicolon,
                                 name_span: None,
                                 type_ref_span: None,
                             })))),
@@ -410,10 +414,7 @@ fn part_vehicle1_c1() -> PartUsage {
                                 type_name: "".to_string(),
                                 multiplicity: None,
                                 ordered: false,
-                                subsets: Some((
-                                    "rearWheel".to_string(),
-                                    Some(expr_rear_wheel_1()),
-                                )),
+                                subsets: Some(("rearWheel".to_string(), Some(expr_rear_wheel_1()))),
                                 redefines: None,
                                 value: None,
                                 body: PartUsageBody::Semicolon,
@@ -425,10 +426,7 @@ fn part_vehicle1_c1() -> PartUsage {
                                 type_name: "".to_string(),
                                 multiplicity: None,
                                 ordered: false,
-                                subsets: Some((
-                                    "rearWheel".to_string(),
-                                    Some(expr_rear_wheel_2()),
-                                )),
+                                subsets: Some(("rearWheel".to_string(), Some(expr_rear_wheel_2()))),
                                 redefines: None,
                                 value: None,
                                 body: PartUsageBody::Semicolon,
@@ -463,14 +461,24 @@ fn test_parse_1a_parts_tree() {
     log::debug!("fixture path: {}", path.display());
     let input = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("read fixture {}: {}", path.display(), e));
-    log::debug!("input len: {} bytes, first 200 chars: {:?}", input.len(), input.chars().take(200).collect::<String>());
+    log::debug!(
+        "input len: {} bytes, first 200 chars: {:?}",
+        input.len(),
+        input.chars().take(200).collect::<String>()
+    );
     let result = match parse(&input) {
         Ok(r) => r,
         Err(e) => {
             log::error!("parse failed: {}", e);
             log::error!("input len: {} bytes", input.len());
-            log::error!("first 300 chars: {:?}", input.chars().take(300).collect::<String>());
-            log::error!("first 100 bytes: {:?}", input.bytes().take(100).collect::<Vec<_>>());
+            log::error!(
+                "first 300 chars: {:?}",
+                input.chars().take(300).collect::<String>()
+            );
+            log::error!(
+                "first 100 bytes: {:?}",
+                input.bytes().take(100).collect::<Vec<_>>()
+            );
             panic!("parse should succeed for 1a-Parts Tree.sysml: {}", e);
         }
     };

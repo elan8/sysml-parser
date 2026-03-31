@@ -1,15 +1,17 @@
 //! Alias definition parsing.
 
 use crate::ast::{AliasBody, AliasDef, Node};
-use crate::parser::lex::{identification, qualified_name, skip_until_brace_end, ws1, ws_and_comments};
+use crate::parser::lex::{
+    identification, qualified_name, skip_until_brace_end, ws1, ws_and_comments,
+};
 use crate::parser::node_from_to;
 use crate::parser::Input;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::combinator::map;
 use nom::sequence::preceded;
-use nom::Parser;
 use nom::IResult;
+use nom::Parser;
 
 /// Alias body: `;` or `{` ... `}`
 fn alias_body(input: Input<'_>) -> IResult<Input<'_>, AliasBody> {
@@ -40,10 +42,14 @@ pub(crate) fn alias_def(input: Input<'_>) -> IResult<Input<'_>, Node<AliasDef>> 
     let (input, body) = alias_body(input)?;
     Ok((
         input,
-        node_from_to(start, input, AliasDef {
-            identification,
-            target,
-            body,
-        }),
+        node_from_to(
+            start,
+            input,
+            AliasDef {
+                identification,
+                target,
+                body,
+            },
+        ),
     ))
 }

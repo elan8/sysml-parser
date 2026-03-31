@@ -8,20 +8,20 @@
 //! - [package]: package and root namespace
 
 mod action;
-mod allocation;
 mod alias;
+mod allocation;
 mod attribute;
 mod case;
 mod connection;
 mod constraint;
 mod dependency;
-mod individual;
-mod item;
 mod enumeration;
 mod expr;
 mod flow;
 mod import;
+mod individual;
 mod interface;
+mod item;
 mod lex;
 mod metadata;
 mod metadata_annotation;
@@ -143,7 +143,9 @@ fn nom_error_kind_to_message(code: &nom::error::ErrorKind) -> &'static str {
         ErrorKind::Eof => "unexpected end of input",
         ErrorKind::TakeUntil => "expected terminator",
         ErrorKind::TakeWhile1 => "expected token",
-        ErrorKind::Alt => "expected package, import, part, port, interface, alias, attribute, or action",
+        ErrorKind::Alt => {
+            "expected package, import, part, port, interface, alias, attribute, or action"
+        }
         ErrorKind::Many0 | ErrorKind::Many1 => "expected list of elements",
         _ => "parse error",
     }
@@ -323,14 +325,25 @@ fn starts_with_missing_type_after_keyword(
 }
 
 fn missing_name_diagnostic(fragment: &[u8]) -> Option<(&'static str, String, String, String)> {
+    #[allow(clippy::type_complexity)]
     let cases: &[(&[u8], &[&[u8]], &str, &str)] = &[
-        (b"subject", &[], "subject name", "Use `subject laptop: Laptop;`."),
+        (
+            b"subject",
+            &[],
+            "subject name",
+            "Use `subject laptop: Laptop;`.",
+        ),
         (b"actor", &[], "actor name", "Use `actor user: User;`."),
         (b"state", &[], "state name", "Use `state ready: Mode;`."),
         (b"part", &[], "part name", "Use `part wheel: Wheel;`."),
         (b"ref", &[], "reference name", "Use `ref sensor: Sensor;`."),
         (b"port", &[], "port name", "Use `port power: PowerPort;`."),
-        (b"attribute", &[], "attribute name", "Use `attribute mass: MassValue;`."),
+        (
+            b"attribute",
+            &[],
+            "attribute name",
+            "Use `attribute mass: MassValue;`.",
+        ),
         (b"in", &[], "input name", "Use `in speed: Real;`."),
         (b"out", &[], "output name", "Use `out result: Real;`."),
         (
@@ -347,7 +360,7 @@ fn missing_name_diagnostic(fragment: &[u8]) -> Option<(&'static str, String, Str
                 "missing_member_name",
                 format!("expected {missing_what} before ':'"),
                 format!("{missing_what} before ':'"),
-                format!("{suggestion}"),
+                suggestion.to_string(),
             ));
         }
     }
@@ -355,6 +368,7 @@ fn missing_name_diagnostic(fragment: &[u8]) -> Option<(&'static str, String, Str
 }
 
 fn missing_type_diagnostic(fragment: &[u8]) -> Option<(&'static str, String, String, String)> {
+    #[allow(clippy::type_complexity)]
     let cases: &[(&[u8], &[&[u8]], &str)] = &[
         (b"subject", &[], "subject type"),
         (b"actor", &[], "actor type"),
@@ -530,9 +544,7 @@ pub(crate) fn build_recovery_error_node(
         code: generic_code.to_string(),
         expected: Some(format!("valid {scope_label} element")),
         found: recovery_found_snippet(input),
-        suggestion: Some(format!(
-            "Fix this {scope_label} member and re-run parsing."
-        )),
+        suggestion: Some(format!("Fix this {scope_label} member and re-run parsing.")),
     }
 }
 
@@ -544,7 +556,8 @@ fn is_only_trailing_closing_braces(mut input: Input<'_>) -> bool {
             return true;
         }
         if input.fragment().starts_with(b"}") {
-            match nom::bytes::complete::tag::<_, _, nom::error::Error<Input>>(&b"}"[..]).parse(input)
+            match nom::bytes::complete::tag::<_, _, nom::error::Error<Input>>(&b"}"[..])
+                .parse(input)
             {
                 Ok((next, _)) => {
                     input = next;
@@ -557,10 +570,7 @@ fn is_only_trailing_closing_braces(mut input: Input<'_>) -> bool {
     }
 }
 
-fn parse_error_from_recovery_node(
-    span: &crate::ast::Span,
-    node: &ParseErrorNode,
-) -> ParseError {
+fn parse_error_from_recovery_node(span: &crate::ast::Span, node: &ParseErrorNode) -> ParseError {
     let mut err = ParseError::new(node.message.clone())
         .with_location(span.offset, span.line, span.column)
         .with_length(span.len.max(1))
@@ -653,8 +663,12 @@ fn collect_part_def_body_errors(body: &PartDefBody, errors: &mut Vec<ParseError>
                 PartDefBodyElement::Error(n) => {
                     errors.push(parse_error_from_recovery_node(&element.span, &n.value));
                 }
-                PartDefBodyElement::PartUsage(n) => collect_part_usage_body_errors(&n.value.body, errors),
-                PartDefBodyElement::Perform(n) => collect_perform_body_errors(&n.value.body, errors),
+                PartDefBodyElement::PartUsage(n) => {
+                    collect_part_usage_body_errors(&n.value.body, errors)
+                }
+                PartDefBodyElement::Perform(n) => {
+                    collect_perform_body_errors(&n.value.body, errors)
+                }
                 _ => {}
             }
         }
@@ -675,9 +689,15 @@ fn collect_part_usage_body_errors(body: &PartUsageBody, errors: &mut Vec<ParseEr
                 PartUsageBodyElement::Error(n) => {
                     errors.push(parse_error_from_recovery_node(&element.span, &n.value));
                 }
-                PartUsageBodyElement::PartUsage(n) => collect_part_usage_body_errors(&n.value.body, errors),
-                PartUsageBodyElement::Perform(n) => collect_perform_body_errors(&n.value.body, errors),
-                PartUsageBodyElement::StateUsage(n) => collect_state_body_errors(&n.value.body, errors),
+                PartUsageBodyElement::PartUsage(n) => {
+                    collect_part_usage_body_errors(&n.value.body, errors)
+                }
+                PartUsageBodyElement::Perform(n) => {
+                    collect_perform_body_errors(&n.value.body, errors)
+                }
+                PartUsageBodyElement::StateUsage(n) => {
+                    collect_state_body_errors(&n.value.body, errors)
+                }
                 _ => {}
             }
         }
@@ -691,19 +711,43 @@ fn collect_package_body_errors(body: &PackageBody, errors: &mut Vec<ParseError>)
                 PackageBodyElement::Error(n) => {
                     errors.push(parse_error_from_recovery_node(&element.span, &n.value));
                 }
-                PackageBodyElement::Package(n) => collect_package_body_errors(&n.value.body, errors),
-                PackageBodyElement::LibraryPackage(n) => collect_package_body_errors(&n.value.body, errors),
-                PackageBodyElement::PartDef(n) => collect_part_def_body_errors(&n.value.body, errors),
-                PackageBodyElement::PartUsage(n) => collect_part_usage_body_errors(&n.value.body, errors),
-                PackageBodyElement::ActionDef(n) => collect_action_def_body_errors(&n.value.body, errors),
-                PackageBodyElement::ActionUsage(n) => collect_action_usage_body_errors(&n.value.body, errors),
-                PackageBodyElement::RequirementDef(n) => collect_requirement_body_errors(&n.value.body, errors),
-                PackageBodyElement::RequirementUsage(n) => collect_requirement_body_errors(&n.value.body, errors),
-                PackageBodyElement::UseCaseDef(n) => collect_use_case_body_errors(&n.value.body, errors),
-                PackageBodyElement::UseCaseUsage(n) => collect_use_case_body_errors(&n.value.body, errors),
-                PackageBodyElement::ConcernUsage(n) => collect_requirement_body_errors(&n.value.body, errors),
+                PackageBodyElement::Package(n) => {
+                    collect_package_body_errors(&n.value.body, errors)
+                }
+                PackageBodyElement::LibraryPackage(n) => {
+                    collect_package_body_errors(&n.value.body, errors)
+                }
+                PackageBodyElement::PartDef(n) => {
+                    collect_part_def_body_errors(&n.value.body, errors)
+                }
+                PackageBodyElement::PartUsage(n) => {
+                    collect_part_usage_body_errors(&n.value.body, errors)
+                }
+                PackageBodyElement::ActionDef(n) => {
+                    collect_action_def_body_errors(&n.value.body, errors)
+                }
+                PackageBodyElement::ActionUsage(n) => {
+                    collect_action_usage_body_errors(&n.value.body, errors)
+                }
+                PackageBodyElement::RequirementDef(n) => {
+                    collect_requirement_body_errors(&n.value.body, errors)
+                }
+                PackageBodyElement::RequirementUsage(n) => {
+                    collect_requirement_body_errors(&n.value.body, errors)
+                }
+                PackageBodyElement::UseCaseDef(n) => {
+                    collect_use_case_body_errors(&n.value.body, errors)
+                }
+                PackageBodyElement::UseCaseUsage(n) => {
+                    collect_use_case_body_errors(&n.value.body, errors)
+                }
+                PackageBodyElement::ConcernUsage(n) => {
+                    collect_requirement_body_errors(&n.value.body, errors)
+                }
                 PackageBodyElement::StateDef(n) => collect_state_body_errors(&n.value.body, errors),
-                PackageBodyElement::StateUsage(n) => collect_state_body_errors(&n.value.body, errors),
+                PackageBodyElement::StateUsage(n) => {
+                    collect_state_body_errors(&n.value.body, errors)
+                }
                 _ => {}
             }
         }
@@ -714,9 +758,15 @@ fn collect_recovery_errors(root: &RootNamespace) -> Vec<ParseError> {
     let mut errors = Vec::new();
     for element in &root.elements {
         match &element.value {
-            crate::ast::RootElement::Package(n) => collect_package_body_errors(&n.value.body, &mut errors),
-            crate::ast::RootElement::LibraryPackage(n) => collect_package_body_errors(&n.value.body, &mut errors),
-            crate::ast::RootElement::Namespace(n) => collect_package_body_errors(&n.value.body, &mut errors),
+            crate::ast::RootElement::Package(n) => {
+                collect_package_body_errors(&n.value.body, &mut errors)
+            }
+            crate::ast::RootElement::LibraryPackage(n) => {
+                collect_package_body_errors(&n.value.body, &mut errors)
+            }
+            crate::ast::RootElement::Namespace(n) => {
+                collect_package_body_errors(&n.value.body, &mut errors)
+            }
             crate::ast::RootElement::Import(_) => {}
         }
     }
@@ -865,11 +915,7 @@ pub fn parse_with_diagnostics(input: &str) -> ParseResult {
             }
             Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
                 let pe = missing_closing_brace_error(bytes, e.input).unwrap_or_else(|| {
-                    nom_err_to_parse_error(
-                        &e,
-                        None,
-                        Some("'package', 'namespace', or 'import'"),
-                    )
+                    nom_err_to_parse_error(&e, None, Some("'package', 'namespace', or 'import'"))
                 });
                 let consumed = &bytes[..e.input.location_offset()];
                 let opens = consumed.iter().filter(|&&b| b == b'{').count();
@@ -893,7 +939,11 @@ pub fn parse_with_diagnostics(input: &str) -> ParseResult {
             Err(nom::Err::Incomplete(_)) => {
                 errors.push(
                     ParseError::new("unexpected end of input")
-                        .with_location(input.location_offset(), input.location_line(), input.get_column())
+                        .with_location(
+                            input.location_offset(),
+                            input.location_line(),
+                            input.get_column(),
+                        )
                         .with_length(1)
                         .with_code("unexpected_eof"),
                 );
@@ -916,7 +966,11 @@ pub fn parse_with_diagnostics(input: &str) -> ParseResult {
     if !input.fragment().is_empty() {
         let (found_snippet, found_len) = fragment_to_found_snippet(input.fragment());
         let mut pe = ParseError::new("expected end of input")
-            .with_location(input.location_offset(), input.location_line(), input.get_column())
+            .with_location(
+                input.location_offset(),
+                input.location_line(),
+                input.get_column(),
+            )
             .with_length(found_len.max(1))
             .with_code("expected_end_of_input");
         if !found_snippet.is_empty() {

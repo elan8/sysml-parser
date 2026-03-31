@@ -1,16 +1,15 @@
 //! Action definition and action usage parsing (function-based behavior).
 
 use crate::ast::{
-    ActionDef, ActionDefBody, ActionUsage, ActionUsageBody, ActionUsageBodyElement,
-    FirstMergeBody, FirstStmt, Flow, InOut, InOutDecl, MergeStmt, Node,
+    ActionDef, ActionDefBody, ActionUsage, ActionUsageBody, ActionUsageBodyElement, FirstMergeBody,
+    FirstStmt, Flow, InOut, InOutDecl, MergeStmt, Node,
 };
 use crate::parser::build_recovery_error_node;
 use crate::parser::expr::path_expression;
 use crate::parser::interface::connect_body;
 use crate::parser::lex::{
     identification, name, qualified_name, recover_body_element, skip_until_brace_end,
-    take_until_terminator,
-    starts_with_any_keyword, ws1, ws_and_comments, ACTION_BODY_STARTERS,
+    starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments, ACTION_BODY_STARTERS,
 };
 use crate::parser::node_from_to;
 use crate::parser::part::bind_;
@@ -20,8 +19,8 @@ use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::combinator::map;
 use nom::sequence::preceded;
-use nom::Parser;
 use nom::IResult;
+use nom::Parser;
 
 /// First/merge body: `;` or `{` ... `}`
 fn first_merge_body(input: Input<'_>) -> IResult<Input<'_>, FirstMergeBody> {
@@ -73,11 +72,15 @@ pub(crate) fn in_out_decl(input: Input<'_>) -> IResult<Input<'_>, Node<InOutDecl
     };
     Ok((
         input,
-        node_from_to(start, input, InOutDecl {
-            direction,
-            name: param_name,
-            type_name,
-        }),
+        node_from_to(
+            start,
+            input,
+            InOutDecl {
+                direction,
+                name: param_name,
+                type_name,
+            },
+        ),
     ))
 }
 
@@ -152,8 +155,13 @@ fn action_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, ActionDefBody> 
     }
 }
 
-/// Element inside an action definition body: InOutDecl | Doc | Perform
-fn action_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<crate::ast::ActionDefBodyElement>> {
+/// Element inside an action definition body.
+///
+/// SysML v2 ActionBodyItem includes both declarations and action behavior usages.
+/// We support a pragmatic subset used by function-based behavior examples.
+fn action_def_body_element(
+    input: Input<'_>,
+) -> IResult<Input<'_>, Node<crate::ast::ActionDefBodyElement>> {
     use crate::ast::ActionDefBodyElement;
     use crate::parser::part::perform_action_decl;
     use crate::parser::requirement::doc_comment;
@@ -164,6 +172,13 @@ fn action_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<crate::a
         map(in_out_decl, ActionDefBodyElement::InOutDecl),
         map(doc_comment, ActionDefBodyElement::Doc),
         map(perform_action_decl, ActionDefBodyElement::Perform),
+        map(bind_, ActionDefBodyElement::Bind),
+        map(flow_, ActionDefBodyElement::Flow),
+        map(first_stmt, ActionDefBodyElement::FirstStmt),
+        map(merge_stmt, ActionDefBodyElement::MergeStmt),
+        map(action_usage, |a| {
+            ActionDefBodyElement::ActionUsage(Box::new(a))
+        }),
     ))
     .parse(input)?;
     Ok((input, node_from_to(start, input, elem)))
@@ -184,10 +199,14 @@ pub(crate) fn action_def(input: Input<'_>) -> IResult<Input<'_>, Node<ActionDef>
     let (input, body) = action_def_body(input)?;
     Ok((
         input,
-        node_from_to(start, input, ActionDef {
-            identification,
-            body,
-        }),
+        node_from_to(
+            start,
+            input,
+            ActionDef {
+                identification,
+                body,
+            },
+        ),
     ))
 }
 
@@ -203,11 +222,15 @@ fn flow_(input: Input<'_>) -> IResult<Input<'_>, Node<Flow>> {
     let (input, body) = connect_body(input)?;
     Ok((
         input,
-        node_from_to(start, input, Flow {
-            from: from_expr,
-            to: to_expr,
-            body,
-        }),
+        node_from_to(
+            start,
+            input,
+            Flow {
+                from: from_expr,
+                to: to_expr,
+                body,
+            },
+        ),
     ))
 }
 
@@ -223,11 +246,15 @@ fn first_stmt(input: Input<'_>) -> IResult<Input<'_>, Node<FirstStmt>> {
     let (input, body) = first_merge_body(input)?;
     Ok((
         input,
-        node_from_to(start, input, FirstStmt {
-            first: first_expr,
-            then: then_expr,
-            body,
-        }),
+        node_from_to(
+            start,
+            input,
+            FirstStmt {
+                first: first_expr,
+                then: then_expr,
+                body,
+            },
+        ),
     ))
 }
 
@@ -241,10 +268,14 @@ fn merge_stmt(input: Input<'_>) -> IResult<Input<'_>, Node<MergeStmt>> {
     let (input, body) = first_merge_body(input)?;
     Ok((
         input,
-        node_from_to(start, input, MergeStmt {
-            merge: merge_expr,
-            body,
-        }),
+        node_from_to(
+            start,
+            input,
+            MergeStmt {
+                merge: merge_expr,
+                body,
+            },
+        ),
     ))
 }
 
@@ -338,7 +369,9 @@ fn action_usage_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<Action
         map(flow_, ActionUsageBodyElement::Flow),
         map(first_stmt, ActionUsageBodyElement::FirstStmt),
         map(merge_stmt, ActionUsageBodyElement::MergeStmt),
-        map(action_usage, |a| ActionUsageBodyElement::ActionUsage(Box::new(a))),
+        map(action_usage, |a| {
+            ActionUsageBodyElement::ActionUsage(Box::new(a))
+        }),
     ))
     .parse(input)?;
     Ok((input, node_from_to(start, input, elem)))
@@ -369,7 +402,9 @@ pub(crate) fn action_usage(input: Input<'_>) -> IResult<Input<'_>, Node<ActionUs
                     ),
                 )),
             ),
-            |(_, (span, type_name), accept)| (Some(span), type_name, accept.map(|(pn, _, tn)| (pn, tn))),
+            |(_, (span, type_name), accept)| {
+                (Some(span), type_name, accept.map(|(pn, _, tn)| (pn, tn)))
+            },
         ),
         nom::combinator::map(
             preceded(
@@ -383,7 +418,9 @@ pub(crate) fn action_usage(input: Input<'_>) -> IResult<Input<'_>, Node<ActionUs
                     ),
                 ),
             ),
-            |(param_name, _, param_type)| (None, param_type.clone(), Some((param_name, param_type))),
+            |(param_name, _, param_type)| {
+                (None, param_type.clone(), Some((param_name, param_type)))
+            },
         ),
     )))
     .parse(input)?;
@@ -391,15 +428,24 @@ pub(crate) fn action_usage(input: Input<'_>) -> IResult<Input<'_>, Node<ActionUs
     let (input, _) = take_until_terminator(input, b";{")?;
     let (type_ref_span, type_name, accept) = type_accept.unwrap_or((None, String::new(), None));
     let (input, body) = action_usage_body(input)?;
+    // Spec-wise, a braced body does not require a trailing semicolon. However, in practice some
+    // sources write `... { ... };` as a statement terminator. We accept an optional `;` here to
+    // avoid cascading recovery errors in action bodies.
+    let (input, _) =
+        nom::combinator::opt(preceded(ws_and_comments, tag(&b";"[..]))).parse(input)?;
     Ok((
         input,
-        node_from_to(start, input, ActionUsage {
-            name: name_str,
-            type_name,
-            accept,
-            body,
-            name_span: Some(name_span),
-            type_ref_span,
-        }),
+        node_from_to(
+            start,
+            input,
+            ActionUsage {
+                name: name_str,
+                type_name,
+                accept,
+                body,
+                name_span: Some(name_span),
+                type_ref_span,
+            },
+        ),
     ))
 }

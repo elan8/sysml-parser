@@ -66,7 +66,9 @@ fn test_parse_surveillance_drone() {
     };
 
     // Count key top-level constructs present in the fixture (partial parse may not have all)
-    let has_part_def = body.iter().any(|e| matches!(&e.value, PackageBodyElement::PartDef(_)));
+    let has_part_def = body
+        .iter()
+        .any(|e| matches!(&e.value, PackageBodyElement::PartDef(_)));
     let has_requirement_def = body
         .iter()
         .any(|e| matches!(&e.value, PackageBodyElement::RequirementDef(_)));
@@ -89,9 +91,15 @@ fn test_parse_surveillance_drone() {
         .iter()
         .any(|e| matches!(&e.value, PackageBodyElement::Doc(_)));
 
-    assert!(has_doc, "doc comments must be parsed as Doc elements in the AST, not skipped");
+    assert!(
+        has_doc,
+        "doc comments must be parsed as Doc elements in the AST, not skipped"
+    );
     assert!(has_part_def, "fixture should contain part defs");
-    assert!(has_requirement_def, "fixture should contain requirement defs");
+    assert!(
+        has_requirement_def,
+        "fixture should contain requirement defs"
+    );
     assert!(has_use_case_def, "fixture should contain use case defs");
     assert!(has_state_def, "fixture should contain state defs");
     assert!(has_constraint_def, "fixture should contain constraint defs");
@@ -221,7 +229,10 @@ fn test_surveillance_drone_errors_reports_all_errors() {
     let input = input.replace("\r\n", "\n").replace('\r', "\n");
 
     let result = parse_with_diagnostics(&input);
-    assert!(!result.is_ok(), "SurveillanceDrone-errors.sysml should have parse errors");
+    assert!(
+        !result.is_ok(),
+        "SurveillanceDrone-errors.sysml should have parse errors"
+    );
     assert_eq!(
         result.errors.len(),
         3,

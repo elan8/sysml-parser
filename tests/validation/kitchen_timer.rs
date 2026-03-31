@@ -22,7 +22,11 @@ fn test_parse_kitchen_timer() {
     assert_eq!(strict.elements.len(), 1);
 
     let result = parse_with_diagnostics(&input);
-    assert_eq!(result.root.elements.len(), 1, "fixture should produce one root package");
+    assert_eq!(
+        result.root.elements.len(),
+        1,
+        "fixture should produce one root package"
+    );
     match &result.root.elements[0].value {
         RootElement::Package(pkg) => {
             assert_eq!(pkg.identification.name.as_deref(), Some("KitchenTimer"));

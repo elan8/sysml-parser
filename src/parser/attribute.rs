@@ -13,8 +13,8 @@ use nom::branch::alt;
 use nom::bytes::complete::{tag, take_until};
 use nom::combinator::map;
 use nom::sequence::{delimited, preceded};
-use nom::Parser;
 use nom::IResult;
+use nom::Parser;
 
 fn is_reserved_shorthand_starter(name: &str) -> bool {
     matches!(
@@ -140,13 +140,17 @@ pub(crate) fn attribute_def(input: Input<'_>) -> IResult<Input<'_>, Node<Attribu
     let (input, body) = attribute_body(input)?;
     Ok((
         input,
-        node_from_to(start, input, AttributeDef {
-            name: name_str,
-            typing,
-            body,
-            name_span: None,
-            typing_span,
-        }),
+        node_from_to(
+            start,
+            input,
+            AttributeDef {
+                name: name_str,
+                typing,
+                body,
+                name_span: None,
+                typing_span,
+            },
+        ),
     ))
 }
 
@@ -171,18 +175,23 @@ pub(crate) fn attribute_usage(input: Input<'_>) -> IResult<Input<'_>, Node<Attri
     let (redefines_span, redefines) = redefines_result
         .map(|(span, s)| (Some(span), Some(s)))
         .unwrap_or((None, None));
-    let (input, value) = nom::combinator::opt(preceded(ws_and_comments, value_part)).parse(input)?;
+    let (input, value) =
+        nom::combinator::opt(preceded(ws_and_comments, value_part)).parse(input)?;
     let (input, body) = attribute_body(input)?;
     Ok((
         input,
-        node_from_to(start, input, AttributeUsage {
-            name: name_str,
-            redefines,
-            value,
-            body,
-            name_span: Some(name_span),
-            redefines_span,
-        }),
+        node_from_to(
+            start,
+            input,
+            AttributeUsage {
+                name: name_str,
+                redefines,
+                value,
+                body,
+                name_span: Some(name_span),
+                redefines_span,
+            },
+        ),
     ))
 }
 
@@ -192,10 +201,13 @@ pub(crate) fn attribute_usage(input: Input<'_>) -> IResult<Input<'_>, Node<Attri
 /// - `name : Type ;`
 /// - `name : Type = expr ;`
 /// - `:>> name : Type = expr ;` (leading `:>>` ignored; treated as a usage)
-pub(crate) fn attribute_usage_shorthand(input: Input<'_>) -> IResult<Input<'_>, Node<AttributeUsage>> {
+pub(crate) fn attribute_usage_shorthand(
+    input: Input<'_>,
+) -> IResult<Input<'_>, Node<AttributeUsage>> {
     let start = input;
     let (input, _) = ws_and_comments(input)?;
-    let (input, _) = nom::combinator::opt(preceded(ws_and_comments, tag(&b":>>"[..]))).parse(input)?;
+    let (input, _) =
+        nom::combinator::opt(preceded(ws_and_comments, tag(&b":>>"[..]))).parse(input)?;
     let (input, (name_span, name_str)) = with_span(name).parse(input)?;
     if is_reserved_shorthand_starter(&name_str) {
         return Err(nom::Err::Error(nom::error::Error::new(
@@ -220,17 +232,22 @@ pub(crate) fn attribute_usage_shorthand(input: Input<'_>) -> IResult<Input<'_>, 
         )),
     ))
     .parse(input)?;
-    let (input, _) = nom::combinator::opt(preceded(ws_and_comments, take_until(&b";"[..]))).parse(input)?;
+    let (input, _) =
+        nom::combinator::opt(preceded(ws_and_comments, take_until(&b";"[..]))).parse(input)?;
     let (input, _) = preceded(ws_and_comments, tag(&b";"[..])).parse(input)?;
     Ok((
         input,
-        node_from_to(start, input, AttributeUsage {
-            name: name_str,
-            redefines: None,
-            value: None,
-            body: AttributeBody::Semicolon,
-            name_span: Some(name_span),
-            redefines_span: None,
-        }),
+        node_from_to(
+            start,
+            input,
+            AttributeUsage {
+                name: name_str,
+                redefines: None,
+                value: None,
+                body: AttributeBody::Semicolon,
+                name_span: Some(name_span),
+                redefines_span: None,
+            },
+        ),
     ))
 }

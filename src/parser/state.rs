@@ -1,18 +1,17 @@
 #![allow(dead_code, unused_imports)]
 
 use crate::ast::{
-    EntryAction, Node, RefBody, RefDecl, StateDef, StateDefBody,
-    StateDefBodyElement, StateUsage, ThenStmt, Transition,
+    EntryAction, Node, RefBody, RefDecl, StateDef, StateDefBody, StateDefBodyElement, StateUsage,
+    ThenStmt, Transition,
 };
 use crate::parser::build_recovery_error_node;
-use crate::parser::requirement::doc_comment;
 use crate::parser::expr::expression;
 use crate::parser::lex::{
-    identification, name, qualified_name, recover_body_element,
-    skip_until_brace_end, starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments,
-    STATE_BODY_STARTERS,
+    identification, name, qualified_name, recover_body_element, skip_until_brace_end,
+    starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments, STATE_BODY_STARTERS,
 };
 use crate::parser::node_from_to;
+use crate::parser::requirement::doc_comment;
 use crate::parser::Input;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
@@ -36,12 +35,24 @@ pub(crate) fn state_def(input: Input<'_>) -> IResult<Input<'_>, Node<StateDef>> 
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = take_until_terminator(input, b";{")?;
     let (input, body) = state_def_body(input)?;
-    Ok((input, node_from_to(start, input, StateDef { identification: ident, body })))
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            StateDef {
+                identification: ident,
+                body,
+            },
+        ),
+    ))
 }
 
 fn state_def_body(input: Input<'_>) -> IResult<Input<'_>, StateDefBody> {
     alt((
-        map(preceded(ws_and_comments, tag(&b";"[..])), |_| StateDefBody::Semicolon),
+        map(preceded(ws_and_comments, tag(&b";"[..])), |_| {
+            StateDefBody::Semicolon
+        }),
         state_def_body_brace,
     ))
     .parse(input)
@@ -181,12 +192,24 @@ fn then_stmt(input: Input<'_>) -> IResult<Input<'_>, Node<ThenStmt>> {
 fn state_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<StateDefBodyElement>> {
     let start = input;
     let mut parser = alt((
-        map(doc_comment, |n| node_from_to(start, input, StateDefBodyElement::Doc(n))),
-        map(entry_action, |n| node_from_to(start, input, StateDefBodyElement::Entry(n))),
-        map(then_stmt, |n| node_from_to(start, input, StateDefBodyElement::Then(n))),
-        map(state_ref, |n| node_from_to(start, input, StateDefBodyElement::Ref(n))),
-        map(state_usage, |n| node_from_to(start, input, StateDefBodyElement::StateUsage(n))),
-        map(transition, |n| node_from_to(start, input, StateDefBodyElement::Transition(n))),
+        map(doc_comment, |n| {
+            node_from_to(start, input, StateDefBodyElement::Doc(n))
+        }),
+        map(entry_action, |n| {
+            node_from_to(start, input, StateDefBodyElement::Entry(n))
+        }),
+        map(then_stmt, |n| {
+            node_from_to(start, input, StateDefBodyElement::Then(n))
+        }),
+        map(state_ref, |n| {
+            node_from_to(start, input, StateDefBodyElement::Ref(n))
+        }),
+        map(state_usage, |n| {
+            node_from_to(start, input, StateDefBodyElement::StateUsage(n))
+        }),
+        map(transition, |n| {
+            node_from_to(start, input, StateDefBodyElement::Transition(n))
+        }),
     ));
     parser.parse(input)
 }
@@ -217,7 +240,18 @@ pub(crate) fn state_usage(input: Input<'_>) -> IResult<Input<'_>, Node<StateUsag
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = take_until_terminator(input, b";{")?;
     let (input, body) = state_def_body(input)?;
-    Ok((input, node_from_to(start, input, StateUsage { name: n, type_name: typ, body })))
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            StateUsage {
+                name: n,
+                type_name: typ,
+                body,
+            },
+        ),
+    ))
 }
 
 pub(crate) fn transition(input: Input<'_>) -> IResult<Input<'_>, Node<Transition>> {

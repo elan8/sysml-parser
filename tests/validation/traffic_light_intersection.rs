@@ -79,7 +79,10 @@ fn test_parse_traffic_light_intersection() {
         .any(|e| matches!(&e.value, PackageBodyElement::ActionDef(_)));
 
     assert!(has_part_def, "fixture should contain part defs");
-    assert!(has_requirement_def, "fixture should contain requirement defs");
+    assert!(
+        has_requirement_def,
+        "fixture should contain requirement defs"
+    );
     assert!(has_use_case_def, "fixture should contain use case defs");
     assert!(has_state_def, "fixture should contain state defs");
     assert!(has_constraint_def, "fixture should contain constraint defs");

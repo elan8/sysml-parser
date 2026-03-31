@@ -11,8 +11,8 @@ use nom::bytes::complete::tag;
 use nom::combinator::map;
 use nom::multi::many0;
 use nom::sequence::preceded;
-use nom::Parser;
 use nom::IResult;
+use nom::Parser;
 
 /// Enumerated value: optional `enum` keyword + name + `;`
 fn enumerated_value(input: Input<'_>) -> IResult<Input<'_>, String> {

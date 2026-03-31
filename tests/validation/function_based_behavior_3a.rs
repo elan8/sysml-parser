@@ -1,10 +1,11 @@
 //! Parser test for `03-Function-based Behavior/3a-Function-based Behavior-1.sysml`.
 
 use sysml_parser::ast::{
-    ActionDef, ActionDefBody, ActionDefBodyElement, ActionUsage, ActionUsageBody, ActionUsageBodyElement, AliasBody,
-    AliasDef, AttributeBody, AttributeDef, Bind, ConnectBody, Expression, FirstMergeBody, FirstStmt,
-    Flow, Identification, Import, InOut, InOutDecl, MergeStmt, Node, Package, PackageBody,
-    PackageBodyElement, RootElement, RootNamespace, Span, Visibility,
+    ActionDef, ActionDefBody, ActionDefBodyElement, ActionUsage, ActionUsageBody,
+    ActionUsageBodyElement, AliasBody, AliasDef, AttributeBody, AttributeDef, Bind, ConnectBody,
+    Expression, FirstMergeBody, FirstStmt, Flow, Identification, Import, InOut, InOutDecl,
+    MergeStmt, Node, Package, PackageBody, PackageBodyElement, RootElement, RootNamespace, Span,
+    Visibility,
 };
 use sysml_parser::parse;
 
@@ -37,17 +38,17 @@ fn expected_ast() -> RootNamespace {
                     n(PackageBodyElement::Import(n(Import {
                         visibility: Some(Visibility::Public),
                         is_import_all: true,
-target: "Definitions::*".to_string(),
-                    is_recursive: false,
-                    filter_members: None,
-                }))),
-                n(PackageBodyElement::Import(n(Import {
-                    visibility: Some(Visibility::Public),
-                    is_import_all: true,
-                    target: "Usages::*".to_string(),
-                    is_recursive: false,
-                    filter_members: None,
-                }))),
+                        target: "Definitions::*".to_string(),
+                        is_recursive: false,
+                        filter_members: None,
+                    }))),
+                    n(PackageBodyElement::Import(n(Import {
+                        visibility: Some(Visibility::Public),
+                        is_import_all: true,
+                        target: "Usages::*".to_string(),
+                        is_recursive: false,
+                        filter_members: None,
+                    }))),
                     n(PackageBodyElement::Package(n(definitions_package()))),
                     n(PackageBodyElement::Package(n(usages_package()))),
                 ],
@@ -191,7 +192,9 @@ fn usages_package() -> Package {
     Package {
         identification: id("Usages"),
         body: PackageBody::Brace {
-            elements: vec![n(PackageBodyElement::ActionUsage(n(provide_power_action())))],
+            elements: vec![n(PackageBodyElement::ActionUsage(
+                n(provide_power_action()),
+            ))],
         },
     }
 }
@@ -225,53 +228,61 @@ fn provide_power_action() -> ActionUsage {
                     right: expr_path("fuelCmd"),
                     body: Some(ConnectBody::Brace),
                 }))),
-                n(ActionUsageBodyElement::ActionUsage(Box::new(n(ActionUsage {
-                    name: "generate torque".to_string(),
-                    type_name: "Generate Torque".to_string(),
-                    accept: None,
-                    name_span: None,
-                    type_ref_span: None,
-                    body: ActionUsageBody::Brace { elements: vec![] },
-                })))),
+                n(ActionUsageBodyElement::ActionUsage(Box::new(n(
+                    ActionUsage {
+                        name: "generate torque".to_string(),
+                        type_name: "Generate Torque".to_string(),
+                        accept: None,
+                        name_span: None,
+                        type_ref_span: None,
+                        body: ActionUsageBody::Brace { elements: vec![] },
+                    },
+                )))),
                 n(ActionUsageBodyElement::Flow(n(Flow {
                     from: expr_path("generate torque.engineTorque"),
                     to: expr_path("amplify torque.engineTorque"),
                     body: ConnectBody::Brace,
                 }))),
-                n(ActionUsageBodyElement::ActionUsage(Box::new(n(ActionUsage {
-                    name: "amplify torque".to_string(),
-                    type_name: "Amplify Torque".to_string(),
-                    accept: None,
-                    name_span: None,
-                    type_ref_span: None,
-                    body: ActionUsageBody::Semicolon,
-                })))),
+                n(ActionUsageBodyElement::ActionUsage(Box::new(n(
+                    ActionUsage {
+                        name: "amplify torque".to_string(),
+                        type_name: "Amplify Torque".to_string(),
+                        accept: None,
+                        name_span: None,
+                        type_ref_span: None,
+                        body: ActionUsageBody::Semicolon,
+                    },
+                )))),
                 n(ActionUsageBodyElement::Flow(n(Flow {
                     from: expr_path("amplify torque.transmissionTorque"),
                     to: expr_path("transfer torque.transmissionTorque"),
                     body: ConnectBody::Semicolon,
                 }))),
-                n(ActionUsageBodyElement::ActionUsage(Box::new(n(ActionUsage {
-                    name: "transfer torque".to_string(),
-                    type_name: "Transfer Torque".to_string(),
-                    accept: None,
-                    name_span: None,
-                    type_ref_span: None,
-                    body: ActionUsageBody::Semicolon,
-                })))),
+                n(ActionUsageBodyElement::ActionUsage(Box::new(n(
+                    ActionUsage {
+                        name: "transfer torque".to_string(),
+                        type_name: "Transfer Torque".to_string(),
+                        accept: None,
+                        name_span: None,
+                        type_ref_span: None,
+                        body: ActionUsageBody::Semicolon,
+                    },
+                )))),
                 n(ActionUsageBodyElement::Flow(n(Flow {
                     from: expr_path("transfer torque.driveshaftTorque"),
                     to: expr_path("distribute torque.driveShaftTorque"),
                     body: ConnectBody::Semicolon,
                 }))),
-                n(ActionUsageBodyElement::ActionUsage(Box::new(n(ActionUsage {
-                    name: "distribute torque".to_string(),
-                    type_name: "Distribute Torque".to_string(),
-                    accept: None,
-                    name_span: None,
-                    type_ref_span: None,
-                    body: ActionUsageBody::Semicolon,
-                })))),
+                n(ActionUsageBodyElement::ActionUsage(Box::new(n(
+                    ActionUsage {
+                        name: "distribute torque".to_string(),
+                        type_name: "Distribute Torque".to_string(),
+                        accept: None,
+                        name_span: None,
+                        type_ref_span: None,
+                        body: ActionUsageBody::Semicolon,
+                    },
+                )))),
                 n(ActionUsageBodyElement::Bind(n(Bind {
                     left: expr_path("wheelTorque1"),
                     right: expr_path("distribute torque.wheelTorque1"),
@@ -296,27 +307,31 @@ fn provide_power_action() -> ActionUsage {
                     then: n(Expression::FeatureRef("engineStarted".to_string())),
                     body: FirstMergeBody::Semicolon,
                 }))),
-                n(ActionUsageBodyElement::ActionUsage(Box::new(n(ActionUsage {
-                    name: "engineStarted".to_string(),
-                    type_name: "EngineStart".to_string(),
-                    accept: Some(("engineStart".to_string(), "EngineStart".to_string())),
-                    name_span: None,
-                    type_ref_span: None,
-                    body: ActionUsageBody::Brace { elements: vec![] },
-                })))),
+                n(ActionUsageBodyElement::ActionUsage(Box::new(n(
+                    ActionUsage {
+                        name: "engineStarted".to_string(),
+                        type_name: "EngineStart".to_string(),
+                        accept: Some(("engineStart".to_string(), "EngineStart".to_string())),
+                        name_span: None,
+                        type_ref_span: None,
+                        body: ActionUsageBody::Brace { elements: vec![] },
+                    },
+                )))),
                 n(ActionUsageBodyElement::FirstStmt(n(FirstStmt {
                     first: n(Expression::FeatureRef("engineStarted".to_string())),
                     then: n(Expression::FeatureRef("engineStopped".to_string())),
                     body: FirstMergeBody::Semicolon,
                 }))),
-                n(ActionUsageBodyElement::ActionUsage(Box::new(n(ActionUsage {
-                    name: "engineStopped".to_string(),
-                    type_name: "EngineOff".to_string(),
-                    accept: Some(("engineOff".to_string(), "EngineOff".to_string())),
-                    name_span: None,
-                    type_ref_span: None,
-                    body: ActionUsageBody::Semicolon,
-                })))),
+                n(ActionUsageBodyElement::ActionUsage(Box::new(n(
+                    ActionUsage {
+                        name: "engineStopped".to_string(),
+                        type_name: "EngineOff".to_string(),
+                        accept: Some(("engineOff".to_string(), "EngineOff".to_string())),
+                        name_span: None,
+                        type_ref_span: None,
+                        body: ActionUsageBody::Semicolon,
+                    },
+                )))),
                 n(ActionUsageBodyElement::FirstStmt(n(FirstStmt {
                     first: n(Expression::FeatureRef("engineStopped".to_string())),
                     then: n(Expression::FeatureRef("continue".to_string())),
@@ -371,7 +386,9 @@ fn provide_power_action() -> ActionUsage {
 fn validation_fixture_path(relative: &str) -> std::path::PathBuf {
     let root = std::env::var_os("SYSML_V2_RELEASE_DIR")
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("sysml-v2-release"));
+        .unwrap_or_else(|| {
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("sysml-v2-release")
+        });
     root.join("sysml")
         .join("src")
         .join("validation")
@@ -388,8 +405,8 @@ fn test_parse_3a_function_based_behavior() {
     let input = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("read fixture {}: {}", path.display(), e));
     log::debug!("input len: {} bytes", input.len());
-    let result = parse(&input)
-        .expect("parse should succeed for 3a-Function-based Behavior-1.sysml");
+    let result =
+        parse(&input).expect("parse should succeed for 3a-Function-based Behavior-1.sysml");
     let expected = expected_ast();
     super::assert_ast_eq(
         &result,

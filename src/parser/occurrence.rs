@@ -1,15 +1,17 @@
 //! Occurrence definition parsing (BNF OccurrenceDefinition).
 
 use crate::ast::{DefinitionBody, Node, OccurrenceDef, OccurrenceUsage};
-use crate::parser::lex::{identification, name, qualified_name, skip_until_brace_end, ws1, ws_and_comments};
+use crate::parser::lex::{
+    identification, name, qualified_name, skip_until_brace_end, ws1, ws_and_comments,
+};
 use crate::parser::node_from_to;
 use crate::parser::Input;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::combinator::{map, opt};
 use nom::sequence::preceded;
-use nom::Parser;
 use nom::IResult;
+use nom::Parser;
 
 fn definition_body(input: Input<'_>) -> IResult<Input<'_>, DefinitionBody> {
     let (input, _) = ws_and_comments(input)?;

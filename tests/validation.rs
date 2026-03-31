@@ -38,15 +38,15 @@ pub(crate) fn assert_ast_eq(
         .zip(pe.chars())
         .position(|(a, b)| a != b)
         .unwrap_or(pa.len().min(pe.len()));
-    let snippet: String = pa
-        .chars()
-        .skip(pos.saturating_sub(80))
-        .take(160)
-        .collect();
+    let snippet: String = pa.chars().skip(pos.saturating_sub(80)).take(160).collect();
     panic!(
         "{}: AST mismatch at char {} (parsed {} chars, expected {} chars). Snippet: ...{}... \
          Set RUST_LOG=debug and run with --nocapture for full parser trace.",
-        msg, pos, pa.len(), pe.len(), snippet
+        msg,
+        pos,
+        pa.len(),
+        pe.len(),
+        snippet
     );
 }
 

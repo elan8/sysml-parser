@@ -1,6 +1,6 @@
 use crate::ast::{
-    AnalysisCaseDef, AnalysisCaseUsage, CaseDef, CaseUsage, Node,
-    VerificationCaseDef, VerificationCaseUsage,
+    AnalysisCaseDef, AnalysisCaseUsage, CaseDef, CaseUsage, Node, VerificationCaseDef,
+    VerificationCaseUsage,
 };
 use crate::parser::lex::{
     identification, name, qualified_name, take_until_terminator, ws1, ws_and_comments,
@@ -10,8 +10,8 @@ use crate::parser::Input;
 use nom::bytes::complete::tag;
 use nom::combinator::opt;
 use nom::sequence::preceded;
-use nom::Parser;
 use nom::IResult;
+use nom::Parser;
 
 pub(crate) fn case_def(input: Input<'_>) -> IResult<Input<'_>, Node<CaseDef>> {
     let start = input;
@@ -25,7 +25,17 @@ pub(crate) fn case_def(input: Input<'_>) -> IResult<Input<'_>, Node<CaseDef>> {
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = take_until_terminator(input, b";{")?;
     let (input, body) = loose_use_case_body(input)?;
-    Ok((input, node_from_to(start, input, CaseDef { identification, body })))
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            CaseDef {
+                identification,
+                body,
+            },
+        ),
+    ))
 }
 
 pub(crate) fn case_usage(input: Input<'_>) -> IResult<Input<'_>, Node<CaseUsage>> {
@@ -50,7 +60,17 @@ pub(crate) fn analysis_case_def(input: Input<'_>) -> IResult<Input<'_>, Node<Ana
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = take_until_terminator(input, b";{")?;
     let (input, body) = loose_use_case_body(input)?;
-    Ok((input, node_from_to(start, input, AnalysisCaseDef { identification, body })))
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            AnalysisCaseDef {
+                identification,
+                body,
+            },
+        ),
+    ))
 }
 
 pub(crate) fn analysis_case_usage(input: Input<'_>) -> IResult<Input<'_>, Node<AnalysisCaseUsage>> {
@@ -60,10 +80,23 @@ pub(crate) fn analysis_case_usage(input: Input<'_>) -> IResult<Input<'_>, Node<A
     let (input, _) = tag(&b"analysis"[..]).parse(input)?;
     let (input, _) = ws1(input)?;
     let (input, usage) = case_like_usage_body(input)?;
-    Ok((input, node_from_to(start, input, AnalysisCaseUsage { name: usage.name, type_name: usage.type_name, body: usage.body })))
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            AnalysisCaseUsage {
+                name: usage.name,
+                type_name: usage.type_name,
+                body: usage.body,
+            },
+        ),
+    ))
 }
 
-pub(crate) fn verification_case_def(input: Input<'_>) -> IResult<Input<'_>, Node<VerificationCaseDef>> {
+pub(crate) fn verification_case_def(
+    input: Input<'_>,
+) -> IResult<Input<'_>, Node<VerificationCaseDef>> {
     let start = input;
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = opt(preceded(tag(&b"abstract"[..]), ws1)).parse(input)?;
@@ -75,17 +108,40 @@ pub(crate) fn verification_case_def(input: Input<'_>) -> IResult<Input<'_>, Node
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = take_until_terminator(input, b";{")?;
     let (input, body) = loose_use_case_body(input)?;
-    Ok((input, node_from_to(start, input, VerificationCaseDef { identification, body })))
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            VerificationCaseDef {
+                identification,
+                body,
+            },
+        ),
+    ))
 }
 
-pub(crate) fn verification_case_usage(input: Input<'_>) -> IResult<Input<'_>, Node<VerificationCaseUsage>> {
+pub(crate) fn verification_case_usage(
+    input: Input<'_>,
+) -> IResult<Input<'_>, Node<VerificationCaseUsage>> {
     let start = input;
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = opt(preceded(tag(&b"abstract"[..]), ws1)).parse(input)?;
     let (input, _) = tag(&b"verification"[..]).parse(input)?;
     let (input, _) = ws1(input)?;
     let (input, usage) = case_like_usage_body(input)?;
-    Ok((input, node_from_to(start, input, VerificationCaseUsage { name: usage.name, type_name: usage.type_name, body: usage.body })))
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            VerificationCaseUsage {
+                name: usage.name,
+                type_name: usage.type_name,
+                body: usage.body,
+            },
+        ),
+    ))
 }
 
 fn case_like_usage_body(input: Input<'_>) -> IResult<Input<'_>, CaseUsage> {
@@ -98,7 +154,14 @@ fn case_like_usage_body(input: Input<'_>) -> IResult<Input<'_>, CaseUsage> {
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = take_until_terminator(input, b";{")?;
     let (input, body) = loose_use_case_body(input)?;
-    Ok((input, CaseUsage { name, type_name, body }))
+    Ok((
+        input,
+        CaseUsage {
+            name,
+            type_name,
+            body,
+        },
+    ))
 }
 
 fn loose_use_case_body(input: Input<'_>) -> IResult<Input<'_>, crate::ast::UseCaseDefBody> {

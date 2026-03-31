@@ -9,12 +9,14 @@ use crate::parser::Input;
 use nom::bytes::complete::tag;
 use nom::combinator::opt;
 use nom::sequence::preceded;
-use nom::Parser;
 use nom::IResult;
+use nom::Parser;
 
 /// Metadata usage: @ Identification ( : Type )? MetadataBody
 /// Simplified: @ name ( : qualified_name )? ( ; | { ... } )
-pub(crate) fn metadata_annotation(input: Input<'_>) -> IResult<Input<'_>, Node<MetadataAnnotation>> {
+pub(crate) fn metadata_annotation(
+    input: Input<'_>,
+) -> IResult<Input<'_>, Node<MetadataAnnotation>> {
     let start = input;
     let (input, _) = preceded(ws_and_comments, tag(&b"@"[..])).parse(input)?;
     let (input, _) = ws_and_comments(input)?;

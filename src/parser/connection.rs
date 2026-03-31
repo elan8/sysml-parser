@@ -2,7 +2,7 @@
 #![allow(dead_code, unused_imports)]
 
 use crate::ast::{
-    ConnectionDef, ConnectionDefBody, ConnectionDefBodyElement, ConnectStmt, EndDecl, Node,
+    ConnectStmt, ConnectionDef, ConnectionDefBody, ConnectionDefBodyElement, EndDecl, Node,
     RefBody, RefDecl,
 };
 use crate::parser::expr::path_expression;
@@ -19,8 +19,8 @@ use nom::bytes::complete::tag;
 use nom::combinator::map;
 use nom::multi::many0;
 use nom::sequence::preceded;
-use nom::Parser;
 use nom::IResult;
+use nom::Parser;
 
 fn end_decl(input: Input<'_>) -> IResult<Input<'_>, Node<EndDecl>> {
     let start = input;

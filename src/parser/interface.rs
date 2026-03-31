@@ -6,12 +6,12 @@ use crate::ast::{
     Node, RefBody, RefDecl,
 };
 use crate::parser::expr::path_expression;
-use crate::parser::requirement::doc_comment;
 use crate::parser::lex::{
     identification, name, qualified_name, skip_until_brace_end, take_until_terminator, ws1,
     ws_and_comments,
 };
 use crate::parser::node_from_to;
+use crate::parser::requirement::doc_comment;
 use crate::parser::with_span;
 use crate::parser::Input;
 use nom::branch::alt;
@@ -19,8 +19,8 @@ use nom::bytes::complete::tag;
 use nom::combinator::map;
 use nom::multi::many0;
 use nom::sequence::preceded;
-use nom::Parser;
 use nom::IResult;
+use nom::Parser;
 
 /// End declaration: `end` name `:` type `;`
 fn end_decl(input: Input<'_>) -> IResult<Input<'_>, Node<EndDecl>> {
@@ -28,7 +28,8 @@ fn end_decl(input: Input<'_>) -> IResult<Input<'_>, Node<EndDecl>> {
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = tag(&b"end"[..]).parse(input)?;
     let (input, _) = ws1(input)?;
-    let (input, _) = nom::combinator::opt(preceded(ws_and_comments, tag(&b"port"[..]))).parse(input)?;
+    let (input, _) =
+        nom::combinator::opt(preceded(ws_and_comments, tag(&b"port"[..]))).parse(input)?;
     let (input, _) = ws_and_comments(input)?;
     let (input, (name_span, name_str)) = with_span(name).parse(input)?;
     let (input, _) = preceded(ws_and_comments, tag(&b":"[..])).parse(input)?;
@@ -43,16 +44,20 @@ fn end_decl(input: Input<'_>) -> IResult<Input<'_>, Node<EndDecl>> {
     let (input, _) = preceded(ws_and_comments, tag(&b";"[..])).parse(input)?;
     Ok((
         input,
-        node_from_to(start, input, EndDecl {
-            name: name_str,
-            type_name: if tilde.is_some() {
-                format!("~{}", type_name)
-            } else {
-                type_name
+        node_from_to(
+            start,
+            input,
+            EndDecl {
+                name: name_str,
+                type_name: if tilde.is_some() {
+                    format!("~{}", type_name)
+                } else {
+                    type_name
+                },
+                name_span: Some(name_span),
+                type_ref_span: Some(type_ref_span),
             },
-            name_span: Some(name_span),
-            type_ref_span: Some(type_ref_span),
-        }),
+        ),
     ))
 }
 
@@ -81,18 +86,23 @@ fn ref_decl(input: Input<'_>) -> IResult<Input<'_>, Node<RefDecl>> {
     let (input, _) = ws1(input)?;
     let (input, (name_span, name_str)) = with_span(name).parse(input)?;
     let (input, _) = preceded(ws_and_comments, tag(&b":"[..])).parse(input)?;
-    let (input, (type_ref_span, type_name)) = preceded(ws_and_comments, with_span(qualified_name)).parse(input)?;
+    let (input, (type_ref_span, type_name)) =
+        preceded(ws_and_comments, with_span(qualified_name)).parse(input)?;
     let (input, body) = ref_body(input)?;
     Ok((
         input,
-        node_from_to(start, input, RefDecl {
-            name: name_str,
-            type_name,
-            value: None,
-            body,
-            name_span: Some(name_span),
-            type_ref_span: Some(type_ref_span),
-        }),
+        node_from_to(
+            start,
+            input,
+            RefDecl {
+                name: name_str,
+                type_name,
+                value: None,
+                body,
+                name_span: Some(name_span),
+                type_ref_span: Some(type_ref_span),
+            },
+        ),
     ))
 }
 
@@ -125,15 +135,21 @@ fn connect_stmt(input: Input<'_>) -> IResult<Input<'_>, Node<ConnectStmt>> {
     let (input, body) = connect_body(input)?;
     Ok((
         input,
-        node_from_to(start, input, ConnectStmt {
-            from: from_expr,
-            to: to_expr,
-            body,
-        }),
+        node_from_to(
+            start,
+            input,
+            ConnectStmt {
+                from: from_expr,
+                to: to_expr,
+                body,
+            },
+        ),
     ))
 }
 
-fn interface_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<InterfaceDefBodyElement>> {
+fn interface_def_body_element(
+    input: Input<'_>,
+) -> IResult<Input<'_>, Node<InterfaceDefBodyElement>> {
     let (input, _) = ws_and_comments(input)?;
     let start = input;
     let (input, elem) = alt((
@@ -155,7 +171,8 @@ fn interface_def_body(input: Input<'_>) -> IResult<Input<'_>, InterfaceDefBody> 
     }
     let (input, _) = tag(&b"{"[..]).parse(input)?;
     let (input, _) = ws_and_comments(input)?;
-    let (input, elements) = many0(preceded(ws_and_comments, interface_def_body_element)).parse(input)?;
+    let (input, elements) =
+        many0(preceded(ws_and_comments, interface_def_body_element)).parse(input)?;
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = if input.fragment().starts_with(b"}") {
         (input, ())
@@ -180,9 +197,13 @@ pub(crate) fn interface_def(input: Input<'_>) -> IResult<Input<'_>, Node<Interfa
     let (input, body) = interface_def_body(input)?;
     Ok((
         input,
-        node_from_to(start, input, InterfaceDef {
-            identification,
-            body,
-        }),
+        node_from_to(
+            start,
+            input,
+            InterfaceDef {
+                identification,
+                body,
+            },
+        ),
     ))
 }

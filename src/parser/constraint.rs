@@ -1,8 +1,8 @@
 #![allow(dead_code, unused_imports)]
 
 use crate::ast::{
-    Node, ConstraintDef, ConstraintDefBody, ConstraintDefBodyElement,
-    CalcDef, CalcDefBody, CalcDefBodyElement, ReturnDecl
+    CalcDef, CalcDefBody, CalcDefBodyElement, ConstraintDef, ConstraintDefBody,
+    ConstraintDefBodyElement, Node, ReturnDecl,
 };
 use crate::parser::action::in_out_decl;
 use crate::parser::expr::expression;
@@ -33,7 +33,17 @@ pub(crate) fn constraint_def(input: Input<'_>) -> IResult<Input<'_>, Node<Constr
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = take_until_terminator(input, b";{")?;
     let (input, body) = constraint_def_body(input)?;
-    Ok((input, node_from_to(start, input, ConstraintDef { identification: ident, body })))
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            ConstraintDef {
+                identification: ident,
+                body,
+            },
+        ),
+    ))
 }
 
 fn constraint_def_body(input: Input<'_>) -> IResult<Input<'_>, ConstraintDefBody> {
@@ -82,10 +92,15 @@ fn constraint_def_body(input: Input<'_>) -> IResult<Input<'_>, ConstraintDefBody
     }
 }
 
-fn constraint_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<ConstraintDefBodyElement>> {
+fn constraint_def_body_element(
+    input: Input<'_>,
+) -> IResult<Input<'_>, Node<ConstraintDefBodyElement>> {
     let start = input;
     let (input, elem) = alt((
-        map(crate::parser::requirement::doc_comment, ConstraintDefBodyElement::Doc),
+        map(
+            crate::parser::requirement::doc_comment,
+            ConstraintDefBodyElement::Doc,
+        ),
         map(in_out_decl, ConstraintDefBodyElement::InOutDecl),
         map(expression, ConstraintDefBodyElement::Expression),
     ))
@@ -93,11 +108,17 @@ fn constraint_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<Cons
     Ok((input, node_from_to(start, input, elem)))
 }
 
-fn safe_constraint_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<ConstraintDefBodyElement>> {
+fn safe_constraint_def_body_element(
+    input: Input<'_>,
+) -> IResult<Input<'_>, Node<ConstraintDefBodyElement>> {
     let start = input;
     let mut parser = alt((
-        map(in_out_decl, |n| node_from_to(start, input, ConstraintDefBodyElement::InOutDecl(n))),
-        map(expression, |n| node_from_to(start, input, ConstraintDefBodyElement::Expression(n))),
+        map(in_out_decl, |n| {
+            node_from_to(start, input, ConstraintDefBodyElement::InOutDecl(n))
+        }),
+        map(expression, |n| {
+            node_from_to(start, input, ConstraintDefBodyElement::Expression(n))
+        }),
     ));
     parser.parse(input)
 }
@@ -114,7 +135,17 @@ pub(crate) fn calc_def(input: Input<'_>) -> IResult<Input<'_>, Node<CalcDef>> {
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = take_until_terminator(input, b";{")?;
     let (input, body) = calc_def_body(input)?;
-    Ok((input, node_from_to(start, input, CalcDef { identification: ident, body })))
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            CalcDef {
+                identification: ident,
+                body,
+            },
+        ),
+    ))
 }
 
 fn calc_def_body(input: Input<'_>) -> IResult<Input<'_>, CalcDefBody> {
@@ -166,7 +197,10 @@ fn calc_def_body(input: Input<'_>) -> IResult<Input<'_>, CalcDefBody> {
 fn calc_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<CalcDefBodyElement>> {
     let start = input;
     let (input, elem) = alt((
-        map(crate::parser::requirement::doc_comment, CalcDefBodyElement::Doc),
+        map(
+            crate::parser::requirement::doc_comment,
+            CalcDefBodyElement::Doc,
+        ),
         map(in_out_decl, CalcDefBodyElement::InOutDecl),
         map(return_decl, CalcDefBodyElement::ReturnDecl),
         map(expression, CalcDefBodyElement::Expression),
@@ -183,5 +217,8 @@ pub(crate) fn return_decl(input: Input<'_>) -> IResult<Input<'_>, Node<ReturnDec
     let (input, _) = preceded(ws_and_comments, tag(&b":"[..])).parse(input)?;
     let (input, type_name) = preceded(ws_and_comments, qualified_name).parse(input)?;
     let (input, _) = preceded(ws_and_comments, tag(&b";"[..])).parse(input)?;
-    Ok((input, node_from_to(start, input, ReturnDecl { name: n, type_name })))
+    Ok((
+        input,
+        node_from_to(start, input, ReturnDecl { name: n, type_name }),
+    ))
 }

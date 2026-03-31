@@ -2,15 +2,15 @@
 #![allow(dead_code, unused_imports)]
 
 use crate::ast::{
-    ExposeMember, FilterMember, Node, SatisfyViewMember, ViewBody, ViewBodyElement, ViewDef,
-    ViewDefBody, ViewDefBodyElement, ViewRenderingUsage, ViewUsage, ViewpointDef, ViewpointUsage,
-    RenderingDef, RenderingDefBody, RenderingUsage,
+    ExposeMember, FilterMember, Node, RenderingDef, RenderingDefBody, RenderingUsage,
+    SatisfyViewMember, ViewBody, ViewBodyElement, ViewDef, ViewDefBody, ViewDefBodyElement,
+    ViewRenderingUsage, ViewUsage, ViewpointDef, ViewpointUsage,
 };
 use crate::parser::interface::connect_body;
 use crate::parser::lex::{
     identification, name, qualified_name, recover_body_element, skip_until_brace_end,
-    starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments,
-    VIEW_BODY_STARTERS, VIEW_DEF_BODY_STARTERS,
+    starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments, VIEW_BODY_STARTERS,
+    VIEW_DEF_BODY_STARTERS,
 };
 use crate::parser::node_from_to;
 use crate::parser::requirement::{doc_comment, requirement_def_body};
@@ -125,7 +125,17 @@ pub(crate) fn view_def(input: Input<'_>) -> IResult<Input<'_>, Node<ViewDef>> {
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = take_until_terminator(input, b";{")?;
     let (input, body) = view_def_body(input)?;
-    Ok((input, node_from_to(start, input, ViewDef { identification: ident, body })))
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            ViewDef {
+                identification: ident,
+                body,
+            },
+        ),
+    ))
 }
 
 fn keyword_viewpoint_def(input: Input<'_>) -> IResult<Input<'_>, ()> {
@@ -144,7 +154,17 @@ pub(crate) fn viewpoint_def(input: Input<'_>) -> IResult<Input<'_>, Node<Viewpoi
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = take_until_terminator(input, b";{")?;
     let (input, body) = requirement_def_body(input)?;
-    Ok((input, node_from_to(start, input, ViewpointDef { identification: ident, body })))
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            ViewpointDef {
+                identification: ident,
+                body,
+            },
+        ),
+    ))
 }
 
 fn keyword_rendering_def(input: Input<'_>) -> IResult<Input<'_>, ()> {
@@ -179,7 +199,17 @@ pub(crate) fn rendering_def(input: Input<'_>) -> IResult<Input<'_>, Node<Renderi
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = take_until_terminator(input, b";{")?;
     let (input, body) = rendering_def_body(input)?;
-    Ok((input, node_from_to(start, input, RenderingDef { identification: ident, body })))
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            RenderingDef {
+                identification: ident,
+                body,
+            },
+        ),
+    ))
 }
 
 fn view_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<ViewBodyElement>> {
@@ -243,7 +273,10 @@ fn expose_member(input: Input<'_>) -> IResult<Input<'_>, Node<ExposeMember>> {
     ))
     .parse(input)?;
     let (input, body) = connect_body(input)?;
-    Ok((input, node_from_to(start, input, ExposeMember { target, body })))
+    Ok((
+        input,
+        node_from_to(start, input, ExposeMember { target, body }),
+    ))
 }
 
 /// satisfy QualifiedName RelationshipBody (simplified form in view body)

@@ -124,7 +124,10 @@ fn test_full_validation_suite() {
                     n_pkgs,
                     n_elements
                 );
-                eprintln!("✓ {} ({} pkgs, {} elements)", relative_path, n_pkgs, n_elements);
+                eprintln!(
+                    "✓ {} ({} pkgs, {} elements)",
+                    relative_path, n_pkgs, n_elements
+                );
             }
             Err(e) => {
                 log::debug!("✗ {} - Error: {}", relative_path, e);

@@ -1,8 +1,8 @@
 //! TDD tests: SysML snippets with expected AST.
 
 use sysml_parser::ast::{
-    Identification, LibraryPackage, Node, Package, PackageBody, PackageBodyElement, RootElement, RootNamespace, Span,
-    ViewDefBody, RenderingDefBody, ViewBody,
+    Identification, LibraryPackage, Node, Package, PackageBody, PackageBodyElement,
+    RenderingDefBody, RootElement, RootNamespace, Span, ViewBody, ViewDefBody,
 };
 use sysml_parser::{parse, parse_with_diagnostics};
 
@@ -29,20 +29,32 @@ fn n_len<T>(len: usize, v: T) -> Node<T> {
 /// Build expected AST for `package Foo;` (input len = 12)
 fn expected_package_foo_semicolon() -> RootNamespace {
     RootNamespace {
-        elements: vec![n_len(12, RootElement::Package(n_len(12, Package {
-            identification: id("Foo"),
-            body: PackageBody::Semicolon,
-        })))],
+        elements: vec![n_len(
+            12,
+            RootElement::Package(n_len(
+                12,
+                Package {
+                    identification: id("Foo"),
+                    body: PackageBody::Semicolon,
+                },
+            )),
+        )],
     }
 }
 
 /// Build expected AST for `package Bar { }` (input len = 15)
 fn expected_package_bar_brace() -> RootNamespace {
     RootNamespace {
-        elements: vec![n_len(15, RootElement::Package(n_len(15, Package {
-            identification: id("Bar"),
-            body: PackageBody::Brace { elements: vec![] },
-        })))],
+        elements: vec![n_len(
+            15,
+            RootElement::Package(n_len(
+                15,
+                Package {
+                    identification: id("Bar"),
+                    body: PackageBody::Brace { elements: vec![] },
+                },
+            )),
+        )],
     }
 }
 
@@ -51,7 +63,10 @@ fn test_package_with_semicolon_body() {
     let input = "package Foo;";
     let result = parse(input).expect("parse should succeed");
     let expected = expected_package_foo_semicolon();
-    assert_eq!(result, expected, "AST should match expected for package Foo;");
+    assert_eq!(
+        result, expected,
+        "AST should match expected for package Foo;"
+    );
 }
 
 #[test]
@@ -74,7 +89,9 @@ fn test_standard_library_package_header_parses() {
         RootElement::LibraryPackage(lp) => {
             assert!(lp.value.is_standard);
             assert_eq!(lp.value.identification.name.as_deref(), Some("SysML"));
-            assert!(matches!(lp.value.body, PackageBody::Brace { ref elements } if elements.is_empty()));
+            assert!(
+                matches!(lp.value.body, PackageBody::Brace { ref elements } if elements.is_empty())
+            );
         }
         other => panic!("expected library package, got {:?}", other),
     }
@@ -132,7 +149,11 @@ fn test_parse_with_diagnostics_partial_ast_and_multiple_errors() {
 
     // Error quality: each error should have "found" snippet and expected context
     for err in &result.errors {
-        assert!(err.found.is_some(), "error should have 'found' snippet: {}", err.message);
+        assert!(
+            err.found.is_some(),
+            "error should have 'found' snippet: {}",
+            err.message
+        );
         assert!(
             err.expected.is_some(),
             "error should have 'expected' context: {}",
@@ -169,7 +190,11 @@ fn test_parse_error_expected_end_of_input_has_found() {
         "error should be 'expected end of input': {}",
         err
     );
-    assert!(err.found.is_some(), "expected end of input error should have 'found': {}", err);
+    assert!(
+        err.found.is_some(),
+        "expected end of input error should have 'found': {}",
+        err
+    );
     assert!(
         err.found.as_deref().is_some_and(|f| f.contains("garbage")),
         "found should show trailing text: {:?}",
@@ -184,7 +209,10 @@ fn test_parse_error_display_includes_found_and_location() {
     let result = parse_with_diagnostics(input);
     let err = &result.errors[0];
     let display = err.to_string();
-    assert!(display.contains("line"), "Display should include line number");
+    assert!(
+        display.contains("line"),
+        "Display should include line number"
+    );
     assert!(
         err.found.as_ref().is_some_and(|f| display.contains(f)),
         "Display should include found snippet: {}",
@@ -303,7 +331,8 @@ fn test_view_usage_parse() {
 
 #[test]
 fn test_use_case_def_body_parses_members() {
-    let input = "package P { use case def U { subject s : System; actor a : Operator; objective { } } }";
+    let input =
+        "package P { use case def U { subject s : System; actor a : Operator; objective { } } }";
     let result = parse(input).expect("parse should succeed");
     let pkg = match &result.elements[0].value {
         RootElement::Package(p) => &p.value,
@@ -321,21 +350,18 @@ fn test_use_case_def_body_parses_members() {
         sysml_parser::ast::UseCaseDefBody::Brace { elements } => elements,
         _ => panic!("expected use case brace body"),
     };
-    assert!(
-        body_elements
-            .iter()
-            .any(|e| matches!(e.value, sysml_parser::ast::UseCaseDefBodyElement::SubjectDecl(_)))
-    );
-    assert!(
-        body_elements
-            .iter()
-            .any(|e| matches!(e.value, sysml_parser::ast::UseCaseDefBodyElement::ActorUsage(_)))
-    );
-    assert!(
-        body_elements
-            .iter()
-            .any(|e| matches!(e.value, sysml_parser::ast::UseCaseDefBodyElement::Objective(_)))
-    );
+    assert!(body_elements.iter().any(|e| matches!(
+        e.value,
+        sysml_parser::ast::UseCaseDefBodyElement::SubjectDecl(_)
+    )));
+    assert!(body_elements.iter().any(|e| matches!(
+        e.value,
+        sysml_parser::ast::UseCaseDefBodyElement::ActorUsage(_)
+    )));
+    assert!(body_elements.iter().any(|e| matches!(
+        e.value,
+        sysml_parser::ast::UseCaseDefBodyElement::Objective(_)
+    )));
 }
 
 #[test]
@@ -359,21 +385,17 @@ fn test_state_def_body_parses_members() {
         sysml_parser::ast::StateDefBody::Brace { elements } => elements,
         _ => panic!("expected state brace body"),
     };
-    assert!(
-        body_elements
-            .iter()
-            .any(|e| matches!(e.value, sysml_parser::ast::StateDefBodyElement::Then(_)))
-    );
-    assert!(
-        body_elements
-            .iter()
-            .any(|e| matches!(e.value, sysml_parser::ast::StateDefBodyElement::StateUsage(_)))
-    );
-    assert!(
-        body_elements
-            .iter()
-            .any(|e| matches!(e.value, sysml_parser::ast::StateDefBodyElement::Transition(_)))
-    );
+    assert!(body_elements
+        .iter()
+        .any(|e| matches!(e.value, sysml_parser::ast::StateDefBodyElement::Then(_))));
+    assert!(body_elements.iter().any(|e| matches!(
+        e.value,
+        sysml_parser::ast::StateDefBodyElement::StateUsage(_)
+    )));
+    assert!(body_elements.iter().any(|e| matches!(
+        e.value,
+        sysml_parser::ast::StateDefBodyElement::Transition(_)
+    )));
 }
 
 #[test]
@@ -396,7 +418,10 @@ fn test_constraint_and_calc_bodies_parse_members() {
         sysml_parser::ast::ConstraintDefBody::Brace { elements } => elements,
         _ => panic!("expected constraint brace body"),
     };
-    assert!(!constraint_elements.is_empty(), "constraint body should not be empty");
+    assert!(
+        !constraint_elements.is_empty(),
+        "constraint body should not be empty"
+    );
     let calc_def = match &elements[1].value {
         PackageBodyElement::CalcDef(cd) => &cd.value,
         _ => panic!("expected CalcDef"),
@@ -473,8 +498,14 @@ fn test_flow_and_allocation_parse() {
         PackageBody::Brace { elements } => elements,
         _ => panic!("expected brace body"),
     };
-    assert!(matches!(elements[0].value, PackageBodyElement::FlowUsage(_)));
-    assert!(matches!(elements[1].value, PackageBodyElement::AllocationUsage(_)));
+    assert!(matches!(
+        elements[0].value,
+        PackageBodyElement::FlowUsage(_)
+    ));
+    assert!(matches!(
+        elements[1].value,
+        PackageBodyElement::AllocationUsage(_)
+    ));
 }
 
 #[test]
@@ -490,8 +521,14 @@ fn test_case_family_parse() {
         _ => panic!("expected brace body"),
     };
     assert!(matches!(elements[0].value, PackageBodyElement::CaseDef(_)));
-    assert!(matches!(elements[1].value, PackageBodyElement::AnalysisCaseDef(_)));
-    assert!(matches!(elements[2].value, PackageBodyElement::VerificationCaseDef(_)));
+    assert!(matches!(
+        elements[1].value,
+        PackageBodyElement::AnalysisCaseDef(_)
+    ));
+    assert!(matches!(
+        elements[2].value,
+        PackageBodyElement::VerificationCaseDef(_)
+    ));
 }
 
 #[test]
@@ -561,8 +598,14 @@ fn test_stdlib_requirement_usecase_enum_map_to_dedicated_nodes() {
         PackageBody::Brace { elements } => elements,
         _ => panic!("expected brace body"),
     };
-    assert!(matches!(elements[0].value, PackageBodyElement::RequirementDef(_)));
-    assert!(matches!(elements[1].value, PackageBodyElement::UseCaseDef(_)));
+    assert!(matches!(
+        elements[0].value,
+        PackageBodyElement::RequirementDef(_)
+    ));
+    assert!(matches!(
+        elements[1].value,
+        PackageBodyElement::UseCaseDef(_)
+    ));
     assert!(matches!(elements[2].value, PackageBodyElement::EnumDef(_)));
 }
 
@@ -584,7 +627,10 @@ fn test_stdlib_part_port_viewpoint_map_to_dedicated_nodes() {
     };
     assert!(matches!(elements[0].value, PackageBodyElement::PartDef(_)));
     assert!(matches!(elements[1].value, PackageBodyElement::PortDef(_)));
-    assert!(matches!(elements[2].value, PackageBodyElement::ViewpointDef(_)));
+    assert!(matches!(
+        elements[2].value,
+        PackageBodyElement::ViewpointDef(_)
+    ));
     assert!(
         !elements
             .iter()
@@ -605,12 +651,16 @@ fn test_quantities_abstract_attribute_def_maps_dedicated() {
         PackageBody::Brace { elements } => elements,
         _ => panic!("expected brace body"),
     };
-    assert!(matches!(elements[0].value, PackageBodyElement::AttributeDef(_)));
+    assert!(matches!(
+        elements[0].value,
+        PackageBodyElement::AttributeDef(_)
+    ));
 }
 
 #[test]
 fn test_enum_def_with_specialization_and_assigned_literals_maps_dedicated() {
-    let input = "package P { enum def LevelEnum :> Level { low = 0.25; medium = 0.5; high = 0.75; } }";
+    let input =
+        "package P { enum def LevelEnum :> Level { low = 0.25; medium = 0.5; high = 0.75; } }";
     let result = parse(input).expect("parse should succeed");
     let pkg = match &result.elements[0].value {
         RootElement::Package(p) => &p.value,
@@ -643,11 +693,7 @@ fn test_expression_precedence_parse() {
     };
     match &elements[0].value {
         PackageBodyElement::AttributeDef(attr) => {
-            let value = attr
-                .typing
-                .as_ref()
-                .map(|_| ())
-                .or(Some(()));
+            let value = attr.typing.as_ref().map(|_| ()).or(Some(()));
             assert!(value.is_some());
         }
         _ => panic!("expected AttributeDef"),
@@ -671,7 +717,9 @@ fn test_package_body_recovery_skips_annotated_member_and_keeps_later_sibling() {
         "later valid sibling should still be present after recovering from annotated unsupported member"
     );
     assert!(
-        elements.iter().any(|e| matches!(e.value, PackageBodyElement::Error(_))),
+        elements
+            .iter()
+            .any(|e| matches!(e.value, PackageBodyElement::Error(_))),
         "recovered package region should be represented explicitly in the AST"
     );
 }
@@ -722,21 +770,24 @@ fn test_requirement_body_recovery_keeps_later_require_constraint() {
         _ => panic!("expected requirement brace body"),
     };
     assert!(
-        body_elements
-            .iter()
-            .any(|e| matches!(e.value, sysml_parser::ast::RequirementDefBodyElement::SubjectDecl(_))),
+        body_elements.iter().any(|e| matches!(
+            e.value,
+            sysml_parser::ast::RequirementDefBodyElement::SubjectDecl(_)
+        )),
         "subject should be parsed in requirement body"
     );
     assert!(
-        body_elements
-            .iter()
-            .any(|e| matches!(e.value, sysml_parser::ast::RequirementDefBodyElement::RequireConstraint(_))),
+        body_elements.iter().any(|e| matches!(
+            e.value,
+            sysml_parser::ast::RequirementDefBodyElement::RequireConstraint(_)
+        )),
         "require constraint should be preserved after local body recovery"
     );
     assert!(
-        body_elements
-            .iter()
-            .any(|e| matches!(e.value, sysml_parser::ast::RequirementDefBodyElement::Error(_))),
+        body_elements.iter().any(|e| matches!(
+            e.value,
+            sysml_parser::ast::RequirementDefBodyElement::Error(_)
+        )),
         "unsupported members should be captured as recoverable errors in requirement body"
     );
 }
@@ -764,7 +815,10 @@ fn test_parse_with_diagnostics_reports_local_requirement_recovery() {
 fn test_parse_with_diagnostics_reports_missing_subject_name_in_requirement_body() {
     let input = "package P {\nrequirement def R {\nsubject: Laptop;\nrequire constraint { }\n}\n}";
     let result = parse_with_diagnostics(input);
-    assert!(!result.is_ok(), "missing subject name should produce diagnostics");
+    assert!(
+        !result.is_ok(),
+        "missing subject name should produce diagnostics"
+    );
     let err = result
         .errors
         .iter()
@@ -797,9 +851,10 @@ fn test_parse_with_diagnostics_reports_missing_subject_name_in_requirement_body(
         _ => panic!("expected requirement brace body"),
     };
     assert!(
-        body_elements
-            .iter()
-            .any(|e| matches!(e.value, sysml_parser::ast::RequirementDefBodyElement::RequireConstraint(_))),
+        body_elements.iter().any(|e| matches!(
+            e.value,
+            sysml_parser::ast::RequirementDefBodyElement::RequireConstraint(_)
+        )),
         "later requirement members should still parse after recovering from invalid subject syntax"
     );
 }
@@ -808,7 +863,10 @@ fn test_parse_with_diagnostics_reports_missing_subject_name_in_requirement_body(
 fn test_parse_with_diagnostics_reports_missing_subject_name_in_use_case_body() {
     let input = "package P {\nuse case def U {\nsubject: Laptop;\nobjective { }\n}\n}";
     let result = parse_with_diagnostics(input);
-    assert!(!result.is_ok(), "missing subject name should produce diagnostics");
+    assert!(
+        !result.is_ok(),
+        "missing subject name should produce diagnostics"
+    );
     assert!(
         result
             .errors
@@ -836,9 +894,10 @@ fn test_parse_with_diagnostics_reports_missing_subject_name_in_use_case_body() {
         _ => panic!("expected use case brace body"),
     };
     assert!(
-        body_elements
-            .iter()
-            .any(|e| matches!(e.value, sysml_parser::ast::UseCaseDefBodyElement::Objective(_))),
+        body_elements.iter().any(|e| matches!(
+            e.value,
+            sysml_parser::ast::UseCaseDefBodyElement::Objective(_)
+        )),
         "later use case members should still parse after recovering from invalid subject syntax"
     );
 }
@@ -847,7 +906,10 @@ fn test_parse_with_diagnostics_reports_missing_subject_name_in_use_case_body() {
 fn test_parse_with_diagnostics_reports_missing_actor_name_in_use_case_body() {
     let input = "package P {\nuse case def U {\nactor: User;\nobjective { }\n}\n}";
     let result = parse_with_diagnostics(input);
-    assert!(!result.is_ok(), "missing actor name should produce diagnostics");
+    assert!(
+        !result.is_ok(),
+        "missing actor name should produce diagnostics"
+    );
     let err = result
         .errors
         .iter()
@@ -866,7 +928,10 @@ fn test_parse_with_diagnostics_reports_missing_actor_name_in_use_case_body() {
 fn test_parse_with_diagnostics_reports_missing_subject_type_in_requirement_body() {
     let input = "package P {\nrequirement def R {\nsubject laptop: ;\nrequire constraint { }\n}\n}";
     let result = parse_with_diagnostics(input);
-    assert!(!result.is_ok(), "missing subject type should produce diagnostics");
+    assert!(
+        !result.is_ok(),
+        "missing subject type should produce diagnostics"
+    );
     let err = result
         .errors
         .iter()
@@ -885,7 +950,10 @@ fn test_parse_with_diagnostics_reports_missing_subject_type_in_requirement_body(
 fn test_parse_with_diagnostics_reports_missing_actor_type_in_use_case_body() {
     let input = "package P {\nuse case def U {\nactor user: ;\nobjective { }\n}\n}";
     let result = parse_with_diagnostics(input);
-    assert!(!result.is_ok(), "missing actor type should produce diagnostics");
+    assert!(
+        !result.is_ok(),
+        "missing actor type should produce diagnostics"
+    );
     let err = result
         .errors
         .iter()
@@ -904,7 +972,10 @@ fn test_parse_with_diagnostics_reports_missing_actor_type_in_use_case_body() {
 fn test_parse_with_diagnostics_reports_missing_state_name_in_state_body() {
     let input = "package P {\nstate def Machine {\nstate: Mode;\ntransition t then Ready;\n}\n}";
     let result = parse_with_diagnostics(input);
-    assert!(!result.is_ok(), "missing state name should produce diagnostics");
+    assert!(
+        !result.is_ok(),
+        "missing state name should produce diagnostics"
+    );
     let err = result
         .errors
         .iter()
@@ -922,7 +993,10 @@ fn test_parse_with_diagnostics_reports_missing_state_name_in_state_body() {
 fn test_parse_with_diagnostics_reports_missing_part_type_in_part_body() {
     let input = "package P {\npart def Vehicle {\npart wheel: ;\nattribute mass: MassValue;\n}\n}";
     let result = parse_with_diagnostics(input);
-    assert!(!result.is_ok(), "missing part type should produce diagnostics");
+    assert!(
+        !result.is_ok(),
+        "missing part type should produce diagnostics"
+    );
     let err = result
         .errors
         .iter()
@@ -940,7 +1014,10 @@ fn test_parse_with_diagnostics_reports_missing_part_type_in_part_body() {
 fn test_parse_with_diagnostics_reports_missing_part_name_in_part_body() {
     let input = "package P {\npart def Vehicle {\npart: Wheel;\nattribute mass: MassValue;\n}\n}";
     let result = parse_with_diagnostics(input);
-    assert!(!result.is_ok(), "missing part name should produce diagnostics");
+    assert!(
+        !result.is_ok(),
+        "missing part name should produce diagnostics"
+    );
     let err = result
         .errors
         .iter()
@@ -958,7 +1035,10 @@ fn test_parse_with_diagnostics_reports_missing_part_name_in_part_body() {
 fn test_parse_with_diagnostics_reports_local_package_recovery() {
     let input = "package P {\n#fmeaspec requirement req1 { }\npart def Good;\n}";
     let result = parse_with_diagnostics(input);
-    assert!(!result.is_ok(), "package-level recovery should surface as diagnostics");
+    assert!(
+        !result.is_ok(),
+        "package-level recovery should surface as diagnostics"
+    );
     let err = result
         .errors
         .iter()
@@ -982,7 +1062,10 @@ fn test_parse_with_diagnostics_reports_local_package_recovery() {
 fn test_parse_with_diagnostics_reports_missing_semicolon_between_package_members() {
     let input = "package P {\npart def A {\nexhibit state s : S\npart b : B;\n}\n}";
     let result = parse_with_diagnostics(input);
-    assert!(!result.is_ok(), "missing semicolon should produce diagnostics");
+    assert!(
+        !result.is_ok(),
+        "missing semicolon should produce diagnostics"
+    );
     let err = result
         .errors
         .iter()
@@ -994,6 +1077,38 @@ fn test_parse_with_diagnostics_reports_missing_semicolon_between_package_members
             .as_deref()
             .is_some_and(|s| s.contains("Insert ';'")),
         "diagnostic should include a semicolon suggestion"
+    );
+}
+
+#[test]
+fn test_action_def_body_allows_doc_and_nested_action_usages_without_semicolon_after_doc() {
+    let input = r#"package P {
+action def ExecutePatrol {
+  in route : String;
+  out status : String;
+  doc /* Execute patrol/overwatch mission along route. */
+
+  action validateRoute { out validationStatus : String; };
+  action startMission { out missionStarted : String; };
+
+  first validateRoute then startMission;
+  bind status = startMission::missionStarted;
+}
+}"#;
+
+    let result = parse_with_diagnostics(input);
+    assert!(
+        result.is_ok(),
+        "action def with doc + nested actions should parse without recovery diagnostics: {:?}",
+        result.errors
+    );
+    assert!(
+        !result
+            .errors
+            .iter()
+            .any(|e| e.code.as_deref() == Some("missing_semicolon")),
+        "should not report missing_semicolon around doc/nested action usages: {:?}",
+        result.errors
     );
 }
 
@@ -1034,7 +1149,10 @@ fn test_parse_reports_missing_closing_brace_for_unterminated_package() {
 fn test_parse_with_diagnostics_reports_missing_closing_brace_for_unterminated_package() {
     let input = "package P {\npart def A;\n";
     let result = parse_with_diagnostics(input);
-    assert!(!result.is_ok(), "unterminated package should produce diagnostics");
+    assert!(
+        !result.is_ok(),
+        "unterminated package should produce diagnostics"
+    );
     let err = result
         .errors
         .iter()
@@ -1048,7 +1166,10 @@ fn test_parse_reports_illegal_top_level_part_definition() {
     let input = "part def TopLevel;";
     let err = parse(input).expect_err("top-level part def should fail");
     assert_eq!(err.code.as_deref(), Some("illegal_top_level_definition"));
-    assert_eq!(err.expected.as_deref(), Some("'package', 'namespace', or 'import'"));
+    assert_eq!(
+        err.expected.as_deref(),
+        Some("'package', 'namespace', or 'import'")
+    );
 }
 
 #[test]

@@ -1,9 +1,10 @@
 //! Parser test for `04-Functional Allocation/4a-Functional Allocation.sysml`.
 
 use sysml_parser::ast::{
-    DocComment, Expression, Identification, Import, InOut, Node, Package, PackageBody, PackageBodyElement,
-    PartUsage, PartUsageBody, PartUsageBodyElement, Perform, PerformBody, PerformBodyElement,
-    PerformInOutBinding, PortBody, PortUsage, RootElement, RootNamespace, Span, Visibility,
+    DocComment, Expression, Identification, Import, InOut, Node, Package, PackageBody,
+    PackageBodyElement, PartUsage, PartUsageBody, PartUsageBodyElement, Perform, PerformBody,
+    PerformBodyElement, PerformInOutBinding, PortBody, PortUsage, RootElement, RootNamespace, Span,
+    Visibility,
 };
 use sysml_parser::parse;
 
@@ -54,7 +55,9 @@ fn expected_ast() -> RootNamespace {
                         is_recursive: false,
                         filter_members: None,
                     }))),
-                    n(PackageBodyElement::PartUsage(n(vehicle1_c1_functional_allocation()))),
+                    n(PackageBodyElement::PartUsage(n(
+                        vehicle1_c1_functional_allocation(),
+                    ))),
                 ],
             },
         })))],
@@ -319,17 +322,23 @@ fn part_rear_axle_assembly() -> PartUsage {
                             n(PerformBodyElement::InOut(n(PerformInOutBinding {
                                 direction: InOut::Out,
                                 name: "wheelTorque1".to_string(),
-                                value: expr_path("rearAxle.leftHalfAxle.axleToWheelPort.wheelTorque"),
+                                value: expr_path(
+                                    "rearAxle.leftHalfAxle.axleToWheelPort.wheelTorque",
+                                ),
                             }))),
                             n(PerformBodyElement::InOut(n(PerformInOutBinding {
                                 direction: InOut::Out,
                                 name: "wheelTorque2".to_string(),
-                                value: expr_path("rearAxle.rightHalfAxle.axleToWheelPort.wheelTorque"),
+                                value: expr_path(
+                                    "rearAxle.rightHalfAxle.axleToWheelPort.wheelTorque",
+                                ),
                             }))),
                         ],
                     },
                 }))),
-                n(PartUsageBodyElement::PartUsage(Box::new(n(part_rear_axle())))),
+                n(PartUsageBodyElement::PartUsage(Box::new(n(
+                    part_rear_axle(),
+                )))),
             ],
         },
     }
@@ -348,8 +357,12 @@ fn part_rear_axle() -> PartUsage {
         type_ref_span: None,
         body: PartUsageBody::Brace {
             elements: vec![
-                n(PartUsageBodyElement::PartUsage(Box::new(n(part_left_half_axle())))),
-                n(PartUsageBodyElement::PartUsage(Box::new(n(part_right_half_axle())))),
+                n(PartUsageBodyElement::PartUsage(Box::new(n(
+                    part_left_half_axle(),
+                )))),
+                n(PartUsageBodyElement::PartUsage(Box::new(n(
+                    part_right_half_axle(),
+                )))),
             ],
         },
     }
@@ -411,7 +424,9 @@ fn part_right_half_axle() -> PartUsage {
 fn validation_fixture_path(relative: &str) -> std::path::PathBuf {
     let root = std::env::var_os("SYSML_V2_RELEASE_DIR")
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("sysml-v2-release"));
+        .unwrap_or_else(|| {
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("sysml-v2-release")
+        });
     root.join("sysml")
         .join("src")
         .join("validation")
@@ -422,8 +437,8 @@ fn validation_fixture_path(relative: &str) -> std::path::PathBuf {
 #[ignore = "requires SysML v2 release fixtures; run with: cargo test --test validation -- --include-ignored"]
 fn test_parse_4a_functional_allocation() {
     super::init_log();
-    let path = validation_fixture_path("04-Functional Allocation")
-        .join("4a-Functional Allocation.sysml");
+    let path =
+        validation_fixture_path("04-Functional Allocation").join("4a-Functional Allocation.sysml");
     log::debug!("fixture path: {}", path.display());
     let input = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("read fixture {}: {}", path.display(), e));
@@ -433,7 +448,10 @@ fn test_parse_4a_functional_allocation() {
     let result = parse(&input);
     let parsed = match &result {
         Ok(ast) => ast,
-        Err(e) => panic!("parse should succeed for 4a-Functional Allocation.sysml: {:?}", e),
+        Err(e) => panic!(
+            "parse should succeed for 4a-Functional Allocation.sysml: {:?}",
+            e
+        ),
     };
     let expected = expected_ast();
     super::assert_ast_eq(

@@ -3,8 +3,8 @@
 //! Requires SYSML_V2_RELEASE_DIR (or sysml-v2-release in repo). This test is ignored by
 //! default because it is slower and intended for compliance/debug runs.
 
-use std::fs;
 use std::collections::BTreeMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use sysml_parser::ast::{PackageBody, PackageBodyElement, RootElement, RootNamespace};
@@ -122,7 +122,9 @@ fn collect_bnf_decl_counts(root: &RootNamespace, counts: &mut BTreeMap<String, u
     for element in &root.elements {
         match &element.value {
             RootElement::Package(p) => collect_bnf_decl_counts_in_body(&p.value.body, counts),
-            RootElement::LibraryPackage(p) => collect_bnf_decl_counts_in_body(&p.value.body, counts),
+            RootElement::LibraryPackage(p) => {
+                collect_bnf_decl_counts_in_body(&p.value.body, counts)
+            }
             RootElement::Namespace(n) => collect_bnf_decl_counts_in_body(&n.value.body, counts),
             RootElement::Import(_) => {}
         }
@@ -150,7 +152,9 @@ fn collect_bnf_decl_counts_in_body(body: &PackageBody, counts: &mut BTreeMap<Str
                     .entry(format!("bnf:{}", n.value.bnf_production))
                     .or_insert(0) += 1;
             }
-            PackageBodyElement::Package(n) => collect_bnf_decl_counts_in_body(&n.value.body, counts),
+            PackageBodyElement::Package(n) => {
+                collect_bnf_decl_counts_in_body(&n.value.body, counts)
+            }
             PackageBodyElement::LibraryPackage(n) => {
                 collect_bnf_decl_counts_in_body(&n.value.body, counts)
             }
@@ -272,8 +276,14 @@ fn test_full_library_suite() {
         let has_start_error = result.errors.iter().any(|e| {
             let at_start = e.offset == Some(0)
                 || (e.line == Some(1) && e.column == Some(1))
-                || e.found.as_deref().is_some_and(|f| f.starts_with("standard library package"));
-            at_start && matches!(e.code.as_deref(), Some("expected_keyword") | Some("expected_alt"))
+                || e.found
+                    .as_deref()
+                    .is_some_and(|f| f.starts_with("standard library package"));
+            at_start
+                && matches!(
+                    e.code.as_deref(),
+                    Some("expected_keyword") | Some("expected_alt")
+                )
         });
 
         if has_start_error || result.root.elements.is_empty() {
@@ -337,7 +347,8 @@ fn test_systems_library_strict_no_diagnostics() {
         return;
     }
 
-    let mut files = find_library_files(&systems_path).expect("Failed to find Systems Library files");
+    let mut files =
+        find_library_files(&systems_path).expect("Failed to find Systems Library files");
     files.sort();
     assert!(
         !files.is_empty(),
@@ -488,7 +499,8 @@ fn test_systems_library_node_types_no_extended() {
         return;
     }
 
-    let mut files = find_library_files(&systems_path).expect("Failed to find Systems Library files");
+    let mut files =
+        find_library_files(&systems_path).expect("Failed to find Systems Library files");
     files.sort();
     assert!(!files.is_empty(), "No systems library files found");
 
@@ -518,7 +530,9 @@ fn test_systems_library_node_types_no_extended() {
                     RootElement::LibraryPackage(n) => {
                         collect_extended_texts(&n.value.body, &mut snippets)
                     }
-                    RootElement::Namespace(n) => collect_extended_texts(&n.value.body, &mut snippets),
+                    RootElement::Namespace(n) => {
+                        collect_extended_texts(&n.value.body, &mut snippets)
+                    }
                     RootElement::Import(_) => {}
                 }
             }
@@ -597,7 +611,9 @@ fn test_full_library_node_types_no_extended() {
                     RootElement::LibraryPackage(n) => {
                         collect_extended_texts(&n.value.body, &mut snippets)
                     }
-                    RootElement::Namespace(n) => collect_extended_texts(&n.value.body, &mut snippets),
+                    RootElement::Namespace(n) => {
+                        collect_extended_texts(&n.value.body, &mut snippets)
+                    }
                     RootElement::Import(_) => {}
                 }
             }

@@ -9,8 +9,8 @@ use nom::bytes::complete::tag;
 use nom::character::complete::digit1;
 use nom::combinator::{map, opt};
 use nom::sequence::{delimited, preceded};
-use nom::Parser;
 use nom::IResult;
+use nom::Parser;
 
 /// Integer literal.
 fn literal_integer(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
@@ -25,7 +25,10 @@ fn literal_integer(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
     } else {
         n
     };
-    Ok((input, node_from_to(start, input, Expression::LiteralInteger(n))))
+    Ok((
+        input,
+        node_from_to(start, input, Expression::LiteralInteger(n)),
+    ))
 }
 
 /// Real literal (simple: digits.digits).
@@ -40,7 +43,10 @@ fn literal_real(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
         String::from_utf8_lossy(whole.fragment()),
         String::from_utf8_lossy(frac.fragment())
     );
-    Ok((input, node_from_to(start, input, Expression::LiteralReal(s))))
+    Ok((
+        input,
+        node_from_to(start, input, Expression::LiteralReal(s)),
+    ))
 }
 
 /// String literal: double-quoted.
@@ -58,13 +64,19 @@ fn literal_string(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
         if frag[i] == b'"' {
             let s = String::from_utf8_lossy(&frag[..i]).replace("\\\"", "\"");
             let (input, _) = nom::bytes::complete::take(i + 1).parse(input)?;
-            return Ok((input, node_from_to(start, input, Expression::LiteralString(s))));
+            return Ok((
+                input,
+                node_from_to(start, input, Expression::LiteralString(s)),
+            ));
         }
         i += 1;
     }
     let s = String::from_utf8_lossy(frag).replace("\\\"", "\"");
     let (input, _) = nom::bytes::complete::take(frag.len()).parse(input)?;
-    Ok((input, node_from_to(start, input, Expression::LiteralString(s))))
+    Ok((
+        input,
+        node_from_to(start, input, Expression::LiteralString(s)),
+    ))
 }
 
 /// Boolean literal: true | false.
@@ -76,7 +88,10 @@ fn literal_boolean(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
         map(tag(&b"false"[..]), |_| false),
     ))
     .parse(input)?;
-    Ok((input, node_from_to(start, input, Expression::LiteralBoolean(v))))
+    Ok((
+        input,
+        node_from_to(start, input, Expression::LiteralBoolean(v)),
+    ))
 }
 
 /// Feature reference: single name.
@@ -337,13 +352,25 @@ fn unary_and_primary(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
 fn multiplicative_expression(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
     let start = input;
     let (input, left) = unary_and_primary(input)?;
-    binary_chain_with(input, start, left, multiplicative_op_token, unary_and_primary)
+    binary_chain_with(
+        input,
+        start,
+        left,
+        multiplicative_op_token,
+        unary_and_primary,
+    )
 }
 
 fn additive_expression(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
     let start = input;
     let (input, left) = multiplicative_expression(input)?;
-    binary_chain_with(input, start, left, additive_op_token, multiplicative_expression)
+    binary_chain_with(
+        input,
+        start,
+        left,
+        additive_op_token,
+        multiplicative_expression,
+    )
 }
 
 fn comparison_expression(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
@@ -365,11 +392,14 @@ pub(crate) fn expression(input: Input<'_>) -> IResult<Input<'_>, Node<Expression
     binary_chain_with(input, start, left, logical_op_token, equality_expression)
 }
 
-/// Path expression: name or name.name.name... (for bind/connect). Returns Node<Expression>.
+/// Path expression: qualified name and/or member access (for bind/connect).
+/// Supports `A`, `A::B::C`, `A.B.C`, and combinations like `A::B.C`.
 pub(crate) fn path_expression(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
     let start = input;
     let (input, _) = ws_and_comments(input)?;
-    let (input, first) = name(input)?;
+    // `qualified_name` covers `::`-separated chains (common in SysML examples for feature chains).
+    // We keep it as a single FeatureRef string, then allow additional `.` member access.
+    let (input, first) = crate::parser::lex::qualified_name(input)?;
     let mut expr = Expression::FeatureRef(first);
     let mut rest = input;
     loop {
@@ -380,10 +410,8 @@ pub(crate) fn path_expression(input: Input<'_>) -> IResult<Input<'_>, Node<Expre
         let (next, _) = tag(&b"."[..]).parse(next)?;
         let (next, _) = ws_and_comments(next)?;
         let (next, member) = name(next)?;
-        expr = Expression::MemberAccess(
-            Box::new(Node::new(crate::ast::Span::dummy(), expr)),
-            member,
-        );
+        expr =
+            Expression::MemberAccess(Box::new(Node::new(crate::ast::Span::dummy(), expr)), member);
         rest = next;
     }
     Ok((rest, node_from_to(start, rest, expr)))

@@ -2,33 +2,33 @@
 #![allow(dead_code, unused_imports)]
 
 use crate::ast::{
-    Allocate, AttributeBody, AttributeUsage, Bind, Connect, ConnectBody, DefinitionPrefix, ExhibitState, Expression, InOut, InterfaceUsage,
-    InterfaceUsageBodyElement, Node, PartDef, PartDefBody, PartDefBodyElement, PartUsage,
-    PartUsageBody, PartUsageBodyElement, Perform, PerformBody, PerformBodyElement,
-    PerformInOutBinding, RefBody, RefDecl,
+    Allocate, AttributeBody, AttributeUsage, Bind, Connect, ConnectBody, DefinitionPrefix,
+    ExhibitState, Expression, InOut, InterfaceUsage, InterfaceUsageBodyElement, Node, PartDef,
+    PartDefBody, PartDefBodyElement, PartUsage, PartUsageBody, PartUsageBodyElement, Perform,
+    PerformBody, PerformBodyElement, PerformInOutBinding, RefBody, RefDecl,
 };
 use crate::parser::attribute::{attribute_def, attribute_usage, attribute_usage_shorthand};
+use crate::parser::build_recovery_error_node;
 use crate::parser::expr::{expression, path_expression};
 use crate::parser::interface::connect_body;
-use crate::parser::build_recovery_error_node;
 use crate::parser::lex::{
     identification, name, qualified_name, recover_body_element, skip_until_brace_end,
     starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments, PART_BODY_STARTERS,
 };
-use nom::sequence::delimited;
-use crate::parser::{node_from_to, span_from_to};
-use crate::parser::port::port_usage;
-use crate::parser::with_span;
 use crate::parser::metadata_annotation::metadata_annotation;
+use crate::parser::port::port_usage;
 use crate::parser::requirement::doc_comment;
+use crate::parser::with_span;
 use crate::parser::Input;
+use crate::parser::{node_from_to, span_from_to};
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_until};
 use nom::combinator::{map, opt, value};
 use nom::multi::many0;
+use nom::sequence::delimited;
 use nom::sequence::preceded;
-use nom::Parser;
 use nom::IResult;
+use nom::Parser;
 
 /// Result of parsing either a part definition or part usage (used for package body to avoid part_def consuming "part" before part_usage can run).
 #[derive(Debug)]
@@ -41,7 +41,11 @@ pub(crate) enum PartDefOrUsage {
 /// Part def body: ';' or '{' PartDefBodyElement* '}'
 pub(crate) fn part_def_body(input: Input<'_>) -> IResult<Input<'_>, PartDefBody> {
     let (input, _) = ws_and_comments(input)?;
-    alt((map(tag(&b";"[..]), |_| PartDefBody::Semicolon), part_def_body_brace)).parse(input)
+    alt((
+        map(tag(&b";"[..]), |_| PartDefBody::Semicolon),
+        part_def_body_brace,
+    ))
+    .parse(input)
 }
 
 fn part_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, PartDefBody> {
@@ -144,7 +148,10 @@ fn part_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PartDefBod
         map(interface_usage, PartDefBodyElement::InterfaceUsage),
         map(port_usage, PartDefBodyElement::PortUsage),
         map(attribute_usage, PartDefBodyElement::AttributeUsage),
-        map(attribute_usage_shorthand, PartDefBodyElement::AttributeUsage),
+        map(
+            attribute_usage_shorthand,
+            PartDefBodyElement::AttributeUsage,
+        ),
         map(attribute_def, PartDefBodyElement::AttributeDef),
         map(opaque_part_member_decl, PartDefBodyElement::AttributeUsage),
     ))
@@ -166,7 +173,9 @@ fn opaque_part_member_decl(input: Input<'_>) -> IResult<Input<'_>, Node<Attribut
     }
     let (input, header_text) = take_until_terminator(input, b";{")?;
     let name_str = header_text
-        .split(|c: char| c.is_whitespace() || c == ':' || c == '[' || c == ',' || c == '(' || c == ')')
+        .split(|c: char| {
+            c.is_whitespace() || c == ':' || c == '[' || c == ',' || c == '(' || c == ')'
+        })
         .filter(|s| !s.is_empty())
         .find(|token| {
             !matches!(
@@ -211,8 +220,12 @@ pub(crate) fn part_def(input: Input<'_>) -> IResult<Input<'_>, Node<PartDef>> {
     let start = input;
     let (input, _) = ws_and_comments(input)?;
     let (input, definition_prefix) = opt(alt((
-        map(preceded(tag(&b"abstract"[..]), ws1), |_| DefinitionPrefix::Abstract),
-        map(preceded(tag(&b"variation"[..]), ws1), |_| DefinitionPrefix::Variation),
+        map(preceded(tag(&b"abstract"[..]), ws1), |_| {
+            DefinitionPrefix::Abstract
+        }),
+        map(preceded(tag(&b"variation"[..]), ws1), |_| {
+            DefinitionPrefix::Variation
+        }),
     )))
     .parse(input)?;
     let (input, _) = tag(&b"part"[..]).parse(input)?;
@@ -227,19 +240,26 @@ pub(crate) fn part_def(input: Input<'_>) -> IResult<Input<'_>, Node<PartDef>> {
     ))
     .parse(input)?;
     let (specializes, specializes_span) = match opt_specializes {
-        Some((_, type_name)) => (Some(type_name), Some(span_from_to(before_specializes, input))),
+        Some((_, type_name)) => (
+            Some(type_name),
+            Some(span_from_to(before_specializes, input)),
+        ),
         None => (None, None),
     };
     let (input, body) = part_def_body(input)?;
     Ok((
         input,
-        node_from_to(start, input, PartDef {
-            definition_prefix,
-            identification,
-            specializes,
-            specializes_span,
-            body,
-        }),
+        node_from_to(
+            start,
+            input,
+            PartDef {
+                definition_prefix,
+                identification,
+                specializes,
+                specializes_span,
+                body,
+            },
+        ),
     ))
 }
 
@@ -248,8 +268,12 @@ pub(crate) fn part_def_or_usage(input: Input<'_>) -> IResult<Input<'_>, PartDefO
     let start = input;
     let (input, _) = ws_and_comments(input)?;
     let (input, definition_prefix) = opt(alt((
-        map(preceded(tag(&b"abstract"[..]), ws1), |_| DefinitionPrefix::Abstract),
-        map(preceded(tag(&b"variation"[..]), ws1), |_| DefinitionPrefix::Variation),
+        map(preceded(tag(&b"abstract"[..]), ws1), |_| {
+            DefinitionPrefix::Abstract
+        }),
+        map(preceded(tag(&b"variation"[..]), ws1), |_| {
+            DefinitionPrefix::Variation
+        }),
     )))
     .parse(input)?;
     let (input, _) = tag(&b"part"[..]).parse(input)?;
@@ -264,7 +288,10 @@ pub(crate) fn part_def_or_usage(input: Input<'_>) -> IResult<Input<'_>, PartDefO
         ))
         .parse(input)?;
         let (specializes, specializes_span) = match opt_specializes {
-            Some((_, type_name)) => (Some(type_name), Some(span_from_to(before_specializes, input))),
+            Some((_, type_name)) => (
+                Some(type_name),
+                Some(span_from_to(before_specializes, input)),
+            ),
             None => (None, None),
         };
         let (input, body) = part_def_body(input)?;
@@ -331,26 +358,27 @@ fn part_usage_redefines_only<'a>(
     let (input, body) = part_usage_body(input)?;
     Ok((
         input,
-        node_from_to(start, input, PartUsage {
-            name: String::new(),
-            type_name: String::new(),
-            multiplicity: multiplicity_opt,
-            ordered: ordered.is_some(),
-            subsets: None,
-            redefines: Some(redefines_qname),
-            value,
-            body,
-            name_span: None,
-            type_ref_span: None,
-        }),
+        node_from_to(
+            start,
+            input,
+            PartUsage {
+                name: String::new(),
+                type_name: String::new(),
+                multiplicity: multiplicity_opt,
+                ordered: ordered.is_some(),
+                subsets: None,
+                redefines: Some(redefines_qname),
+                value,
+                body,
+                name_span: None,
+                type_ref_span: None,
+            },
+        ),
     ))
 }
 
 /// Part usage with name (and optional type, redefines, etc.): (':>>')? name ':' type_name? ...
-fn part_usage_named<'a>(
-    start: Input<'a>,
-    input: Input<'a>,
-) -> IResult<Input<'a>, Node<PartUsage>> {
+fn part_usage_named<'a>(start: Input<'a>, input: Input<'a>) -> IResult<Input<'a>, Node<PartUsage>> {
     let (input, _) = opt(preceded(ws_and_comments, tag(&b":>>"[..]))).parse(input)?;
     let (input, _) = ws_and_comments(input)?;
     let (input, (name_span, name_str)) = with_span(name).parse(input)?;
@@ -358,7 +386,8 @@ fn part_usage_named<'a>(
         let (peek, _) = ws_and_comments(input)?;
         if peek.fragment().starts_with(b":") && !peek.fragment().starts_with(b":>") {
             let (input, _) = preceded(ws_and_comments, tag(&b":"[..])).parse(input)?;
-            let (input, result) = preceded(ws_and_comments, with_span(qualified_name)).parse(input)?;
+            let (input, result) =
+                preceded(ws_and_comments, with_span(qualified_name)).parse(input)?;
             (input, Some(result))
         } else {
             (input, None)
@@ -403,18 +432,22 @@ fn part_usage_named<'a>(
     let (input, body) = part_usage_body(input)?;
     Ok((
         input,
-        node_from_to(start, input, PartUsage {
-            name: name_str,
-            type_name,
-            multiplicity: multiplicity_opt,
-            ordered: ordered.is_some(),
-            subsets,
-            redefines,
-            value,
-            body,
-            name_span: Some(name_span),
-            type_ref_span,
-        }),
+        node_from_to(
+            start,
+            input,
+            PartUsage {
+                name: name_str,
+                type_name,
+                multiplicity: multiplicity_opt,
+                ordered: ordered.is_some(),
+                subsets,
+                redefines,
+                value,
+                body,
+                name_span: Some(name_span),
+                type_ref_span,
+            },
+        ),
     ))
 }
 
@@ -654,7 +687,15 @@ fn allocate_(input: Input<'_>) -> IResult<Input<'_>, Node<Allocate>> {
     let (input, body) = connect_body(input)?;
     Ok((
         input,
-        node_from_to(start, input, Allocate { source, target, body }),
+        node_from_to(
+            start,
+            input,
+            Allocate {
+                source,
+                target,
+                body,
+            },
+        ),
     ))
 }
 
@@ -668,7 +709,9 @@ pub(crate) fn bind_(input: Input<'_>) -> IResult<Input<'_>, Node<Bind>> {
     let (input, _) = preceded(ws_and_comments, tag(&b"="[..])).parse(input)?;
     let (input, right) = preceded(ws_and_comments, path_expression).parse(input)?;
     let mut body_parser = alt((
-        map(preceded(ws_and_comments, tag(&b";"[..])), |_| Some(ConnectBody::Semicolon)),
+        map(preceded(ws_and_comments, tag(&b";"[..])), |_| {
+            Some(ConnectBody::Semicolon)
+        }),
         map(
             nom::sequence::delimited(
                 preceded(ws_and_comments, tag(&b"{"[..])),
@@ -679,7 +722,10 @@ pub(crate) fn bind_(input: Input<'_>) -> IResult<Input<'_>, Node<Bind>> {
         ),
     ));
     let (input, body) = body_parser.parse(input)?;
-    Ok((input, node_from_to(start, input, Bind { left, right, body })))
+    Ok((
+        input,
+        node_from_to(start, input, Bind { left, right, body }),
+    ))
 }
 
 /// Connect (part usage level): `connect` path `to` path body
@@ -694,16 +740,22 @@ fn connect_(input: Input<'_>) -> IResult<Input<'_>, Node<Connect>> {
     let (input, body) = connect_body(input)?;
     Ok((
         input,
-        node_from_to(start, input, Connect {
-            from: from_expr,
-            to: to_expr,
-            body,
-        }),
+        node_from_to(
+            start,
+            input,
+            Connect {
+                from: from_expr,
+                to: to_expr,
+                body,
+            },
+        ),
     ))
 }
 
 /// Interface usage body elements: `ref` `:>>` name `=` value body (RefRedef)
-fn interface_usage_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<InterfaceUsageBodyElement>> {
+fn interface_usage_body_element(
+    input: Input<'_>,
+) -> IResult<Input<'_>, Node<InterfaceUsageBodyElement>> {
     let start = input;
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = tag(&b"ref"[..]).parse(input)?;
@@ -714,11 +766,15 @@ fn interface_usage_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<Int
     let (input, body) = ref_body_parse(input)?;
     Ok((
         input,
-        node_from_to(start, input, InterfaceUsageBodyElement::RefRedef {
-            name: ref_name,
-            value,
-            body,
-        }),
+        node_from_to(
+            start,
+            input,
+            InterfaceUsageBodyElement::RefRedef {
+                name: ref_name,
+                value,
+                body,
+            },
+        ),
     ))
 }
 
@@ -739,7 +795,9 @@ fn ref_body_parse(input: Input<'_>) -> IResult<Input<'_>, RefBody> {
 }
 
 /// Connect body for interface usage (TypedConnect): `;` or `{` body_elements* `}`
-fn connect_body_with_elements(input: Input<'_>) -> IResult<Input<'_>, (ConnectBody, Vec<Node<InterfaceUsageBodyElement>>)> {
+fn connect_body_with_elements(
+    input: Input<'_>,
+) -> IResult<Input<'_>, (ConnectBody, Vec<Node<InterfaceUsageBodyElement>>)> {
     let (input, _) = ws_and_comments(input)?;
     if let Ok((input, _)) = tag::<_, _, nom::error::Error<Input>>(&b";"[..]).parse(input) {
         return Ok((input, (ConnectBody::Semicolon, vec![])));
@@ -770,11 +828,7 @@ fn connect_body_with_elements(input: Input<'_>) -> IResult<Input<'_>, (ConnectBo
 /// Accepts either `path` or `endName ::> path`; the end name is currently ignored.
 fn connector_end_expression(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
     let (input, _) = ws_and_comments(input)?;
-    let (input, _) = opt((
-        name,
-        preceded(ws_and_comments, tag(&b"::>"[..])),
-    ))
-    .parse(input)?;
+    let (input, _) = opt((name, preceded(ws_and_comments, tag(&b"::>"[..])))).parse(input)?;
     preceded(ws_and_comments, path_expression).parse(input)
 }
 
@@ -799,13 +853,17 @@ fn interface_usage(input: Input<'_>) -> IResult<Input<'_>, Node<InterfaceUsage>>
         let (input, (body, body_elements)) = connect_body_with_elements(input)?;
         Ok((
             input,
-            node_from_to(start, input, InterfaceUsage::TypedConnect {
-                interface_type,
-                from: from_expr,
-                to: to_expr,
-                body,
-                body_elements,
-            }),
+            node_from_to(
+                start,
+                input,
+                InterfaceUsage::TypedConnect {
+                    interface_type,
+                    from: from_expr,
+                    to: to_expr,
+                    body,
+                    body_elements,
+                },
+            ),
         ))
     } else {
         let (input, from_expr) = connector_end_expression(input)?;
@@ -814,11 +872,15 @@ fn interface_usage(input: Input<'_>) -> IResult<Input<'_>, Node<InterfaceUsage>>
         let (input, _) = opt(connect_body).parse(input)?;
         Ok((
             input,
-            node_from_to(start, input, InterfaceUsage::Connection {
-                from: from_expr,
-                to: to_expr,
-                body_elements: vec![],
-            }),
+            node_from_to(
+                start,
+                input,
+                InterfaceUsage::Connection {
+                    from: from_expr,
+                    to: to_expr,
+                    body_elements: vec![],
+                },
+            ),
         ))
     }
 }
@@ -880,12 +942,18 @@ fn part_usage_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PartUsag
     );
     let (input, elem) = alt((
         map(doc_comment, PartUsageBodyElement::Doc),
-        map(metadata_annotation, PartUsageBodyElement::MetadataAnnotation),
+        map(
+            metadata_annotation,
+            PartUsageBodyElement::MetadataAnnotation,
+        ),
         map(perform_action_decl, PartUsageBodyElement::Perform),
         map(perform_usage, PartUsageBodyElement::Perform),
         map(allocate_, PartUsageBodyElement::Allocate),
         map(attribute_usage, PartUsageBodyElement::AttributeUsage),
-        map(attribute_usage_shorthand, PartUsageBodyElement::AttributeUsage),
+        map(
+            attribute_usage_shorthand,
+            PartUsageBodyElement::AttributeUsage,
+        ),
         map(part_usage, |p| PartUsageBodyElement::PartUsage(Box::new(p))),
         map(port_usage, PartUsageBodyElement::PortUsage),
         map(part_ref_usage, PartUsageBodyElement::Ref),

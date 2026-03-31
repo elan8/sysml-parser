@@ -10,8 +10,8 @@ use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::combinator::{map, opt};
 use nom::sequence::preceded;
-use nom::Parser;
 use nom::IResult;
+use nom::Parser;
 
 fn definition_body(input: Input<'_>) -> IResult<Input<'_>, DefinitionBody> {
     let (input, _) = ws_and_comments(input)?;
@@ -41,7 +41,17 @@ pub(crate) fn flow_def(input: Input<'_>) -> IResult<Input<'_>, Node<FlowDef>> {
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = take_until_terminator(input, b";{")?;
     let (input, body) = definition_body(input)?;
-    Ok((input, node_from_to(start, input, FlowDef { identification, body })))
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            FlowDef {
+                identification,
+                body,
+            },
+        ),
+    ))
 }
 
 pub(crate) fn flow_usage(input: Input<'_>) -> IResult<Input<'_>, Node<FlowUsage>> {

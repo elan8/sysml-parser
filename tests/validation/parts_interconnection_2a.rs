@@ -3,9 +3,10 @@
 use sysml_parser::ast::{
     Bind, Connect, ConnectBody, ConnectStmt, EndDecl, Expression, Identification, Import,
     InterfaceDef, InterfaceDefBody, InterfaceDefBodyElement, InterfaceUsage,
-    InterfaceUsageBodyElement, Node, Package, PackageBody, PackageBodyElement, PartDef, PartDefBody,
-    PartDefBodyElement, PartUsage, PartUsageBody, PartUsageBodyElement, PortBody, PortDef,
-    PortDefBody, PortDefBodyElement, PortUsage, RefBody, RefDecl, RootElement, RootNamespace, Span, Visibility,
+    InterfaceUsageBodyElement, Node, Package, PackageBody, PackageBodyElement, PartDef,
+    PartDefBody, PartDefBodyElement, PartUsage, PartUsageBody, PartUsageBodyElement, PortBody,
+    PortDef, PortDefBody, PortDefBodyElement, PortUsage, RefBody, RefDecl, RootElement,
+    RootNamespace, Span, Visibility,
 };
 use sysml_parser::parse;
 
@@ -48,17 +49,17 @@ fn expected_ast() -> RootNamespace {
                     n(PackageBodyElement::Import(n(Import {
                         visibility: Some(Visibility::Public),
                         is_import_all: true,
-target: "Definitions::*".to_string(),
-                    is_recursive: false,
-                    filter_members: None,
-                }))),
-                n(PackageBodyElement::Import(n(Import {
-                    visibility: Some(Visibility::Public),
-                    is_import_all: true,
-                    target: "Usages::*".to_string(),
-                    is_recursive: false,
-                    filter_members: None,
-                }))),
+                        target: "Definitions::*".to_string(),
+                        is_recursive: false,
+                        filter_members: None,
+                    }))),
+                    n(PackageBodyElement::Import(n(Import {
+                        visibility: Some(Visibility::Public),
+                        is_import_all: true,
+                        target: "Usages::*".to_string(),
+                        is_recursive: false,
+                        filter_members: None,
+                    }))),
                     n(PackageBodyElement::Package(n(definitions_package()))),
                     n(PackageBodyElement::Package(n(usages_package()))),
                 ],
@@ -447,13 +448,15 @@ fn part_vehicle1_c1() -> PartUsage {
                     name_span: None,
                     type_ref_span: None,
                 })))),
-                n(PartUsageBodyElement::InterfaceUsage(n(InterfaceUsage::TypedConnect {
-                    interface_type: Some("EngineToTransmissionInterface".to_string()),
-                    from: expr_path("engine.drivePwrPort"),
-                    to: expr_path("transmission.clutchPort"),
-                    body: ConnectBody::Brace,
-                    body_elements: vec![],
-                }))),
+                n(PartUsageBodyElement::InterfaceUsage(n(
+                    InterfaceUsage::TypedConnect {
+                        interface_type: Some("EngineToTransmissionInterface".to_string()),
+                        from: expr_path("engine.drivePwrPort"),
+                        to: expr_path("transmission.clutchPort"),
+                        body: ConnectBody::Brace,
+                        body_elements: vec![],
+                    },
+                ))),
                 n(PartUsageBodyElement::PartUsage(Box::new(n(PartUsage {
                     name: "transmission".to_string(),
                     type_name: "Transmission".to_string(),
@@ -478,18 +481,22 @@ fn part_vehicle1_c1() -> PartUsage {
                     name_span: None,
                     type_ref_span: None,
                 })))),
-                n(PartUsageBodyElement::InterfaceUsage(n(InterfaceUsage::TypedConnect {
-                    interface_type: Some("DriveshaftInterface".to_string()),
-                    from: expr_path("transmission.shaftPort_a"),
-                    to: expr_path("rearAxleAssembly.shaftPort_d"),
-                    body: ConnectBody::Brace,
-                    body_elements: vec![n(InterfaceUsageBodyElement::RefRedef {
-                        name: "driveshaft".to_string(),
-                        value: expr_path("vehicle1_c1.driveshaft"),
-                        body: RefBody::Brace,
-                    })],
-                }))),
-                n(PartUsageBodyElement::PartUsage(Box::new(n(part_rear_axle_assembly())))),
+                n(PartUsageBodyElement::InterfaceUsage(n(
+                    InterfaceUsage::TypedConnect {
+                        interface_type: Some("DriveshaftInterface".to_string()),
+                        from: expr_path("transmission.shaftPort_a"),
+                        to: expr_path("rearAxleAssembly.shaftPort_d"),
+                        body: ConnectBody::Brace,
+                        body_elements: vec![n(InterfaceUsageBodyElement::RefRedef {
+                            name: "driveshaft".to_string(),
+                            value: expr_path("vehicle1_c1.driveshaft"),
+                            body: RefBody::Brace,
+                        })],
+                    },
+                ))),
+                n(PartUsageBodyElement::PartUsage(Box::new(n(
+                    part_rear_axle_assembly(),
+                )))),
                 n(PartUsageBodyElement::Bind(n(Bind {
                     left: expr_path("rearAxleAssembly.leftWheel.wheelToRoadPort"),
                     right: expr_path("vehicleToRoadPort.leftWheelToRoadPort"),
@@ -562,18 +569,26 @@ fn part_rear_axle_assembly() -> PartUsage {
                     right: expr_path("differential.shaftPort_d"),
                     body: Some(ConnectBody::Semicolon),
                 }))),
-                n(PartUsageBodyElement::PartUsage(Box::new(n(part_differential())))),
-                n(PartUsageBodyElement::InterfaceUsage(n(InterfaceUsage::Connection {
-                    from: expr_path("differential.leftDiffPort"),
-                    to: expr_path("rearAxle.leftHalfAxle.axleToDiffPort"),
-                    body_elements: vec![],
-                }))),
-                n(PartUsageBodyElement::InterfaceUsage(n(InterfaceUsage::Connection {
-                    from: expr_path("differential.rightDiffPort"),
-                    to: expr_path("rearAxle.rightHalfAxle.axleToDiffPort"),
-                    body_elements: vec![],
-                }))),
-                n(PartUsageBodyElement::PartUsage(Box::new(n(part_rear_axle())))),
+                n(PartUsageBodyElement::PartUsage(Box::new(n(
+                    part_differential(),
+                )))),
+                n(PartUsageBodyElement::InterfaceUsage(n(
+                    InterfaceUsage::Connection {
+                        from: expr_path("differential.leftDiffPort"),
+                        to: expr_path("rearAxle.leftHalfAxle.axleToDiffPort"),
+                        body_elements: vec![],
+                    },
+                ))),
+                n(PartUsageBodyElement::InterfaceUsage(n(
+                    InterfaceUsage::Connection {
+                        from: expr_path("differential.rightDiffPort"),
+                        to: expr_path("rearAxle.rightHalfAxle.axleToDiffPort"),
+                        body_elements: vec![],
+                    },
+                ))),
+                n(PartUsageBodyElement::PartUsage(Box::new(n(
+                    part_rear_axle(),
+                )))),
                 n(PartUsageBodyElement::Connect(n(Connect {
                     from: expr_path("rearAxle.leftHalfAxle.axleToWheelPort"),
                     to: expr_path("leftWheel.wheelToAxlePort"),
@@ -601,10 +616,7 @@ fn part_rear_axle_assembly() -> PartUsage {
                     type_name: "".to_string(),
                     multiplicity: None,
                     ordered: false,
-                    subsets: Some((
-                        "rearWheel".to_string(),
-                        Some(expr_index("rearWheel", 1)),
-                    )),
+                    subsets: Some(("rearWheel".to_string(), Some(expr_index("rearWheel", 1)))),
                     redefines: None,
                     value: None,
                     body: PartUsageBody::Brace {
@@ -639,10 +651,7 @@ fn part_rear_axle_assembly() -> PartUsage {
                     type_name: "".to_string(),
                     multiplicity: None,
                     ordered: false,
-                    subsets: Some((
-                        "rearWheel".to_string(),
-                        Some(expr_index("rearWheel", 2)),
-                    )),
+                    subsets: Some(("rearWheel".to_string(), Some(expr_index("rearWheel", 2)))),
                     redefines: None,
                     value: None,
                     body: PartUsageBody::Brace {
@@ -771,7 +780,9 @@ fn part_rear_axle() -> PartUsage {
 fn validation_fixture_path(relative: &str) -> std::path::PathBuf {
     let root = std::env::var_os("SYSML_V2_RELEASE_DIR")
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("sysml-v2-release"));
+        .unwrap_or_else(|| {
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("sysml-v2-release")
+        });
     root.join("sysml")
         .join("src")
         .join("validation")
@@ -782,7 +793,8 @@ fn validation_fixture_path(relative: &str) -> std::path::PathBuf {
 #[ignore = "requires SysML v2 release fixtures; run with: cargo test --test validation -- --include-ignored"]
 fn test_parse_2a_parts_interconnection() {
     super::init_log();
-    let path = validation_fixture_path("02-Parts Interconnection").join("2a-Parts Interconnection.sysml");
+    let path =
+        validation_fixture_path("02-Parts Interconnection").join("2a-Parts Interconnection.sysml");
     log::debug!("fixture path: {}", path.display());
     let input = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("read fixture {}: {}", path.display(), e));

@@ -1,16 +1,16 @@
 #![allow(dead_code, unused_imports)]
 
 use crate::ast::{
-    CommentAnnotation, ConcernUsage, DocComment, FrameMember, Node, RequireConstraint,
-    RequirementDef, RequirementDefBody, RequirementDefBodyElement, RequirementUsage,
-    ConstraintBody, SubjectDecl, Satisfy, TextualRepresentation,
+    CommentAnnotation, ConcernUsage, ConstraintBody, DocComment, FrameMember, Node,
+    RequireConstraint, RequirementDef, RequirementDefBody, RequirementDefBodyElement,
+    RequirementUsage, Satisfy, SubjectDecl, TextualRepresentation,
 };
+use crate::parser::build_recovery_error_node;
 use crate::parser::expr::expression;
 use crate::parser::import::import_;
-use crate::parser::build_recovery_error_node;
 use crate::parser::lex::{
-    identification, name, qualified_name, recover_body_element,
-    skip_until_brace_end, starts_with_any_keyword, take_until_terminator, ws, ws1, ws_and_comments,
+    identification, name, qualified_name, recover_body_element, skip_until_brace_end,
+    starts_with_any_keyword, take_until_terminator, ws, ws1, ws_and_comments,
     REQUIREMENT_BODY_STARTERS,
 };
 use crate::parser::node_from_to;
@@ -37,12 +37,24 @@ pub(crate) fn requirement_def(input: Input<'_>) -> IResult<Input<'_>, Node<Requi
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = take_until_terminator(input, b";{")?;
     let (input, body) = requirement_def_body(input)?;
-    Ok((input, node_from_to(start, input, RequirementDef { identification: ident, body })))
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            RequirementDef {
+                identification: ident,
+                body,
+            },
+        ),
+    ))
 }
 
 pub(crate) fn requirement_def_body(input: Input<'_>) -> IResult<Input<'_>, RequirementDefBody> {
     alt((
-        map(preceded(ws_and_comments, tag(&b";"[..])), |_| RequirementDefBody::Semicolon),
+        map(preceded(ws_and_comments, tag(&b";"[..])), |_| {
+            RequirementDefBody::Semicolon
+        }),
         requirement_def_body_brace,
     ))
     .parse(input)
@@ -108,12 +120,17 @@ fn requirement_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, Requiremen
     }
 }
 
-fn requirement_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<RequirementDefBodyElement>> {
+fn requirement_def_body_element(
+    input: Input<'_>,
+) -> IResult<Input<'_>, Node<RequirementDefBodyElement>> {
     let start = input;
     let (rest, elem) = alt((
         map(import_, RequirementDefBodyElement::Import),
         map(subject_decl, RequirementDefBodyElement::SubjectDecl),
-        map(require_constraint, RequirementDefBodyElement::RequireConstraint),
+        map(
+            require_constraint,
+            RequirementDefBodyElement::RequireConstraint,
+        ),
         map(frame_member, RequirementDefBodyElement::Frame),
         map(doc_comment, RequirementDefBodyElement::Doc),
     ))
@@ -127,7 +144,10 @@ fn frame_member(input: Input<'_>) -> IResult<Input<'_>, Node<FrameMember>> {
     let (input, _) = ws1(input)?;
     let (input, n) = name(input)?;
     let (input, body) = requirement_def_body(input)?;
-    Ok((input, node_from_to(start, input, FrameMember { name: n, body })))
+    Ok((
+        input,
+        node_from_to(start, input, FrameMember { name: n, body }),
+    ))
 }
 
 pub(crate) fn subject_decl(input: Input<'_>) -> IResult<Input<'_>, Node<SubjectDecl>> {
@@ -136,7 +156,7 @@ pub(crate) fn subject_decl(input: Input<'_>) -> IResult<Input<'_>, Node<SubjectD
     let (input, _) = ws1(input)?;
     let (input, n) = name(input)?;
     let (input, _) = preceded(ws_and_comments, tag(&b":"[..])).parse(input)?;
-    let (input, type_name) = preceded(ws_and_comments, qualified_name).parse(input)?;    
+    let (input, type_name) = preceded(ws_and_comments, qualified_name).parse(input)?;
     let (input, _) = alt((
         map(preceded(ws_and_comments, tag(&b";"[..])), |_| ()),
         map(
@@ -151,14 +171,7 @@ pub(crate) fn subject_decl(input: Input<'_>) -> IResult<Input<'_>, Node<SubjectD
     .parse(input)?;
     Ok((
         input,
-        node_from_to(
-            start,
-            input,
-            SubjectDecl {
-                name: n,
-                type_name,
-            },
-        ),
+        node_from_to(start, input, SubjectDecl { name: n, type_name }),
     ))
 }
 
@@ -172,12 +185,17 @@ pub(crate) fn require_constraint(input: Input<'_>) -> IResult<Input<'_>, Node<Re
     let (input, _) = ws1(input)?;
     let (input, _) = tag(&b"constraint"[..]).parse(input)?;
     let (input, body) = constraint_body(input)?;
-    Ok((input, node_from_to(start, input, RequireConstraint { body })))
+    Ok((
+        input,
+        node_from_to(start, input, RequireConstraint { body }),
+    ))
 }
 
 pub(crate) fn constraint_body(input: Input<'_>) -> IResult<Input<'_>, ConstraintBody> {
     alt((
-        map(preceded(ws_and_comments, tag(&b";"[..])), |_| ConstraintBody::Semicolon),
+        map(preceded(ws_and_comments, tag(&b";"[..])), |_| {
+            ConstraintBody::Semicolon
+        }),
         map(
             delimited(
                 preceded(ws_and_comments, tag(&b"{"[..])),
@@ -295,14 +313,13 @@ pub(crate) fn comment_annotation(input: Input<'_>) -> IResult<Input<'_>, Node<Co
 }
 
 /// KerML TextualRepresentation: ( 'rep' Identification )? 'language' STRING_VALUE body = REGULAR_COMMENT.
-pub(crate) fn textual_representation(input: Input<'_>) -> IResult<Input<'_>, Node<TextualRepresentation>> {
+pub(crate) fn textual_representation(
+    input: Input<'_>,
+) -> IResult<Input<'_>, Node<TextualRepresentation>> {
     let start = input;
     let (input, _) = ws_and_comments(input)?;
-    let (input, rep_identification) = opt(preceded(
-        preceded(tag(&b"rep"[..]), ws1),
-        identification,
-    ))
-    .parse(input)?;
+    let (input, rep_identification) =
+        opt(preceded(preceded(tag(&b"rep"[..]), ws1), identification)).parse(input)?;
     let (input, _) = preceded(ws_and_comments, tag(&b"language"[..])).parse(input)?;
     let (input, _) = ws1(input)?;
     let (input, language) = string_value(input)?;
@@ -341,7 +358,9 @@ pub(crate) fn satisfy(input: Input<'_>) -> IResult<Input<'_>, Node<Satisfy>> {
     let (input, _) = ws1(input)?;
     let (input, target) = expression(input)?;
     let (input, body) = alt((
-        map(preceded(ws_and_comments, tag(&b";"[..])), |_| crate::ast::ConnectBody::Semicolon),
+        map(preceded(ws_and_comments, tag(&b";"[..])), |_| {
+            crate::ast::ConnectBody::Semicolon
+        }),
         map(
             delimited(
                 preceded(ws_and_comments, tag(&b"{"[..])),
@@ -352,7 +371,18 @@ pub(crate) fn satisfy(input: Input<'_>) -> IResult<Input<'_>, Node<Satisfy>> {
         ),
     ))
     .parse(input)?;
-    Ok((input, node_from_to(start, input, Satisfy { source, target, body })))
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            Satisfy {
+                source,
+                target,
+                body,
+            },
+        ),
+    ))
 }
 
 pub(crate) fn concern_usage(input: Input<'_>) -> IResult<Input<'_>, Node<ConcernUsage>> {
@@ -371,7 +401,11 @@ pub(crate) fn concern_usage(input: Input<'_>) -> IResult<Input<'_>, Node<Concern
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = take_until_terminator(input, b";{")?;
     let (input, body) = requirement_def_body(input)?;
-    let val = ConcernUsage { name: ident, type_name, body };
+    let val = ConcernUsage {
+        name: ident,
+        type_name,
+        body,
+    };
     Ok((input, node_from_to(start, input, val)))
 }
 
@@ -390,6 +424,10 @@ pub(crate) fn requirement_usage(input: Input<'_>) -> IResult<Input<'_>, Node<Req
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = take_until_terminator(input, b";{")?;
     let (input, body) = requirement_def_body(input)?;
-    let val = RequirementUsage { name: ident, type_name, body };
+    let val = RequirementUsage {
+        name: ident,
+        type_name,
+        body,
+    };
     Ok((input, node_from_to(start, input, val)))
 }

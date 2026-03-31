@@ -1,17 +1,16 @@
 #![allow(dead_code, unused_imports)]
 
 use crate::ast::{
-    Node, ActorDecl, ActorUsage, Objective, UseCaseDef, UseCaseDefBody,
-    UseCaseDefBodyElement, UseCaseUsage,
+    ActorDecl, ActorUsage, Node, Objective, UseCaseDef, UseCaseDefBody, UseCaseDefBodyElement,
+    UseCaseUsage,
 };
 use crate::parser::build_recovery_error_node;
 use crate::parser::lex::{
-    identification, name, qualified_name, recover_body_element,
-    starts_with_any_keyword,
-    skip_until_brace_end, take_until_terminator, ws1, ws_and_comments, USE_CASE_BODY_STARTERS,
+    identification, name, qualified_name, recover_body_element, skip_until_brace_end,
+    starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments, USE_CASE_BODY_STARTERS,
 };
-use crate::parser::requirement::{doc_comment, subject_decl};
 use crate::parser::node_from_to;
+use crate::parser::requirement::{doc_comment, subject_decl};
 use crate::parser::Input;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
@@ -25,7 +24,16 @@ pub(crate) fn actor_decl(input: Input<'_>) -> IResult<Input<'_>, Node<ActorDecl>
     let (input, _) = ws1(input)?;
     let (input, ident) = identification(input)?;
     let (input, _) = preceded(ws_and_comments, tag(&b";"[..])).parse(input)?;
-    Ok((input, node_from_to(start, input, ActorDecl { identification: ident })))
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            ActorDecl {
+                identification: ident,
+            },
+        ),
+    ))
 }
 
 fn keyword_use_case_def(input: Input<'_>) -> IResult<Input<'_>, ()> {
@@ -64,11 +72,15 @@ pub(crate) fn use_case_usage(input: Input<'_>) -> IResult<Input<'_>, Node<UseCas
     let (input, body) = use_case_def_body(input)?;
     Ok((
         input,
-        node_from_to(start, input, UseCaseUsage {
-            name: ident,
-            type_name,
-            body,
-        }),
+        node_from_to(
+            start,
+            input,
+            UseCaseUsage {
+                name: ident,
+                type_name,
+                body,
+            },
+        ),
     ))
 }
 
@@ -79,12 +91,24 @@ pub(crate) fn use_case_def(input: Input<'_>) -> IResult<Input<'_>, Node<UseCaseD
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = take_until_terminator(input, b";{")?;
     let (input, body) = use_case_def_body(input)?;
-    Ok((input, node_from_to(start, input, UseCaseDef { identification: ident, body })))
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            UseCaseDef {
+                identification: ident,
+                body,
+            },
+        ),
+    ))
 }
 
 pub(crate) fn use_case_def_body(input: Input<'_>) -> IResult<Input<'_>, UseCaseDefBody> {
     alt((
-        map(preceded(ws_and_comments, tag(&b";"[..])), |_| UseCaseDefBody::Semicolon),
+        map(preceded(ws_and_comments, tag(&b";"[..])), |_| {
+            UseCaseDefBody::Semicolon
+        }),
         use_case_def_body_brace,
     ))
     .parse(input)
@@ -149,7 +173,9 @@ fn use_case_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, UseCaseDefBod
     }
 }
 
-pub(crate) fn use_case_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<UseCaseDefBodyElement>> {
+pub(crate) fn use_case_def_body_element(
+    input: Input<'_>,
+) -> IResult<Input<'_>, Node<UseCaseDefBodyElement>> {
     let (input, _) = ws_and_comments(input)?;
     let start = input;
     let (input, elem) = alt((
@@ -170,7 +196,10 @@ pub(crate) fn actor_usage(input: Input<'_>) -> IResult<Input<'_>, Node<ActorUsag
     let (input, _) = preceded(ws_and_comments, tag(&b":"[..])).parse(input)?;
     let (input, type_name) = preceded(ws_and_comments, qualified_name).parse(input)?;
     let (input, _) = preceded(ws_and_comments, tag(&b";"[..])).parse(input)?;
-    Ok((input, node_from_to(start, input, ActorUsage { name: n, type_name })))
+    Ok((
+        input,
+        node_from_to(start, input, ActorUsage { name: n, type_name }),
+    ))
 }
 
 pub(crate) fn objective(input: Input<'_>) -> IResult<Input<'_>, Node<Objective>> {

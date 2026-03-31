@@ -56,14 +56,23 @@ fn test_parse_package_with_doc_and_line_comment() {
         PackageBody::Brace { elements } => elements,
         _ => panic!("expected brace body"),
     };
-    assert!(!body.is_empty(), "expected at least one body element (doc + attribute def Real)");
+    assert!(
+        !body.is_empty(),
+        "expected at least one body element (doc + attribute def Real)"
+    );
     // First element is doc comment, second is attribute def Real
     match &body[0].value {
         PackageBodyElement::Doc(_) => {}
         other => panic!("expected first element Doc, got {:?}", other),
     }
-    let attr = body.iter().find(|e| matches!(&e.value, PackageBodyElement::AttributeDef(a) if a.name == "Real"));
-    assert!(attr.is_some(), "expected AttributeDef(Real) in body, got {:?}", body);
+    let attr = body
+        .iter()
+        .find(|e| matches!(&e.value, PackageBodyElement::AttributeDef(a) if a.name == "Real"));
+    assert!(
+        attr.is_some(),
+        "expected AttributeDef(Real) in body, got {:?}",
+        body
+    );
 }
 
 /// Uses the exact start of SurveillanceDrone.sysml (leading block comment + package + doc + first attribute).
@@ -76,9 +85,7 @@ fn test_parse_fixture_exact_start() {
         .join("fixtures")
         .join("SurveillanceDrone.sysml");
     let full = std::fs::read_to_string(&path).unwrap();
-    let input: String = full
-        .replace("\r\n", "\n")
-        .replace('\r', "\n");
+    let input: String = full.replace("\r\n", "\n").replace('\r', "\n");
     let result = parse(&input);
     let root = match &result {
         Ok(ast) => ast,
@@ -95,8 +102,14 @@ fn test_parse_fixture_exact_start() {
     };
     assert!(!body.is_empty(), "expected at least one body element");
     // First element is doc comment, then attribute def Real
-    let attr = body.iter().find(|e| matches!(&e.value, PackageBodyElement::AttributeDef(a) if a.name == "Real"));
-    assert!(attr.is_some(), "expected AttributeDef(Real) in body, got {:?}", body);
+    let attr = body
+        .iter()
+        .find(|e| matches!(&e.value, PackageBodyElement::AttributeDef(a) if a.name == "Real"));
+    assert!(
+        attr.is_some(),
+        "expected AttributeDef(Real) in body, got {:?}",
+        body
+    );
 }
 
 /// Doc comments inside perform bodies must be parsed as Doc elements, not skipped.
@@ -127,7 +140,10 @@ fn test_perform_body_doc_comment_parsed_as_element() {
     };
     let part_usage = pkg_body
         .iter()
-        .find_map(|e| match &e.value { PackageBodyElement::PartUsage(p) => Some(&p.value), _ => None })
+        .find_map(|e| match &e.value {
+            PackageBodyElement::PartUsage(p) => Some(&p.value),
+            _ => None,
+        })
         .expect("expected part usage p");
     let part_body = match &part_usage.body {
         sysml_parser::ast::PartUsageBody::Brace { elements } => elements,
@@ -135,13 +151,20 @@ fn test_perform_body_doc_comment_parsed_as_element() {
     };
     let perform = part_body
         .iter()
-        .find_map(|e| match &e.value { sysml_parser::ast::PartUsageBodyElement::Perform(p) => Some(&p.value), _ => None })
+        .find_map(|e| match &e.value {
+            sysml_parser::ast::PartUsageBodyElement::Perform(p) => Some(&p.value),
+            _ => None,
+        })
         .expect("expected perform");
     let perform_body = match &perform.body {
         sysml_parser::ast::PerformBody::Brace { elements } => elements,
         _ => panic!("expected perform brace body"),
     };
-    assert_eq!(perform_body.len(), 2, "perform body must have Doc then InOut (doc comments are not skipped)");
+    assert_eq!(
+        perform_body.len(),
+        2,
+        "perform body must have Doc then InOut (doc comments are not skipped)"
+    );
     match &perform_body[0].value {
         sysml_parser::ast::PerformBodyElement::Doc(d) => assert!(
             d.value.text.contains("allocation comment"),

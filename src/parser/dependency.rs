@@ -9,8 +9,8 @@ use nom::bytes::complete::tag;
 use nom::combinator::map;
 use nom::multi::separated_list1;
 use nom::sequence::preceded;
-use nom::Parser;
 use nom::IResult;
+use nom::Parser;
 
 /// dependency DependencyDeclaration RelationshipBody
 /// DependencyDeclaration = (Identification 'from')? client(s) 'to' supplier(s)

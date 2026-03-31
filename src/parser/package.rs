@@ -2,36 +2,37 @@
 
 use crate::ast::{
     ExtendedLibraryDecl, FilterMember, KermlFeatureDecl, KermlSemanticDecl, LibraryPackage,
-    NamespaceDecl, Node, Package, PackageBody, PackageBodyElement, RootElement,
-    RootNamespace, Visibility,
+    NamespaceDecl, Node, Package, PackageBody, PackageBodyElement, RootElement, RootNamespace,
+    Visibility,
 };
 use crate::parser::action::{action_def, action_usage};
-use crate::parser::allocation::{allocate_usage, allocation_def, allocation_usage};
 use crate::parser::alias::alias_def;
+use crate::parser::allocation::{allocate_usage, allocation_def, allocation_usage};
 use crate::parser::attribute::attribute_def;
+use crate::parser::build_recovery_error_node;
 use crate::parser::case::{
     analysis_case_def, analysis_case_usage, case_def, case_usage, verification_case_def,
     verification_case_usage,
 };
 use crate::parser::connection::connection_def;
-use crate::parser::dependency::dependency;
 use crate::parser::constraint::{calc_def, constraint_def};
+use crate::parser::dependency::dependency;
 use crate::parser::enumeration::enum_def;
-use crate::parser::individual::individual_def;
-use crate::parser::item::item_def;
-use crate::parser::metadata::metadata_def;
-use crate::parser::occurrence::{
-    individual_usage, occurrence_def, occurrence_usage, snapshot_usage, timeslice_usage,
-};
-use crate::parser::flow::{flow_def, flow_usage};
 use crate::parser::expr::expression;
+use crate::parser::flow::{flow_def, flow_usage};
 use crate::parser::import::import_;
+use crate::parser::individual::individual_def;
 use crate::parser::interface::interface_def;
+use crate::parser::item::item_def;
 use crate::parser::lex::{
     identification, recover_body_element, skip_statement_or_block, starts_with_any_keyword,
     starts_with_keyword, ws1, ws_and_comments, PACKAGE_BODY_STARTERS,
 };
+use crate::parser::metadata::metadata_def;
 use crate::parser::node_from_to;
+use crate::parser::occurrence::{
+    individual_usage, occurrence_def, occurrence_usage, snapshot_usage, timeslice_usage,
+};
 use crate::parser::part::{part_def_or_usage, PartDefOrUsage};
 use crate::parser::port::port_def;
 use crate::parser::requirement::{
@@ -44,15 +45,14 @@ use crate::parser::usecase::{actor_decl, use_case_def, use_case_usage};
 use crate::parser::view::{
     rendering_def, rendering_usage, view_def, view_usage, viewpoint_def, viewpoint_usage,
 };
-use crate::parser::build_recovery_error_node;
 use crate::parser::Input;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::combinator::{map, opt};
 use nom::multi::many0;
 use nom::sequence::preceded;
-use nom::Parser;
 use nom::IResult;
+use nom::Parser;
 
 /// Keyword "package" with following whitespace.
 fn keyword_package(input: Input<'_>) -> IResult<Input<'_>, ()> {
@@ -106,10 +106,14 @@ fn package_(input: Input<'_>) -> IResult<Input<'_>, Node<Package>> {
     let (input, body) = package_body(input)?;
     Ok((
         input,
-        node_from_to(start, input, Package {
-            identification,
-            body,
-        }),
+        node_from_to(
+            start,
+            input,
+            Package {
+                identification,
+                body,
+            },
+        ),
     ))
 }
 
@@ -122,10 +126,14 @@ fn namespace_decl(input: Input<'_>) -> IResult<Input<'_>, Node<NamespaceDecl>> {
     let (input, body) = package_body(input)?;
     Ok((
         input,
-        node_from_to(start, input, NamespaceDecl {
-            identification,
-            body,
-        }),
+        node_from_to(
+            start,
+            input,
+            NamespaceDecl {
+                identification,
+                body,
+            },
+        ),
     ))
 }
 
@@ -148,7 +156,9 @@ pub(crate) fn root_element(input: Input<'_>) -> IResult<Input<'_>, Node<RootElem
 pub(crate) fn package_body(input: Input<'_>) -> IResult<Input<'_>, PackageBody> {
     alt((
         package_body_brace,
-        map(preceded(ws_and_comments, tag(&b";"[..])), |_| PackageBody::Semicolon),
+        map(preceded(ws_and_comments, tag(&b";"[..])), |_| {
+            PackageBody::Semicolon
+        }),
     ))
     .parse(input)
 }
@@ -177,14 +187,20 @@ fn package_body_element_fallback(input: Input<'_>) -> IResult<Input<'_>, Node<Pa
 }
 
 fn modeled_decl_text(start: Input<'_>, end: Input<'_>) -> String {
-    let delta = end.location_offset().saturating_sub(start.location_offset());
+    let delta = end
+        .location_offset()
+        .saturating_sub(start.location_offset());
     let bytes = start.fragment();
     let take = delta.min(bytes.len());
     String::from_utf8_lossy(&bytes[..take]).trim().to_string()
 }
 
 fn starts_with_visibility_prefix(fragment: &[u8]) -> Option<usize> {
-    for prefix in [b"public".as_slice(), b"private".as_slice(), b"protected".as_slice()] {
+    for prefix in [
+        b"public".as_slice(),
+        b"private".as_slice(),
+        b"protected".as_slice(),
+    ] {
         if starts_with_keyword(fragment, prefix) {
             return Some(prefix.len());
         }
@@ -203,7 +219,11 @@ fn strip_common_decl_prefixes(fragment: &[u8]) -> &[u8] {
         frag = &frag[i..];
     }
     if starts_with_keyword(frag, b"abstract") || starts_with_keyword(frag, b"variation") {
-        let cut = if starts_with_keyword(frag, b"abstract") { 8 } else { 9 };
+        let cut = if starts_with_keyword(frag, b"abstract") {
+            8
+        } else {
+            9
+        };
         frag = &frag[cut..];
         let mut i = 0usize;
         while i < frag.len() && frag[i].is_ascii_whitespace() {
@@ -425,7 +445,9 @@ pub(crate) fn filter_member(input: Input<'_>) -> IResult<Input<'_>, Node<FilterM
     let (input, visibility) = opt(alt((
         map(preceded(tag(&b"public"[..]), ws1), |_| Visibility::Public),
         map(preceded(tag(&b"private"[..]), ws1), |_| Visibility::Private),
-        map(preceded(tag(&b"protected"[..]), ws1), |_| Visibility::Protected),
+        map(preceded(tag(&b"protected"[..]), ws1), |_| {
+            Visibility::Protected
+        }),
     )))
     .parse(input)?;
     let (input, _) = tag(&b"filter"[..]).parse(input)?;
@@ -446,7 +468,9 @@ pub(crate) fn filter_member(input: Input<'_>) -> IResult<Input<'_>, Node<FilterM
 }
 
 /// PackageBodyElement: Package | Import | PartDef | PartUsage | PortDef | InterfaceDef | AliasDef | ActionDef | ActionUsage
-pub(crate) fn package_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PackageBodyElement>> {
+pub(crate) fn package_body_element(
+    input: Input<'_>,
+) -> IResult<Input<'_>, Node<PackageBodyElement>> {
     let (input, _) = ws_and_comments(input)?;
     let start = input;
     if let Ok((input, elem)) = map(doc_comment, PackageBodyElement::Doc).parse(input) {
@@ -455,7 +479,9 @@ pub(crate) fn package_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<
     if let Ok((input, elem)) = map(comment_annotation, PackageBodyElement::Comment).parse(input) {
         return Ok((input, node_from_to(start, input, elem)));
     }
-    if let Ok((input, elem)) = map(textual_representation, PackageBodyElement::TextualRep).parse(input) {
+    if let Ok((input, elem)) =
+        map(textual_representation, PackageBodyElement::TextualRep).parse(input)
+    {
         return Ok((input, node_from_to(start, input, elem)));
     }
     if let Ok((input, elem)) = map(filter_member, PackageBodyElement::Filter).parse(input) {
@@ -464,7 +490,9 @@ pub(crate) fn package_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<
     if let Ok((input, elem)) = map(attribute_def, PackageBodyElement::AttributeDef).parse(input) {
         return Ok((input, node_from_to(start, input, elem)));
     }
-    if let Ok((input, elem)) = map(library_package_, PackageBodyElement::LibraryPackage).parse(input) {
+    if let Ok((input, elem)) =
+        map(library_package_, PackageBodyElement::LibraryPackage).parse(input)
+    {
         return Ok((input, node_from_to(start, input, elem)));
     }
     if let Ok((input, elem)) = map(package_, PackageBodyElement::Package).parse(input) {
@@ -502,25 +530,35 @@ pub(crate) fn package_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<
     if let Ok((input, elem)) = map(occurrence_def, PackageBodyElement::OccurrenceDef).parse(input) {
         return Ok((input, node_from_to(start, input, elem)));
     }
-    if let Ok((input, elem)) = map(occurrence_usage, PackageBodyElement::OccurrenceUsage).parse(input) {
+    if let Ok((input, elem)) =
+        map(occurrence_usage, PackageBodyElement::OccurrenceUsage).parse(input)
+    {
         return Ok((input, node_from_to(start, input, elem)));
     }
-    if let Ok((input, elem)) = map(individual_usage, PackageBodyElement::OccurrenceUsage).parse(input) {
+    if let Ok((input, elem)) =
+        map(individual_usage, PackageBodyElement::OccurrenceUsage).parse(input)
+    {
         return Ok((input, node_from_to(start, input, elem)));
     }
-    if let Ok((input, elem)) = map(snapshot_usage, PackageBodyElement::OccurrenceUsage).parse(input) {
+    if let Ok((input, elem)) = map(snapshot_usage, PackageBodyElement::OccurrenceUsage).parse(input)
+    {
         return Ok((input, node_from_to(start, input, elem)));
     }
-    if let Ok((input, elem)) = map(timeslice_usage, PackageBodyElement::OccurrenceUsage).parse(input) {
+    if let Ok((input, elem)) =
+        map(timeslice_usage, PackageBodyElement::OccurrenceUsage).parse(input)
+    {
         return Ok((input, node_from_to(start, input, elem)));
     }
     if let Ok((input, elem)) = map(allocation_def, PackageBodyElement::AllocationDef).parse(input) {
         return Ok((input, node_from_to(start, input, elem)));
     }
-    if let Ok((input, elem)) = map(allocation_usage, PackageBodyElement::AllocationUsage).parse(input) {
+    if let Ok((input, elem)) =
+        map(allocation_usage, PackageBodyElement::AllocationUsage).parse(input)
+    {
         return Ok((input, node_from_to(start, input, elem)));
     }
-    if let Ok((input, elem)) = map(allocate_usage, PackageBodyElement::AllocationUsage).parse(input) {
+    if let Ok((input, elem)) = map(allocate_usage, PackageBodyElement::AllocationUsage).parse(input)
+    {
         return Ok((input, node_from_to(start, input, elem)));
     }
     if let Ok((input, elem)) = map(flow_def, PackageBodyElement::FlowDef).parse(input) {
@@ -538,10 +576,13 @@ pub(crate) fn package_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<
     if let Ok((input, elem)) = map(action_usage, PackageBodyElement::ActionUsage).parse(input) {
         return Ok((input, node_from_to(start, input, elem)));
     }
-    if let Ok((input, elem)) = map(requirement_def, PackageBodyElement::RequirementDef).parse(input) {
+    if let Ok((input, elem)) = map(requirement_def, PackageBodyElement::RequirementDef).parse(input)
+    {
         return Ok((input, node_from_to(start, input, elem)));
     }
-    if let Ok((input, elem)) = map(requirement_usage, PackageBodyElement::RequirementUsage).parse(input) {
+    if let Ok((input, elem)) =
+        map(requirement_usage, PackageBodyElement::RequirementUsage).parse(input)
+    {
         return Ok((input, node_from_to(start, input, elem)));
     }
     if let Ok((input, elem)) = map(satisfy, PackageBodyElement::Satisfy).parse(input) {
@@ -559,16 +600,30 @@ pub(crate) fn package_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<
     if let Ok((input, elem)) = map(case_usage, PackageBodyElement::CaseUsage).parse(input) {
         return Ok((input, node_from_to(start, input, elem)));
     }
-    if let Ok((input, elem)) = map(analysis_case_def, PackageBodyElement::AnalysisCaseDef).parse(input) {
+    if let Ok((input, elem)) =
+        map(analysis_case_def, PackageBodyElement::AnalysisCaseDef).parse(input)
+    {
         return Ok((input, node_from_to(start, input, elem)));
     }
-    if let Ok((input, elem)) = map(analysis_case_usage, PackageBodyElement::AnalysisCaseUsage).parse(input) {
+    if let Ok((input, elem)) =
+        map(analysis_case_usage, PackageBodyElement::AnalysisCaseUsage).parse(input)
+    {
         return Ok((input, node_from_to(start, input, elem)));
     }
-    if let Ok((input, elem)) = map(verification_case_def, PackageBodyElement::VerificationCaseDef).parse(input) {
+    if let Ok((input, elem)) = map(
+        verification_case_def,
+        PackageBodyElement::VerificationCaseDef,
+    )
+    .parse(input)
+    {
         return Ok((input, node_from_to(start, input, elem)));
     }
-    if let Ok((input, elem)) = map(verification_case_usage, PackageBodyElement::VerificationCaseUsage).parse(input) {
+    if let Ok((input, elem)) = map(
+        verification_case_usage,
+        PackageBodyElement::VerificationCaseUsage,
+    )
+    .parse(input)
+    {
         return Ok((input, node_from_to(start, input, elem)));
     }
     if let Ok((input, elem)) = map(concern_usage, PackageBodyElement::ConcernUsage).parse(input) {
@@ -607,19 +662,29 @@ pub(crate) fn package_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<
     if let Ok((input, elem)) = map(view_usage, PackageBodyElement::ViewUsage).parse(input) {
         return Ok((input, node_from_to(start, input, elem)));
     }
-    if let Ok((input, elem)) = map(viewpoint_usage, PackageBodyElement::ViewpointUsage).parse(input) {
+    if let Ok((input, elem)) = map(viewpoint_usage, PackageBodyElement::ViewpointUsage).parse(input)
+    {
         return Ok((input, node_from_to(start, input, elem)));
     }
-    if let Ok((input, elem)) = map(rendering_usage, PackageBodyElement::RenderingUsage).parse(input) {
+    if let Ok((input, elem)) = map(rendering_usage, PackageBodyElement::RenderingUsage).parse(input)
+    {
         return Ok((input, node_from_to(start, input, elem)));
     }
-    if let Ok((input, elem)) = map(kerml_semantic_decl, PackageBodyElement::KermlSemanticDecl).parse(input) {
+    if let Ok((input, elem)) =
+        map(kerml_semantic_decl, PackageBodyElement::KermlSemanticDecl).parse(input)
+    {
         return Ok((input, node_from_to(start, input, elem)));
     }
-    if let Ok((input, elem)) = map(kerml_feature_decl, PackageBodyElement::KermlFeatureDecl).parse(input) {
+    if let Ok((input, elem)) =
+        map(kerml_feature_decl, PackageBodyElement::KermlFeatureDecl).parse(input)
+    {
         return Ok((input, node_from_to(start, input, elem)));
     }
-    let (input, elem) = map(extended_library_decl, PackageBodyElement::ExtendedLibraryDecl).parse(input)?;
+    let (input, elem) = map(
+        extended_library_decl,
+        PackageBodyElement::ExtendedLibraryDecl,
+    )
+    .parse(input)?;
     Ok((input, node_from_to(start, input, elem)))
 }
 
