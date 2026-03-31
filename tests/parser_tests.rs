@@ -1144,6 +1144,26 @@ action def ExecutePatrol {
 }
 
 #[test]
+fn test_action_usage_body_allows_untyped_out_pin_decl() {
+    // Common SysML v2 shorthand in action usage bodies: `out foo;` (no `: Type`)
+    // to reference the corresponding typed parameter on the referenced action definition.
+    let input = r#"package P {
+action def CaptureVideo { out videoStream : String; }
+action def ExecutePatrol {
+  action capture : CaptureVideo { out videoStream; };
+  first capture then capture;
+}
+}"#;
+
+    let result = parse_with_diagnostics(input);
+    assert!(
+        result.is_ok(),
+        "untyped out pin decl in action usage body should not trigger recovery diagnostics: {:?}",
+        result.errors
+    );
+}
+
+#[test]
 fn test_parse_with_diagnostics_reports_illegal_top_level_part_definition() {
     let input = "part def TopLevel;";
     let result = parse_with_diagnostics(input);

@@ -51,8 +51,19 @@ pub(crate) fn in_out_decl(input: Input<'_>) -> IResult<Input<'_>, Node<InOutDecl
     let (input, _) = nom::combinator::opt(preceded(tag(&b"attribute"[..]), ws1)).parse(input)?;
     let parsed = (|| {
         let (input, param_name) = name(input)?;
-        let (input, _) = preceded(ws_and_comments, tag(&b":"[..])).parse(input)?;
-        let (input, type_name) = preceded(ws_and_comments, qualified_name).parse(input)?;
+        // In action usages, pin declarations may omit the type (e.g. `out videoStream;`)
+        // to reference the corresponding typed parameter on the referenced action definition.
+        // Action definitions generally include the type (e.g. `out videoStream : String;`),
+        // but accepting the shorthand here prevents recovery errors in common models.
+        let (input, type_name) = nom::combinator::opt(map(
+            (
+                preceded(ws_and_comments, tag(&b":"[..])),
+                preceded(ws_and_comments, qualified_name),
+            ),
+            |(_, tn)| tn,
+        ))
+        .parse(input)?;
+        let type_name = type_name.unwrap_or_default();
         let (input, _) = preceded(ws_and_comments, tag(&b";"[..])).parse(input)?;
         Ok::<_, nom::Err<nom::error::Error<Input<'_>>>>((input, (param_name, type_name)))
     })();
@@ -67,6 +78,8 @@ pub(crate) fn in_out_decl(input: Input<'_>) -> IResult<Input<'_>, Node<InOutDecl
                 .unwrap_or("param")
                 .to_string();
             let (input, _) = preceded(ws_and_comments, tag(&b";"[..])).parse(input)?;
+            // If we can't parse a structured `: Type`, keep the raw text as a best-effort
+            // stand-in so downstream tools still have something to display.
             (input, (name_guess, raw_text))
         }
     };
