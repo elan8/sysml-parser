@@ -233,6 +233,67 @@ fn test_parse_error_display_includes_found_and_location() {
     );
 }
 
+#[test]
+fn test_library_abstract_action_feature_decl_parses_without_diagnostics() {
+    // Representative Systems Library syntax (Actions.sysml): abstract action feature with typing,
+    // multiplicity, modifier, and specialization, with a doc-only body.
+    let input = r#"package P {
+abstract action sendActions: SendAction[0..*] nonunique :> actions, sendPerformances {
+  doc /* sendActions is the base feature for SendActionUsages. */
+}
+}"#;
+    let result = parse_with_diagnostics(input);
+    assert!(
+        result.errors.is_empty(),
+        "expected no diagnostics; got: {:?}",
+        result.errors
+    );
+}
+
+#[test]
+fn test_library_multiplicity_decl_parses_without_diagnostics() {
+    // Representative Kernel library syntax (Base.kerml): multiplicity decl with range and body.
+    let input = r#"package P {
+multiplicity exactlyOne [1..1] { doc /* ... */ }
+}"#;
+    let result = parse_with_diagnostics(input);
+    assert!(
+        result.errors.is_empty(),
+        "expected no diagnostics; got: {:?}",
+        result.errors
+    );
+}
+
+#[test]
+fn test_library_interaction_decl_parses_without_diagnostics() {
+    // Representative Kernel library syntax (Transfers.kerml): interaction specializes ...
+    let input = r#"package P {
+interaction Transfer specializes Performance { doc /* ... */ }
+}"#;
+    let result = parse_with_diagnostics(input);
+    assert!(
+        result.errors.is_empty(),
+        "expected no diagnostics; got: {:?}",
+        result.errors
+    );
+}
+
+#[test]
+fn test_library_return_assignment_form_parses_without_diagnostics() {
+    // Representative Domain library syntax: `return name = expr;`
+    let input = r#"package P {
+calc def C {
+  return result = integrate.result;
+}
+}"#;
+    let result = parse_with_diagnostics(input);
+    assert!(
+        result.errors.is_empty(),
+        "expected no diagnostics; got: {:?}",
+        result.errors
+    );
+}
+
 // --- Top-level import (Phase 0: BNF RootNamespace = PackageBodyElement*) ---
 
 #[test]

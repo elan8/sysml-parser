@@ -818,13 +818,18 @@ pub enum ActionDefBody {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ActionDefBodyElement {
     Error(Node<ParseErrorNode>),
+    /// Unmodeled action-body element captured as raw text (used to keep parsing the standard library
+    /// without emitting recovery diagnostics for every unsupported behavioral statement).
+    Other(String),
     InOutDecl(Node<InOutDecl>),
     Doc(Node<DocComment>),
+    RefDecl(Node<RefDecl>),
     Perform(Node<Perform>),
     Bind(Node<Bind>),
     Flow(Node<Flow>),
     FirstStmt(Node<FirstStmt>),
     MergeStmt(Node<MergeStmt>),
+    StateUsage(Node<StateUsage>),
     ActionUsage(Box<Node<ActionUsage>>),
 }
 
@@ -869,11 +874,15 @@ pub enum ActionUsageBody {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ActionUsageBodyElement {
     Error(Node<ParseErrorNode>),
+    /// Unmodeled action-usage-body element captured as raw text.
+    Other(String),
     InOutDecl(Node<InOutDecl>),
+    RefDecl(Node<RefDecl>),
     Bind(Node<Bind>),
     Flow(Node<Flow>),
     FirstStmt(Node<FirstStmt>),
     MergeStmt(Node<MergeStmt>),
+    StateUsage(Node<StateUsage>),
     ActionUsage(Box<Node<ActionUsage>>),
 }
 
@@ -976,6 +985,8 @@ pub enum RequirementDefBody {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RequirementDefBodyElement {
     Error(Node<ParseErrorNode>),
+    /// Unmodeled requirement-body element captured as raw text (used for library parsing).
+    Other(String),
     Import(Node<Import>),
     SubjectDecl(Node<SubjectDecl>),
     RequireConstraint(Node<RequireConstraint>),
@@ -1117,6 +1128,8 @@ pub enum UseCaseDefBody {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UseCaseDefBodyElement {
     Error(Node<ParseErrorNode>),
+    /// Unmodeled use-case / analysis-case body element captured as raw text (used for library parsing).
+    Other(String),
     Doc(Node<DocComment>),
     SubjectDecl(Node<SubjectDecl>),
     ActorUsage(Node<ActorUsage>),
@@ -1284,6 +1297,8 @@ pub enum CalcDefBodyElement {
     InOutDecl(Node<InOutDecl>),
     ReturnDecl(Node<ReturnDecl>),
     Expression(Node<Expression>), // formula
+    /// Unmodeled calc-body element captured as raw text (used for library parsing).
+    Other(String),
 }
 
 /// Return declaration: `return` name `:` type `;`.
@@ -2061,10 +2076,14 @@ fn normalize_action_def_body_element_node(
         ActionDefBodyElement::Error(n) => {
             ActionDefBodyElement::Error(dummy_node(n, n.value.clone()))
         }
+        ActionDefBodyElement::Other(s) => ActionDefBodyElement::Other(s.clone()),
         ActionDefBodyElement::InOutDecl(n) => {
             ActionDefBodyElement::InOutDecl(dummy_node(n, n.value.clone()))
         }
         ActionDefBodyElement::Doc(n) => ActionDefBodyElement::Doc(dummy_node(n, n.value.clone())),
+        ActionDefBodyElement::RefDecl(n) => {
+            ActionDefBodyElement::RefDecl(dummy_node(n, normalize_ref_decl(&n.value)))
+        }
         ActionDefBodyElement::Perform(n) => {
             ActionDefBodyElement::Perform(dummy_node(n, normalize_perform(&n.value)))
         }
@@ -2075,6 +2094,9 @@ fn normalize_action_def_body_element_node(
         }
         ActionDefBodyElement::MergeStmt(n) => {
             ActionDefBodyElement::MergeStmt(dummy_node(n, n.value.clone()))
+        }
+        ActionDefBodyElement::StateUsage(n) => {
+            ActionDefBodyElement::StateUsage(dummy_node(n, n.value.clone()))
         }
         ActionDefBodyElement::ActionUsage(n) => ActionDefBodyElement::ActionUsage(Box::new(
             dummy_node(n, normalize_action_usage(&n.value)),
@@ -2113,8 +2135,12 @@ fn normalize_action_usage_body_element_node(
         ActionUsageBodyElement::Error(n) => {
             ActionUsageBodyElement::Error(dummy_node(n, n.value.clone()))
         }
+        ActionUsageBodyElement::Other(s) => ActionUsageBodyElement::Other(s.clone()),
         ActionUsageBodyElement::InOutDecl(n) => {
             ActionUsageBodyElement::InOutDecl(dummy_node(n, n.value.clone()))
+        }
+        ActionUsageBodyElement::RefDecl(n) => {
+            ActionUsageBodyElement::RefDecl(dummy_node(n, normalize_ref_decl(&n.value)))
         }
         ActionUsageBodyElement::Bind(n) => {
             ActionUsageBodyElement::Bind(dummy_node(n, n.value.clone()))
@@ -2127,6 +2153,9 @@ fn normalize_action_usage_body_element_node(
         }
         ActionUsageBodyElement::MergeStmt(n) => {
             ActionUsageBodyElement::MergeStmt(dummy_node(n, n.value.clone()))
+        }
+        ActionUsageBodyElement::StateUsage(n) => {
+            ActionUsageBodyElement::StateUsage(dummy_node(n, n.value.clone()))
         }
         ActionUsageBodyElement::ActionUsage(n) => ActionUsageBodyElement::ActionUsage(Box::new(
             dummy_node(n, normalize_action_usage(&n.value)),

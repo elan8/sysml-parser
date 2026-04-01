@@ -8,8 +8,8 @@ use crate::parser::action::in_out_decl;
 use crate::parser::expr::expression;
 use crate::parser::lex::{
     identification, name, qualified_name, recover_body_element, skip_until_brace_end,
-    starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments, CALC_DEF_BODY_STARTERS,
-    CONSTRAINT_DEF_BODY_STARTERS,
+    skip_statement_or_block, starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments,
+    CALC_DEF_BODY_STARTERS, CONSTRAINT_DEF_BODY_STARTERS,
 };
 use crate::parser::node_from_to;
 use crate::parser::Input;
@@ -186,9 +186,25 @@ fn calc_def_body(input: Input<'_>) -> IResult<Input<'_>, CalcDefBody> {
                 input = next;
             }
             Err(_) => {
-                let (input, _) = skip_until_brace_end(input)?;
-                let (input, _) = preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?;
-                return Ok((input, CalcDefBody::Brace { elements }));
+                // Calc bodies in the standard library can contain additional constructs (e.g. `objective ... { ... }`)
+                // that we don't model yet. Skip one statement/block and keep parsing later siblings.
+                let start_unknown = input;
+                let (next, _) = skip_statement_or_block(input)?;
+                if next.location_offset() == start_unknown.location_offset() {
+                    // Fallback: avoid infinite loop by bailing out to end of calc body.
+                    let (input, _) = skip_until_brace_end(input)?;
+                    let (input, _) = preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?;
+                    return Ok((input, CalcDefBody::Brace { elements }));
+                }
+                let frag = start_unknown.fragment();
+                let take = frag.len().min(60);
+                let preview = String::from_utf8_lossy(&frag[..take]).trim().to_string();
+                elements.push(node_from_to(
+                    start_unknown,
+                    next,
+                    CalcDefBodyElement::Other(preview),
+                ));
+                input = next;
             }
         }
     }

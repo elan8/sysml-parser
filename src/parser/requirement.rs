@@ -10,7 +10,7 @@ use crate::parser::expr::expression;
 use crate::parser::import::import_;
 use crate::parser::lex::{
     identification, name, qualified_name, recover_body_element, skip_until_brace_end,
-    starts_with_any_keyword, take_until_terminator, ws, ws1, ws_and_comments,
+    skip_statement_or_block, starts_with_any_keyword, take_until_terminator, ws, ws1, ws_and_comments,
     REQUIREMENT_BODY_STARTERS,
 };
 use crate::parser::node_from_to;
@@ -87,34 +87,26 @@ fn requirement_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, Requiremen
                 elements.push(element);
                 input = next;
             }
-            Err(_) if starts_with_any_keyword(input.fragment(), REQUIREMENT_BODY_STARTERS) => {
-                let (next, _) = recover_body_element(input, REQUIREMENT_BODY_STARTERS)?;
-                if next.location_offset() == input.location_offset() {
-                    return Err(nom::Err::Error(nom::error::Error::new(
-                        input,
-                        nom::error::ErrorKind::Many0,
-                    )));
+            Err(_) => {
+                // Library requirement bodies contain constructs we don't model yet (e.g. `attribute :>> ...`).
+                // Skip one statement/block to keep parsing stable without emitting a diagnostic per line.
+                let start_unknown = input;
+                let (next, _) = skip_statement_or_block(input)?;
+                if next.location_offset() == start_unknown.location_offset() {
+                    // Fallback: abort this body to avoid infinite loops.
+                    let (input, _) = skip_until_brace_end(input)?;
+                    let (input, _) = preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?;
+                    return Ok((input, RequirementDefBody::Brace { elements }));
                 }
+                let frag = start_unknown.fragment();
+                let take = frag.len().min(60);
+                let preview = String::from_utf8_lossy(&frag[..take]).trim().to_string();
                 elements.push(node_from_to(
-                    input,
+                    start_unknown,
                     next,
-                    RequirementDefBodyElement::Error(Node::new(
-                        crate::ast::Span::dummy(),
-                        build_recovery_error_node(
-                            input,
-                            REQUIREMENT_BODY_STARTERS,
-                            "requirement body",
-                            "recovered_requirement_body_element",
-                        ),
-                    )),
+                    RequirementDefBodyElement::Other(preview),
                 ));
                 input = next;
-            }
-            Err(_) => {
-                // Keep RequirementDef mapping stable for unmodeled body content.
-                let (input, _) = skip_until_brace_end(input)?;
-                let (input, _) = preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?;
-                return Ok((input, RequirementDefBody::Brace { elements }));
             }
         }
     }

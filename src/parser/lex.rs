@@ -85,10 +85,6 @@ pub(crate) const PART_BODY_STARTERS: &[&[u8]] = &[
     b"satisfy",
 ];
 
-pub(crate) const ACTION_BODY_STARTERS: &[&[u8]] = &[
-    b"action", b"bind", b"doc", b"first", b"flow", b"in", b"merge", b"out", b"perform",
-];
-
 pub(crate) const REQUIREMENT_BODY_STARTERS: &[&[u8]] = &[
     b"attribute",
     b"doc",
@@ -108,7 +104,7 @@ pub(crate) const USE_CASE_BODY_STARTERS: &[&[u8]] = &[b"actor", b"doc", b"object
 
 pub(crate) const CONSTRAINT_DEF_BODY_STARTERS: &[&[u8]] = &[b"doc", b"in", b"out"];
 
-pub(crate) const CALC_DEF_BODY_STARTERS: &[&[u8]] = &[b"doc", b"in", b"out", b"return"];
+pub(crate) const CALC_DEF_BODY_STARTERS: &[&[u8]] = &[b"doc", b"in", b"objective", b"out", b"return"];
 
 pub(crate) const VIEW_DEF_BODY_STARTERS: &[&[u8]] = &[b"doc", b"filter", b"render"];
 

@@ -4,10 +4,10 @@ use crate::ast::{
     ActorDecl, ActorUsage, Node, Objective, UseCaseDef, UseCaseDefBody, UseCaseDefBodyElement,
     UseCaseUsage,
 };
-use crate::parser::build_recovery_error_node;
 use crate::parser::lex::{
     identification, name, qualified_name, recover_body_element, skip_until_brace_end,
-    starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments, USE_CASE_BODY_STARTERS,
+    skip_statement_or_block, starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments,
+    USE_CASE_BODY_STARTERS,
 };
 use crate::parser::node_from_to;
 use crate::parser::requirement::{doc_comment, subject_decl};
@@ -141,33 +141,27 @@ fn use_case_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, UseCaseDefBod
                 elements.push(element);
                 input = next;
             }
-            Err(_) if starts_with_any_keyword(input.fragment(), USE_CASE_BODY_STARTERS) => {
-                let (next, _) = recover_body_element(input, USE_CASE_BODY_STARTERS)?;
-                if next.location_offset() == input.location_offset() {
-                    return Err(nom::Err::Error(nom::error::Error::new(
-                        input,
-                        nom::error::ErrorKind::Many0,
-                    )));
+            Err(_) => {
+                // Library analysis-case bodies contain many constructs we don't model yet (e.g. `objective name : Type { ... }`,
+                // feature redefinitions with `:>>`, nested calcs/returns). Skip one statement/block to keep parsing stable
+                // without emitting a diagnostic for every unsupported line.
+                let start_unknown = input;
+                let (next, _) = skip_statement_or_block(input)?;
+                if next.location_offset() == start_unknown.location_offset() {
+                    // Fall back to aborting this body to avoid infinite loops.
+                    let (input, _) = skip_until_brace_end(input)?;
+                    let (input, _) = preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?;
+                    return Ok((input, UseCaseDefBody::Brace { elements }));
                 }
+                let frag = start_unknown.fragment();
+                let take = frag.len().min(60);
+                let preview = String::from_utf8_lossy(&frag[..take]).trim().to_string();
                 elements.push(node_from_to(
-                    input,
+                    start_unknown,
                     next,
-                    UseCaseDefBodyElement::Error(Node::new(
-                        crate::ast::Span::dummy(),
-                        build_recovery_error_node(
-                            input,
-                            USE_CASE_BODY_STARTERS,
-                            "use case body",
-                            "recovered_use_case_body_element",
-                        ),
-                    )),
+                    UseCaseDefBodyElement::Other(preview),
                 ));
                 input = next;
-            }
-            Err(_) => {
-                let (input, _) = skip_until_brace_end(input)?;
-                let (input, _) = preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?;
-                return Ok((input, UseCaseDefBody::Brace { elements }));
             }
         }
     }
@@ -205,6 +199,9 @@ pub(crate) fn actor_usage(input: Input<'_>) -> IResult<Input<'_>, Node<ActorUsag
 pub(crate) fn objective(input: Input<'_>) -> IResult<Input<'_>, Node<Objective>> {
     let start = input;
     let (input, _) = preceded(ws_and_comments, tag(&b"objective"[..])).parse(input)?;
+    // Standard library uses `objective <name> : <Type> { ... }`. We currently only model the body,
+    // so we skip any header tokens up to the body start.
+    let (input, _) = take_until_terminator(input, b";{")?;
     let (input, body) = crate::parser::requirement::constraint_body(input)?;
     Ok((input, node_from_to(start, input, Objective { body })))
 }

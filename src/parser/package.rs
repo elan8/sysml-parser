@@ -296,9 +296,14 @@ fn kerml_semantic_decl(input: Input<'_>) -> IResult<Input<'_>, Node<KermlSemanti
     let start = input;
     let starters: &[&[u8]] = &[
         b"behavior",
+        b"bool",
         b"function",
+        b"interaction",
         b"datatype",
+        b"inv",
+        b"multiplicity",
         b"assoc",
+        b"subclassifier",
         b"struct",
         b"metaclass",
         b"class",
@@ -406,7 +411,13 @@ fn package_body_brace(input: Input<'_>) -> IResult<Input<'_>, PackageBody> {
                 elements.push(element);
                 input = next;
             }
-            Err(_) if starts_with_any_keyword(input.fragment(), PACKAGE_BODY_STARTERS) => {
+            Err(_)
+                if starts_with_any_keyword(input.fragment(), PACKAGE_BODY_STARTERS)
+                    || starts_with_any_keyword(
+                        strip_common_decl_prefixes(input.fragment()),
+                        PACKAGE_BODY_STARTERS,
+                    ) =>
+            {
                 if let Ok((next, element)) = package_body_element_fallback(input) {
                     if next.location_offset() == input.location_offset() {
                         return Err(nom::Err::Failure(nom::error::Error::new(
@@ -415,6 +426,25 @@ fn package_body_brace(input: Input<'_>) -> IResult<Input<'_>, PackageBody> {
                         )));
                     }
                     elements.push(element);
+                    input = next;
+                    continue;
+                }
+                // If we couldn't parse a dedicated node but the line still looks like a modeled
+                // library declaration (including `abstract`/visibility prefixes), preserve it as
+                // an `ExtendedLibraryDecl` instead of aborting the entire package.
+                if let Ok((next, ext)) = map(
+                    extended_library_decl,
+                    PackageBodyElement::ExtendedLibraryDecl,
+                )
+                .parse(input)
+                {
+                    if next.location_offset() == input.location_offset() {
+                        return Err(nom::Err::Failure(nom::error::Error::new(
+                            input,
+                            nom::error::ErrorKind::Many0,
+                        )));
+                    }
+                    elements.push(node_from_to(input, next, ext));
                     input = next;
                     continue;
                 }
