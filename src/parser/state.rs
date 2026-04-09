@@ -12,6 +12,7 @@ use crate::parser::lex::{
     STATE_BODY_STARTERS,
 };
 use crate::parser::node_from_to;
+use crate::parser::metadata_annotation::annotation;
 use crate::parser::requirement::doc_comment;
 use crate::parser::Input;
 use nom::branch::alt;
@@ -49,7 +50,7 @@ pub(crate) fn state_def(input: Input<'_>) -> IResult<Input<'_>, Node<StateDef>> 
     ))
 }
 
-fn state_def_body(input: Input<'_>) -> IResult<Input<'_>, StateDefBody> {
+pub(crate) fn state_def_body(input: Input<'_>) -> IResult<Input<'_>, StateDefBody> {
     alt((
         map(preceded(ws_and_comments, tag(&b";"[..])), |_| {
             StateDefBody::Semicolon
@@ -240,6 +241,9 @@ fn state_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<StateDefB
         map(doc_comment, |n| {
             node_from_to(start, input, StateDefBodyElement::Doc(n))
         }),
+        map(annotation, |n| {
+            node_from_to(start, input, StateDefBodyElement::Annotation(n))
+        }),
         map(entry_action, |n| {
             node_from_to(start, input, StateDefBodyElement::Entry(n))
         }),
@@ -303,7 +307,19 @@ pub(crate) fn transition(input: Input<'_>) -> IResult<Input<'_>, Node<Transition
     let start = input;
     let (input, _) = tag(&b"transition"[..]).parse(input)?;
     let (input, _) = ws1(input)?;
-    let (input, n) = name(input)?;
+    let (input, n) = {
+        let (peek, _) = ws_and_comments(input)?;
+        if peek.fragment().starts_with(b"first")
+            || peek.fragment().starts_with(b"if")
+            || peek.fragment().starts_with(b"do")
+            || peek.fragment().starts_with(b"then")
+        {
+            (input, None)
+        } else {
+            let (input, n) = name(input)?;
+            (input, Some(n))
+        }
+    };
     // Optional: `first` source (simplified form is `transition name then target;`)
     let (input, source) = opt((
         preceded(ws_and_comments, tag(&b"first"[..])),

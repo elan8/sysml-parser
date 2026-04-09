@@ -66,6 +66,7 @@ fn expected_ast() -> RootNamespace {
 
 fn vehicle1_c1_functional_allocation() -> PartUsage {
     PartUsage {
+        is_individual: false,
         name: "vehicle1_c1_functional_allocation".to_string(),
         type_name: String::new(),
         multiplicity: None,
@@ -120,6 +121,7 @@ fn port_fuel_cmd_port() -> PortUsage {
 
 fn part_engine() -> PartUsage {
     PartUsage {
+        is_individual: false,
         name: String::new(),
         type_name: String::new(),
         multiplicity: None,
@@ -176,6 +178,7 @@ fn part_engine() -> PartUsage {
 
 fn part_transmission() -> PartUsage {
     PartUsage {
+        is_individual: false,
         name: String::new(),
         type_name: String::new(),
         multiplicity: None,
@@ -232,6 +235,7 @@ fn part_transmission() -> PartUsage {
 
 fn part_driveshaft() -> PartUsage {
     PartUsage {
+        is_individual: false,
         name: String::new(),
         type_name: String::new(),
         multiplicity: None,
@@ -288,6 +292,7 @@ fn part_driveshaft() -> PartUsage {
 
 fn part_rear_axle_assembly() -> PartUsage {
     PartUsage {
+        is_individual: false,
         name: String::new(),
         type_name: String::new(),
         multiplicity: None,
@@ -346,6 +351,7 @@ fn part_rear_axle_assembly() -> PartUsage {
 
 fn part_rear_axle() -> PartUsage {
     PartUsage {
+        is_individual: false,
         name: String::new(),
         type_name: String::new(),
         multiplicity: None,
@@ -370,6 +376,7 @@ fn part_rear_axle() -> PartUsage {
 
 fn part_left_half_axle() -> PartUsage {
     PartUsage {
+        is_individual: false,
         name: String::new(),
         type_name: String::new(),
         multiplicity: None,
@@ -396,6 +403,7 @@ fn part_left_half_axle() -> PartUsage {
 
 fn part_right_half_axle() -> PartUsage {
     PartUsage {
+        is_individual: false,
         name: String::new(),
         type_name: String::new(),
         multiplicity: None,

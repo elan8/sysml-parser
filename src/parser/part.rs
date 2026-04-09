@@ -16,9 +16,10 @@ use crate::parser::lex::{
     identification, name, qualified_name, recover_body_element, skip_until_brace_end,
     starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments, PART_BODY_STARTERS,
 };
-use crate::parser::metadata_annotation::metadata_annotation;
+use crate::parser::metadata_annotation::{annotation, metadata_annotation};
+use crate::parser::occurrence::{individual_usage, occurrence_usage, snapshot_usage, timeslice_usage};
 use crate::parser::port::port_usage;
-use crate::parser::requirement::doc_comment;
+use crate::parser::requirement::{doc_comment, requirement_usage};
 use crate::parser::with_span;
 use crate::parser::Input;
 use crate::parser::{node_from_to, span_from_to};
@@ -138,7 +139,7 @@ fn part_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, PartDefBody> {
     }
 }
 
-/// Exhibit state usage: `exhibit state` name `:` type `;`
+/// Exhibit state usage: `exhibit state` name (`:` type)? (`;` or body)
 fn exhibit_state(input: Input<'_>) -> IResult<Input<'_>, Node<ExhibitState>> {
     let start = input;
     let (input, _) = ws_and_comments(input)?;
@@ -147,9 +148,12 @@ fn exhibit_state(input: Input<'_>) -> IResult<Input<'_>, Node<ExhibitState>> {
     let (input, _) = tag(&b"state"[..]).parse(input)?;
     let (input, _) = ws1(input)?;
     let (input, name_str) = name(input)?;
-    let (input, _) = preceded(ws_and_comments, tag(&b":"[..])).parse(input)?;
-    let (input, type_name) = preceded(ws_and_comments, qualified_name).parse(input)?;
-    let (input, _) = preceded(ws_and_comments, tag(&b";"[..])).parse(input)?;
+    let (input, type_name) = opt(preceded(
+        preceded(ws_and_comments, tag(&b":"[..])),
+        preceded(ws_and_comments, qualified_name),
+    ))
+    .parse(input)?;
+    let (input, body) = crate::parser::state::state_def_body(input)?;
     Ok((
         input,
         node_from_to(
@@ -158,6 +162,7 @@ fn exhibit_state(input: Input<'_>) -> IResult<Input<'_>, Node<ExhibitState>> {
             ExhibitState {
                 name: name_str,
                 type_name,
+                body,
             },
         ),
     ))
@@ -168,12 +173,17 @@ fn part_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PartDefBod
     let start = input;
     let (input, elem) = alt((
         map(doc_comment, PartDefBodyElement::Doc),
+        map(annotation, PartDefBodyElement::Annotation),
         map(exhibit_state, PartDefBodyElement::ExhibitState),
         map(perform_action_decl, PartDefBodyElement::Perform),
         map(perform_usage, PartDefBodyElement::Perform),
         map(allocate_, PartDefBodyElement::Allocate),
         map(connect_, PartDefBodyElement::Connect),
         map(part_usage, |p| PartDefBodyElement::PartUsage(Box::new(p))),
+        map(individual_usage, |n| PartDefBodyElement::OccurrenceUsage(Box::new(n))),
+        map(snapshot_usage, |n| PartDefBodyElement::OccurrenceUsage(Box::new(n))),
+        map(timeslice_usage, |n| PartDefBodyElement::OccurrenceUsage(Box::new(n))),
+        map(occurrence_usage, |n| PartDefBodyElement::OccurrenceUsage(Box::new(n))),
         map(interface_usage, PartDefBodyElement::InterfaceUsage),
         map(port_usage, PartDefBodyElement::PortUsage),
         map(part_ref_usage, PartDefBodyElement::Ref),
@@ -182,6 +192,7 @@ fn part_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PartDefBod
             attribute_usage_shorthand,
             PartDefBodyElement::AttributeUsage,
         ),
+        map(requirement_usage, PartDefBodyElement::RequirementUsage),
         map(attribute_def, PartDefBodyElement::AttributeDef),
         map(opaque_part_member_decl, PartDefBodyElement::OpaqueMember),
     ))
@@ -266,6 +277,9 @@ pub(crate) fn part_def(input: Input<'_>) -> IResult<Input<'_>, Node<PartDef>> {
         }),
     )))
     .parse(input)?;
+    let (input, is_individual) = opt(preceded(tag(&b"individual"[..]), ws1))
+        .parse(input)
+        .map(|(i, o)| (i, o.is_some()))?;
     let (input, _) = tag(&b"part"[..]).parse(input)?;
     let (input, _) = ws1(input)?;
     let (input, _) = tag(&b"def"[..]).parse(input)?;
@@ -292,6 +306,7 @@ pub(crate) fn part_def(input: Input<'_>) -> IResult<Input<'_>, Node<PartDef>> {
             input,
             PartDef {
                 definition_prefix,
+                is_individual,
                 identification,
                 specializes,
                 specializes_span,
@@ -314,6 +329,9 @@ pub(crate) fn part_def_or_usage(input: Input<'_>) -> IResult<Input<'_>, PartDefO
         }),
     )))
     .parse(input)?;
+    let (input, is_individual) = opt(preceded(tag(&b"individual"[..]), ws1))
+        .parse(input)
+        .map(|(i, o)| (i, o.is_some()))?;
     let (input, _) = tag(&b"part"[..]).parse(input)?;
     let (input, _) = ws1(input)?;
     if let Ok((input, _)) = tag::<_, _, nom::error::Error<Input>>(&b"def"[..]).parse(input) {
@@ -340,6 +358,7 @@ pub(crate) fn part_def_or_usage(input: Input<'_>) -> IResult<Input<'_>, PartDefO
                 input,
                 PartDef {
                     definition_prefix,
+                    is_individual,
                     identification,
                     specializes,
                     specializes_span,
@@ -349,9 +368,12 @@ pub(crate) fn part_def_or_usage(input: Input<'_>) -> IResult<Input<'_>, PartDefO
         ));
     }
     if let Ok((input, usage)) = part_usage_redefines_only(start, input) {
+        let mut usage = usage;
+        usage.value.is_individual = is_individual;
         return Ok((input, PartDefOrUsage::Usage(usage)));
     }
-    let (input, usage) = part_usage_named(start, input)?;
+    let (input, mut usage) = part_usage_named(start, input)?;
+    usage.value.is_individual = is_individual;
     Ok((input, PartDefOrUsage::Usage(usage)))
 }
 
@@ -400,6 +422,7 @@ fn part_usage_redefines_only<'a>(
             start,
             input,
             PartUsage {
+                is_individual: false,
                 name: String::new(),
                 type_name: String::new(),
                 multiplicity: multiplicity_opt,
@@ -474,6 +497,7 @@ fn part_usage_named<'a>(start: Input<'a>, input: Input<'a>) -> IResult<Input<'a>
             start,
             input,
             PartUsage {
+                is_individual: false,
                 name: name_str,
                 type_name,
                 multiplicity: multiplicity_opt,
@@ -493,12 +517,18 @@ fn part_usage_named<'a>(start: Input<'a>, input: Input<'a>) -> IResult<Input<'a>
 pub(crate) fn part_usage(input: Input<'_>) -> IResult<Input<'_>, Node<PartUsage>> {
     let start = input;
     let (input, _) = ws_and_comments(input)?;
+    let (input, is_individual) = opt(preceded(tag(&b"individual"[..]), ws1))
+        .parse(input)
+        .map(|(i, o)| (i, o.is_some()))?;
     let (input, _) = tag(&b"part"[..]).parse(input)?;
     let (input, _) = ws1(input)?;
     if let Ok((input, usage)) = part_usage_redefines_only(start, input) {
+        let mut usage = usage;
+        usage.value.is_individual = is_individual;
         return Ok((input, usage));
     }
-    let (input, usage) = part_usage_named(start, input)?;
+    let (input, mut usage) = part_usage_named(start, input)?;
+    usage.value.is_individual = is_individual;
     Ok((input, usage))
 }
 
@@ -980,6 +1010,7 @@ fn part_usage_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PartUsag
     );
     let (input, elem) = alt((
         map(doc_comment, PartUsageBodyElement::Doc),
+        map(annotation, PartUsageBodyElement::Annotation),
         map(
             metadata_annotation,
             PartUsageBodyElement::MetadataAnnotation,
@@ -993,6 +1024,10 @@ fn part_usage_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PartUsag
             PartUsageBodyElement::AttributeUsage,
         ),
         map(part_usage, |p| PartUsageBodyElement::PartUsage(Box::new(p))),
+        map(individual_usage, |n| PartUsageBodyElement::OccurrenceUsage(Box::new(n))),
+        map(snapshot_usage, |n| PartUsageBodyElement::OccurrenceUsage(Box::new(n))),
+        map(timeslice_usage, |n| PartUsageBodyElement::OccurrenceUsage(Box::new(n))),
+        map(occurrence_usage, |n| PartUsageBodyElement::OccurrenceUsage(Box::new(n))),
         map(port_usage, PartUsageBodyElement::PortUsage),
         map(part_ref_usage, PartUsageBodyElement::Ref),
         map(bind_, PartUsageBodyElement::Bind),

@@ -317,6 +317,8 @@ pub struct Import {
 pub struct PartDef {
     /// Optional `abstract` or `variation` prefix (BNF BasicDefinitionPrefix).
     pub definition_prefix: Option<DefinitionPrefix>,
+    /// Whether this is an `individual part def`.
+    pub is_individual: bool,
     pub identification: Identification,
     /// Supertype after `:>`, e.g. Some("Axle") for `part def FrontAxle :> Axle`.
     pub specializes: Option<String>,
@@ -346,12 +348,15 @@ pub enum PartDefBody {
 pub enum PartDefBodyElement {
     Error(Node<ParseErrorNode>),
     Doc(Node<DocComment>),
+    Annotation(Node<Annotation>),
     Other(String),
     AttributeDef(Node<AttributeDef>),
     AttributeUsage(Node<AttributeUsage>),
+    RequirementUsage(Node<RequirementUsage>),
     Ref(Node<RefDecl>),
     PortUsage(Node<PortUsage>),
     PartUsage(Box<Node<PartUsage>>),
+    OccurrenceUsage(Box<Node<OccurrenceUsage>>),
     InterfaceUsage(Node<InterfaceUsage>),
     Connect(Node<Connect>),
     Perform(Node<Perform>),
@@ -374,7 +379,8 @@ pub struct OpaqueMemberDecl {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExhibitState {
     pub name: String,
-    pub type_name: String,
+    pub type_name: Option<String>,
+    pub body: StateDefBody,
 }
 
 /// Attribute definition: `attribute` name (`:>` type)? body.
@@ -415,6 +421,7 @@ pub struct IndividualDef {
 /// Part usage: `part` name `:` type multiplicity? `ordered`? (`redefines`|`:>>`)? value? body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartUsage {
+    pub is_individual: bool,
     pub name: String,
     /// Type after `:`, e.g. "Vehicle", "AxleAssembly".
     pub type_name: String,
@@ -451,13 +458,24 @@ pub struct MetadataAnnotation {
     pub body: ConnectBody,
 }
 
+/// Generic annotation or metadata usage captured in body scopes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Annotation {
+    pub sigil: String,
+    pub head: String,
+    pub type_name: Option<String>,
+    pub body: ConnectBody,
+}
+
 /// Element inside a part usage body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PartUsageBodyElement {
     Error(Node<ParseErrorNode>),
     Doc(Node<DocComment>),
+    Annotation(Node<Annotation>),
     AttributeUsage(Node<AttributeUsage>),
     PartUsage(Box<Node<PartUsage>>),
+    OccurrenceUsage(Box<Node<OccurrenceUsage>>),
     PortUsage(Node<PortUsage>),
     Bind(Node<Bind>),
     /// `ref` name `:` type body (reference binding in part usage).
@@ -715,7 +733,25 @@ pub struct OccurrenceUsage {
     pub portion_kind: Option<String>,
     pub name: String,
     pub type_name: Option<String>,
-    pub body: DefinitionBody,
+    pub body: OccurrenceUsageBody,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OccurrenceUsageBody {
+    Semicolon,
+    Brace {
+        elements: Vec<Node<OccurrenceBodyElement>>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OccurrenceBodyElement {
+    Error(Node<ParseErrorNode>),
+    Doc(Node<DocComment>),
+    Annotation(Node<Annotation>),
+    AttributeUsage(Node<AttributeUsage>),
+    PartUsage(Box<Node<PartUsage>>),
+    OccurrenceUsage(Box<Node<OccurrenceUsage>>),
 }
 
 // ---------------------------------------------------------------------------
@@ -848,6 +884,7 @@ pub enum ActionDefBodyElement {
     Error(Node<ParseErrorNode>),
     InOutDecl(Node<InOutDecl>),
     Doc(Node<DocComment>),
+    Annotation(Node<Annotation>),
     RefDecl(Node<RefDecl>),
     Perform(Node<Perform>),
     Bind(Node<Bind>),
@@ -931,6 +968,7 @@ pub enum ActionUsageBody {
 pub enum ActionUsageBodyElement {
     Error(Node<ParseErrorNode>),
     Doc(Node<DocComment>),
+    Annotation(Node<Annotation>),
     InOutDecl(Node<InOutDecl>),
     RefDecl(Node<RefDecl>),
     Bind(Node<Bind>),
@@ -1053,6 +1091,7 @@ pub enum RequirementDefBodyElement {
     Error(Node<ParseErrorNode>),
     /// Unmodeled requirement-body element captured as raw text (used for library parsing).
     Other(String),
+    Annotation(Node<Annotation>),
     Import(Node<Import>),
     SubjectDecl(Node<SubjectDecl>),
     AttributeDef(Node<AttributeDef>),
@@ -1097,6 +1136,7 @@ pub struct Satisfy {
 pub struct RequirementUsage {
     pub name: String,
     pub type_name: Option<String>,
+    pub subsets: Option<String>,
     pub body: RequirementDefBody,
 }
 
@@ -1322,6 +1362,7 @@ pub enum StateDefBody {
 pub enum StateDefBodyElement {
     Error(Node<ParseErrorNode>),
     Doc(Node<DocComment>),
+    Annotation(Node<Annotation>),
     Other(String),
     /// `entry` (`;` or body) - entry action.
     Entry(Node<EntryAction>),
@@ -1358,7 +1399,7 @@ pub struct StateUsage {
 /// Transition: `transition` name [`first` source] [`if` guard] [`do` effect] `then` target body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Transition {
-    pub name: String,
+    pub name: Option<String>,
     /// If omitted, form is `transition name then target;`.
     pub source: Option<Node<Expression>>,
     pub guard: Option<Node<Expression>>,
@@ -1826,6 +1867,7 @@ fn normalize_attribute_def(a: &AttributeDef) -> AttributeDef {
 fn normalize_part_def(p: &PartDef) -> PartDef {
     PartDef {
         definition_prefix: p.definition_prefix.clone(),
+        is_individual: p.is_individual,
         identification: p.identification.clone(),
         specializes: p.specializes.clone(),
         specializes_span: None,
@@ -1849,12 +1891,18 @@ fn normalize_part_def_body_element_node(el: &Node<PartDefBodyElement>) -> Node<P
     let value = match &el.value {
         PartDefBodyElement::Error(n) => PartDefBodyElement::Error(dummy_node(n, n.value.clone())),
         PartDefBodyElement::Doc(n) => PartDefBodyElement::Doc(dummy_node(n, n.value.clone())),
+        PartDefBodyElement::Annotation(n) => {
+            PartDefBodyElement::Annotation(dummy_node(n, n.value.clone()))
+        }
         PartDefBodyElement::Other(text) => PartDefBodyElement::Other(text.clone()),
         PartDefBodyElement::AttributeDef(n) => {
             PartDefBodyElement::AttributeDef(dummy_node(n, normalize_attribute_def(&n.value)))
         }
         PartDefBodyElement::AttributeUsage(n) => {
             PartDefBodyElement::AttributeUsage(dummy_node(n, normalize_attribute_usage(&n.value)))
+        }
+        PartDefBodyElement::RequirementUsage(n) => {
+            PartDefBodyElement::RequirementUsage(dummy_node(n, n.value.clone()))
         }
         PartDefBodyElement::Ref(n) => {
             PartDefBodyElement::Ref(dummy_node(n, normalize_ref_decl(&n.value)))
@@ -1864,6 +1912,9 @@ fn normalize_part_def_body_element_node(el: &Node<PartDefBodyElement>) -> Node<P
         }
         PartDefBodyElement::PartUsage(n) => {
             PartDefBodyElement::PartUsage(Box::new(dummy_node(n, normalize_part_usage(&n.value))))
+        }
+        PartDefBodyElement::OccurrenceUsage(n) => {
+            PartDefBodyElement::OccurrenceUsage(Box::new(dummy_node(n, n.value.clone())))
         }
         PartDefBodyElement::InterfaceUsage(n) => {
             PartDefBodyElement::InterfaceUsage(dummy_node(n, n.value.clone()))
@@ -1900,6 +1951,7 @@ fn normalize_attribute_usage(a: &AttributeUsage) -> AttributeUsage {
 
 fn normalize_part_usage(p: &PartUsage) -> PartUsage {
     PartUsage {
+        is_individual: p.is_individual,
         name: p.name.clone(),
         type_name: p.type_name.clone(),
         multiplicity: p.multiplicity.clone(),
@@ -2003,11 +2055,17 @@ fn normalize_part_usage_body_element_node(
             PartUsageBodyElement::Error(dummy_node(n, n.value.clone()))
         }
         PartUsageBodyElement::Doc(n) => PartUsageBodyElement::Doc(dummy_node(n, n.value.clone())),
+        PartUsageBodyElement::Annotation(n) => {
+            PartUsageBodyElement::Annotation(dummy_node(n, n.value.clone()))
+        }
         PartUsageBodyElement::AttributeUsage(n) => {
             PartUsageBodyElement::AttributeUsage(dummy_node(n, normalize_attribute_usage(&n.value)))
         }
         PartUsageBodyElement::PartUsage(n) => {
             PartUsageBodyElement::PartUsage(Box::new(dummy_node(n, normalize_part_usage(&n.value))))
+        }
+        PartUsageBodyElement::OccurrenceUsage(n) => {
+            PartUsageBodyElement::OccurrenceUsage(Box::new(dummy_node(n, n.value.clone())))
         }
         PartUsageBodyElement::PortUsage(n) => {
             PartUsageBodyElement::PortUsage(dummy_node(n, normalize_port_usage(&n.value)))
@@ -2254,6 +2312,9 @@ fn normalize_action_def_body_element_node(
             ActionDefBodyElement::InOutDecl(dummy_node(n, n.value.clone()))
         }
         ActionDefBodyElement::Doc(n) => ActionDefBodyElement::Doc(dummy_node(n, n.value.clone())),
+        ActionDefBodyElement::Annotation(n) => {
+            ActionDefBodyElement::Annotation(dummy_node(n, n.value.clone()))
+        }
         ActionDefBodyElement::RefDecl(n) => {
             ActionDefBodyElement::RefDecl(dummy_node(n, normalize_ref_decl(&n.value)))
         }
@@ -2320,6 +2381,9 @@ fn normalize_action_usage_body_element_node(
         }
         ActionUsageBodyElement::Doc(n) => {
             ActionUsageBodyElement::Doc(dummy_node(n, n.value.clone()))
+        }
+        ActionUsageBodyElement::Annotation(n) => {
+            ActionUsageBodyElement::Annotation(dummy_node(n, n.value.clone()))
         }
         ActionUsageBodyElement::InOutDecl(n) => {
             ActionUsageBodyElement::InOutDecl(dummy_node(n, n.value.clone()))

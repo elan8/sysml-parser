@@ -66,6 +66,7 @@ pub(crate) const PACKAGE_BODY_STARTERS: &[&[u8]] = &[
 ];
 
 pub(crate) const PART_BODY_STARTERS: &[&[u8]] = &[
+    b"#",
     b"@",
     b"abstract",
     b"allocate",
@@ -74,7 +75,9 @@ pub(crate) const PART_BODY_STARTERS: &[&[u8]] = &[
     b"connect",
     b"doc",
     b"exhibit",
+    b"individual",
     b"interface",
+    b"occurrence",
     b"part",
     b"perform",
     b"port",
@@ -82,10 +85,15 @@ pub(crate) const PART_BODY_STARTERS: &[&[u8]] = &[
     b"protected",
     b"public",
     b"ref",
+    b"requirement",
     b"satisfy",
+    b"snapshot",
+    b"timeslice",
 ];
 
 pub(crate) const REQUIREMENT_BODY_STARTERS: &[&[u8]] = &[
+    b"#",
+    b"@",
     b"attribute",
     b"doc",
     b"frame",
@@ -98,7 +106,7 @@ pub(crate) const REQUIREMENT_BODY_STARTERS: &[&[u8]] = &[
 
 #[allow(dead_code)]
 pub(crate) const STATE_BODY_STARTERS: &[&[u8]] =
-    &[b"doc", b"entry", b"ref", b"state", b"then", b"transition"];
+    &[b"#", b"@", b"doc", b"entry", b"ref", b"state", b"then", b"transition"];
 
 pub(crate) const USE_CASE_BODY_STARTERS: &[&[u8]] = &[
     b"abstract",

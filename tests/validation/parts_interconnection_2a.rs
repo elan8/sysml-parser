@@ -88,6 +88,7 @@ fn definitions_package() -> Package {
                 n(port_def_vehicle_to_road()),
                 n(part_def_vehicle_a()),
                 n(PackageBodyElement::PartDef(n(PartDef {
+                    is_individual: false,
                     definition_prefix: None,
                     identification: id("AxleAssembly"),
                     specializes: None,
@@ -96,6 +97,7 @@ fn definitions_package() -> Package {
                 }))),
                 n(part_def_rear_axle_assembly()),
                 n(PackageBodyElement::PartDef(n(PartDef {
+                    is_individual: false,
                     definition_prefix: None,
                     identification: id("Axle"),
                     specializes: None,
@@ -103,6 +105,7 @@ fn definitions_package() -> Package {
                     body: PartDefBody::Semicolon,
                 }))),
                 n(PackageBodyElement::PartDef(n(PartDef {
+                    is_individual: false,
                     definition_prefix: None,
                     identification: id("RearAxle"),
                     specializes: Some("Axle".to_string()),
@@ -114,6 +117,7 @@ fn definitions_package() -> Package {
                 n(part_def_transmission()),
                 n(part_def_driveshaft()),
                 n(PackageBodyElement::PartDef(n(PartDef {
+                    is_individual: false,
                     definition_prefix: None,
                     identification: id("Differential"),
                     specializes: None,
@@ -121,6 +125,7 @@ fn definitions_package() -> Package {
                     body: PartDefBody::Brace { elements: vec![] },
                 }))),
                 n(PackageBodyElement::PartDef(n(PartDef {
+                    is_individual: false,
                     definition_prefix: None,
                     identification: id("Wheel"),
                     specializes: None,
@@ -163,6 +168,7 @@ fn port_def_vehicle_to_road() -> PackageBodyElement {
 
 fn part_def_vehicle_a() -> PackageBodyElement {
     PackageBodyElement::PartDef(n(PartDef {
+        is_individual: false,
         definition_prefix: None,
         identification: id("VehicleA"),
         specializes: None,
@@ -196,6 +202,7 @@ fn part_def_vehicle_a() -> PackageBodyElement {
 
 fn part_def_rear_axle_assembly() -> PackageBodyElement {
     PackageBodyElement::PartDef(n(PartDef {
+        is_individual: false,
         definition_prefix: None,
         identification: id("RearAxleAssembly"),
         specializes: Some("AxleAssembly".to_string()),
@@ -217,6 +224,7 @@ fn part_def_rear_axle_assembly() -> PackageBodyElement {
 
 fn part_def_half_axle() -> PackageBodyElement {
     PackageBodyElement::PartDef(n(PartDef {
+        is_individual: false,
         definition_prefix: None,
         identification: id("HalfAxle"),
         specializes: None,
@@ -250,6 +258,7 @@ fn part_def_half_axle() -> PackageBodyElement {
 
 fn part_def_engine() -> PackageBodyElement {
     PackageBodyElement::PartDef(n(PartDef {
+        is_individual: false,
         definition_prefix: None,
         identification: id("Engine"),
         specializes: None,
@@ -283,6 +292,7 @@ fn part_def_engine() -> PackageBodyElement {
 
 fn part_def_transmission() -> PackageBodyElement {
     PackageBodyElement::PartDef(n(PartDef {
+        is_individual: false,
         definition_prefix: None,
         identification: id("Transmission"),
         specializes: None,
@@ -316,6 +326,7 @@ fn part_def_transmission() -> PackageBodyElement {
 
 fn part_def_driveshaft() -> PackageBodyElement {
     PackageBodyElement::PartDef(n(PartDef {
+        is_individual: false,
         definition_prefix: None,
         identification: id("Driveshaft"),
         specializes: None,
@@ -420,6 +431,7 @@ fn usages_package() -> Package {
 
 fn part_vehicle1_c1() -> PartUsage {
     PartUsage {
+        is_individual: false,
         name: "vehicle1_c1".to_string(),
         type_name: "VehicleA".to_string(),
         multiplicity: None,
@@ -437,6 +449,7 @@ fn part_vehicle1_c1() -> PartUsage {
                     body: Some(ConnectBody::Semicolon),
                 }))),
                 n(PartUsageBodyElement::PartUsage(Box::new(n(PartUsage {
+                    is_individual: false,
                     name: "engine".to_string(),
                     type_name: "Engine".to_string(),
                     multiplicity: None,
@@ -458,6 +471,7 @@ fn part_vehicle1_c1() -> PartUsage {
                     },
                 ))),
                 n(PartUsageBodyElement::PartUsage(Box::new(n(PartUsage {
+                    is_individual: false,
                     name: "transmission".to_string(),
                     type_name: "Transmission".to_string(),
                     multiplicity: None,
@@ -470,6 +484,7 @@ fn part_vehicle1_c1() -> PartUsage {
                     type_ref_span: None,
                 })))),
                 n(PartUsageBodyElement::PartUsage(Box::new(n(PartUsage {
+                    is_individual: false,
                     name: "driveshaft".to_string(),
                     type_name: "Driveshaft".to_string(),
                     multiplicity: None,
@@ -553,6 +568,7 @@ fn part_vehicle1_c1() -> PartUsage {
 
 fn part_rear_axle_assembly() -> PartUsage {
     PartUsage {
+        is_individual: false,
         name: "rearAxleAssembly".to_string(),
         type_name: "RearAxleAssembly".to_string(),
         multiplicity: None,
@@ -600,6 +616,7 @@ fn part_rear_axle_assembly() -> PartUsage {
                     body: ConnectBody::Semicolon,
                 }))),
                 n(PartUsageBodyElement::PartUsage(Box::new(n(PartUsage {
+                    is_individual: false,
                     name: "rearWheel".to_string(),
                     type_name: "Wheel".to_string(),
                     multiplicity: Some("[2]".to_string()),
@@ -612,6 +629,7 @@ fn part_rear_axle_assembly() -> PartUsage {
                     type_ref_span: None,
                 })))),
                 n(PartUsageBodyElement::PartUsage(Box::new(n(PartUsage {
+                    is_individual: false,
                     name: "leftWheel".to_string(),
                     type_name: "".to_string(),
                     multiplicity: None,
@@ -647,6 +665,7 @@ fn part_rear_axle_assembly() -> PartUsage {
                     type_ref_span: None,
                 })))),
                 n(PartUsageBodyElement::PartUsage(Box::new(n(PartUsage {
+                    is_individual: false,
                     name: "rightWheel".to_string(),
                     type_name: "".to_string(),
                     multiplicity: None,
@@ -688,6 +707,7 @@ fn part_rear_axle_assembly() -> PartUsage {
 
 fn part_differential() -> PartUsage {
     PartUsage {
+        is_individual: false,
         name: "differential".to_string(),
         type_name: "Differential".to_string(),
         multiplicity: None,
@@ -736,6 +756,7 @@ fn part_differential() -> PartUsage {
 
 fn part_rear_axle() -> PartUsage {
     PartUsage {
+        is_individual: false,
         name: "rearAxle".to_string(),
         type_name: "RearAxle".to_string(),
         multiplicity: None,
@@ -748,6 +769,7 @@ fn part_rear_axle() -> PartUsage {
         body: PartUsageBody::Brace {
             elements: vec![
                 n(PartUsageBodyElement::PartUsage(Box::new(n(PartUsage {
+                    is_individual: false,
                     name: "leftHalfAxle".to_string(),
                     type_name: "HalfAxle".to_string(),
                     multiplicity: None,
@@ -760,6 +782,7 @@ fn part_rear_axle() -> PartUsage {
                     type_ref_span: None,
                 })))),
                 n(PartUsageBodyElement::PartUsage(Box::new(n(PartUsage {
+                    is_individual: false,
                     name: "rightHalfAxle".to_string(),
                     type_name: "HalfAxle".to_string(),
                     multiplicity: None,

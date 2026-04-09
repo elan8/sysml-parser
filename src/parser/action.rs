@@ -12,6 +12,7 @@ use crate::parser::lex::{
     identification, name, qualified_name, skip_statement_or_block, skip_until_brace_end,
     take_until_terminator, ws1, ws_and_comments,
 };
+use crate::parser::metadata_annotation::annotation;
 use crate::parser::node_from_to;
 use crate::parser::part::bind_;
 use crate::parser::with_span;
@@ -40,6 +41,8 @@ const ACTION_BODY_STARTERS: &[&[u8]] = &[
     b"attribute",
     b"calc",
     b"event",
+    b"@",
+    b"#",
 ];
 
 fn doc_comment_stmt(input: Input<'_>) -> IResult<Input<'_>, Node<crate::ast::DocComment>> {
@@ -439,6 +442,7 @@ fn action_def_body_element(
         map(action_body_decl, ActionDefBodyElement::Decl),
         map(in_out_decl, ActionDefBodyElement::InOutDecl),
         map(doc_comment_stmt, ActionDefBodyElement::Doc),
+        map(annotation, ActionDefBodyElement::Annotation),
         map(action_ref_decl, ActionDefBodyElement::RefDecl),
         map(perform_action_decl, ActionDefBodyElement::Perform),
         map(bind_, ActionDefBodyElement::Bind),
@@ -626,6 +630,7 @@ fn action_usage_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<Action
         map(action_body_decl, ActionUsageBodyElement::Decl),
         map(in_out_decl, ActionUsageBodyElement::InOutDecl),
         map(doc_comment_stmt, ActionUsageBodyElement::Doc),
+        map(annotation, ActionUsageBodyElement::Annotation),
         map(action_ref_decl, ActionUsageBodyElement::RefDecl),
         map(bind_, ActionUsageBodyElement::Bind),
         map(flow_, ActionUsageBodyElement::Flow),

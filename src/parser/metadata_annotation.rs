@@ -1,9 +1,8 @@
-//! Metadata annotation parsing (BNF MetadataUsage, MetadataBody).
-//! Parses @Name; or @Name{...} as used on part/port/attribute usages.
+//! Metadata/annotation parsing helpers.
 
-use crate::ast::{MetadataAnnotation, Node};
+use crate::ast::{Annotation, MetadataAnnotation, Node};
 use crate::parser::interface::connect_body;
-use crate::parser::lex::{qualified_name, ws_and_comments};
+use crate::parser::lex::{qualified_name, take_until_terminator, ws_and_comments};
 use crate::parser::node_from_to;
 use crate::parser::Input;
 use nom::bytes::complete::tag;
@@ -36,6 +35,53 @@ pub(crate) fn metadata_annotation(
             MetadataAnnotation {
                 name: name_str,
                 type_name,
+                body,
+            },
+        ),
+    ))
+}
+
+/// Generic annotation usage: either `@Name ...` or `#something ...`, followed by `;` or `{ ... }`.
+pub(crate) fn annotation(input: Input<'_>) -> IResult<Input<'_>, Node<Annotation>> {
+    let start = input;
+    let (input, _) = ws_and_comments(input)?;
+    if input.fragment().starts_with(b"@") {
+        let (input, _) = tag(&b"@"[..]).parse(input)?;
+        let (input, _) = ws_and_comments(input)?;
+        let (input, head) = qualified_name.parse(input)?;
+        let (input, type_name) = opt(preceded(
+            preceded(ws_and_comments, tag(&b":"[..])),
+            preceded(ws_and_comments, qualified_name),
+        ))
+        .parse(input)?;
+        let (input, body) = connect_body(input)?;
+        return Ok((
+            input,
+            node_from_to(
+                start,
+                input,
+                Annotation {
+                    sigil: "@".to_string(),
+                    head,
+                    type_name,
+                    body,
+                },
+            ),
+        ));
+    }
+
+    let (input, _) = tag(&b"#"[..]).parse(input)?;
+    let (input, head) = take_until_terminator(input, b";{")?;
+    let (input, body) = connect_body(input)?;
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            Annotation {
+                sigil: "#".to_string(),
+                head: head.trim().to_string(),
+                type_name: None,
                 body,
             },
         ),

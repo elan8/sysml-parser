@@ -15,6 +15,7 @@ use crate::parser::lex::{
     skip_until_brace_end, starts_with_any_keyword, take_until_terminator, ws, ws1, ws_and_comments,
     REQUIREMENT_BODY_STARTERS,
 };
+use crate::parser::metadata_annotation::annotation;
 use crate::parser::node_from_to;
 use crate::parser::Input;
 use nom::branch::alt;
@@ -195,6 +196,7 @@ fn requirement_def_body_element(
     let start = input;
     let (rest, elem) = alt((
         alt((
+            map(annotation, RequirementDefBodyElement::Annotation),
             map(import_, RequirementDefBodyElement::Import),
             map(subject_decl, RequirementDefBodyElement::SubjectDecl),
             map(attribute_usage, RequirementDefBodyElement::AttributeUsage),
@@ -517,9 +519,21 @@ pub(crate) fn requirement_usage(input: Input<'_>) -> IResult<Input<'_>, Node<Req
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = take_until_terminator(input, b";{")?;
     let (input, body) = requirement_def_body(input)?;
+    let (input, subsets) = opt(preceded(
+        preceded(ws_and_comments, tag(&b":>"[..])),
+        preceded(ws_and_comments, qualified_name),
+    ))
+    .parse(input)?;
+    let input = if subsets.is_some() {
+        let (input, _) = preceded(ws_and_comments, tag(&b";"[..])).parse(input)?;
+        input
+    } else {
+        input
+    };
     let val = RequirementUsage {
         name: ident,
         type_name,
+        subsets,
         body,
     };
     Ok((input, node_from_to(start, input, val)))
