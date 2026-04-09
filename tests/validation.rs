@@ -4,13 +4,13 @@
 //! for easier maintenance.
 //!
 //! Logging defaults to WARN so test output stays small. Use `RUST_LOG=debug` (or
-//! `RUST_LOG=sysml_parser=debug`) and `--nocapture` when debugging parser behavior.
+//! `RUST_LOG=sysml_v2_parser=debug`) and `--nocapture` when debugging parser behavior.
 
 #[path = "validation/parts_tree_1a.rs"]
 mod parts_tree_1a;
 
 /// Initialize the logger. Default level is WARN so failures don't flood with DEBUG.
-/// Set `RUST_LOG=debug` (or `RUST_LOG=sysml_parser=debug`) when debugging.
+/// Set `RUST_LOG=debug` (or `RUST_LOG=sysml_v2_parser=debug`) when debugging.
 pub(crate) fn init_log() {
     let mut builder = env_logger::Builder::from_default_env();
     if std::env::var("RUST_LOG").is_err() {
@@ -23,8 +23,8 @@ pub(crate) fn init_log() {
 /// spans) so comparison matches hand-built expected AST. On failure, panics with a short
 /// message (first difference position and snippet) instead of dumping full ASTs.
 pub(crate) fn assert_ast_eq(
-    parsed: &sysml_parser::ast::RootNamespace,
-    expected: &sysml_parser::ast::RootNamespace,
+    parsed: &sysml_v2_parser::ast::RootNamespace,
+    expected: &sysml_v2_parser::ast::RootNamespace,
     msg: &str,
 ) {
     let normalized = parsed.normalize_for_test_comparison();

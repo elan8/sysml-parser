@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use sysml_parser::ast::{PackageBody, PackageBodyElement, RootElement, UseCaseDefBodyElement};
-use sysml_parser::parse_root;
+use sysml_v2_parser::ast::{PackageBody, PackageBodyElement, RootElement, UseCaseDefBodyElement};
+use sysml_v2_parser::parse_root;
 
 fn sysml_v2_release_root() -> PathBuf {
     std::env::var_os("SYSML_V2_RELEASE_DIR")
@@ -50,7 +50,7 @@ fn test_use_case_validation_fixture_has_typed_succession_nodes() {
         })
         .expect("expected a use case in validation fixture");
 
-    let sysml_parser::ast::UseCaseDefBody::Brace { elements: body } = use_case_body else {
+    let sysml_v2_parser::ast::UseCaseDefBody::Brace { elements: body } = use_case_body else {
         panic!("expected brace body");
     };
 

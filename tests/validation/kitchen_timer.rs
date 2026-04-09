@@ -1,7 +1,7 @@
 //! Validation test for `tests/fixtures/KitchenTimer.sysml`.
 
 use std::path::Path;
-use sysml_parser::{parse, parse_with_diagnostics, RootElement};
+use sysml_v2_parser::{parse, parse_with_diagnostics, RootElement};
 
 fn kitchen_timer_fixture_path() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))

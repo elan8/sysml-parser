@@ -26,7 +26,7 @@ The remaining backlog below is the still-actionable work after those completed s
 
 ### 1. Tighten diagnostics emitted from current recovery paths
 
-The current recovery architecture is in place, but many diagnostics are still generic or derived from `nom` defaults in [`src/parser/mod.rs`](C:\Git\sysml-parser\src\parser\mod.rs).
+The current recovery architecture is in place, but many diagnostics are still generic or derived from `nom` defaults in [`src/parser/mod.rs`](C:\Git\sysml-v2-parser\src\parser\mod.rs).
 
 Expected outcome:
 
@@ -61,7 +61,7 @@ Expected outcome:
 
 ### 4. Add recovery-focused tests per construct
 
-Expand tests beyond end-to-end fixtures in [`tests/parser_tests.rs`](C:\Git\sysml-parser\tests\parser_tests.rs) and validation tests.
+Expand tests beyond end-to-end fixtures in [`tests/parser_tests.rs`](C:\Git\sysml-v2-parser\tests\parser_tests.rs) and validation tests.
 
 Add dedicated malformed-input cases for:
 
@@ -88,12 +88,12 @@ Each test should check:
 
 Several modules already contain local recovery loops:
 
-- [`src/parser/package.rs`](C:\Git\sysml-parser\src\parser\package.rs)
-- [`src/parser/part.rs`](C:\Git\sysml-parser\src\parser\part.rs)
-- [`src/parser/action.rs`](C:\Git\sysml-parser\src\parser\action.rs)
-- [`src/parser/state.rs`](C:\Git\sysml-parser\src\parser\state.rs)
-- [`src/parser/requirement.rs`](C:\Git\sysml-parser\src\parser\requirement.rs)
-- [`src/parser/usecase.rs`](C:\Git\sysml-parser\src\parser\usecase.rs)
+- [`src/parser/package.rs`](C:\Git\sysml-v2-parser\src\parser\package.rs)
+- [`src/parser/part.rs`](C:\Git\sysml-v2-parser\src\parser\part.rs)
+- [`src/parser/action.rs`](C:\Git\sysml-v2-parser\src\parser\action.rs)
+- [`src/parser/state.rs`](C:\Git\sysml-v2-parser\src\parser\state.rs)
+- [`src/parser/requirement.rs`](C:\Git\sysml-v2-parser\src\parser\requirement.rs)
+- [`src/parser/usecase.rs`](C:\Git\sysml-v2-parser\src\parser\usecase.rs)
 
 Unify them around shared patterns or combinators so they all:
 
@@ -108,7 +108,7 @@ Expected outcome:
 
 ### 6. Add or tighten grammar-aware sync helpers where recovery is still coarse
 
-[`src/parser/lex.rs`](C:\Git\sysml-parser\src\parser\lex.rs) already provides shared recovery helpers. Extend them only where current scopes still over-skip or recover at the wrong structural boundary.
+[`src/parser/lex.rs`](C:\Git\sysml-v2-parser\src\parser\lex.rs) already provides shared recovery helpers. Extend them only where current scopes still over-skip or recover at the wrong structural boundary.
 
 Examples:
 
@@ -123,7 +123,7 @@ Expected outcome:
 
 ### 7. Make spans robust under recovery
 
-Review span generation in [`src/ast.rs`](C:\Git\sysml-parser\src\ast.rs) and parser modules.
+Review span generation in [`src/ast.rs`](C:\Git\sysml-v2-parser\src\ast.rs) and parser modules.
 
 Ensure that:
 
@@ -139,7 +139,7 @@ Expected outcome:
 
 ### 8. Separate strict parsing and resilient parsing more clearly
 
-The API in [`src/lib.rs`](C:\Git\sysml-parser\src\lib.rs) already distinguishes `parse()` from `parse_with_diagnostics()`.
+The API in [`src/lib.rs`](C:\Git\sysml-v2-parser\src\lib.rs) already distinguishes `parse()` from `parse_with_diagnostics()`.
 
 Make the internal architecture reflect that more explicitly:
 

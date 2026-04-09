@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
-use sysml_parser::ast::{
+use sysml_v2_parser::ast::{
     ActionDefBody, ActionDefBodyElement, ActionUsageBody, ActionUsageBodyElement, Package,
     PackageBody, PackageBodyElement, RootElement, UseCaseDefBody, UseCaseDefBodyElement,
 };
-use sysml_parser::parse_root;
+use sysml_v2_parser::parse_root;
 
 fn sysml_v2_release_root() -> PathBuf {
     std::env::var_os("SYSML_V2_RELEASE_DIR")

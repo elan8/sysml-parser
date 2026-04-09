@@ -1,4 +1,4 @@
-# sysml-parser
+# sysml-v2-parser
 
 SysML v2 textual notation parser for Rust.
 
@@ -21,7 +21,7 @@ The main public entry points are:
 Example:
 
 ```rust
-use sysml_parser::parse;
+use sysml_v2_parser::parse;
 
 fn main() {
     let model = parse("package Demo;").expect("valid SysML");

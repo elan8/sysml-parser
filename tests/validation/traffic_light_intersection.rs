@@ -1,10 +1,10 @@
 //! Parser tests for `tests/fixtures/TrafficLightIntersection.sysml`.
 
 use std::path::Path;
-use sysml_parser::ast::{
+use sysml_v2_parser::ast::{
     PackageBodyElement, RequirementDefBody, RequirementDefBodyElement, RootElement,
 };
-use sysml_parser::parse;
+use sysml_v2_parser::parse;
 
 /// Path to the TrafficLightIntersection fixture.
 fn traffic_light_fixture_path() -> std::path::PathBuf {
@@ -50,7 +50,7 @@ fn test_parse_traffic_light_intersection() {
     );
 
     let body = match &package.body {
-        sysml_parser::ast::PackageBody::Brace { elements } => elements,
+        sysml_v2_parser::ast::PackageBody::Brace { elements } => elements,
         _ => panic!("expected package body to be brace form"),
     };
 
@@ -106,7 +106,7 @@ fn test_requirement_constraints_keep_doc_members() {
         other => panic!("expected root package, got {:?}", other),
     };
     let body = match &package.body {
-        sysml_parser::ast::PackageBody::Brace { elements } => elements,
+        sysml_v2_parser::ast::PackageBody::Brace { elements } => elements,
         _ => panic!("expected package body to be brace form"),
     };
     let requirement = body
@@ -128,14 +128,14 @@ fn test_requirement_constraints_keep_doc_members() {
         })
         .expect("fixture requirement should contain a require constraint");
     let constraint_elements = match &require_constraint.body {
-        sysml_parser::ast::RequireConstraintBody::Brace { elements } => elements,
+        sysml_v2_parser::ast::RequireConstraintBody::Brace { elements } => elements,
         _ => panic!("expected structured require constraint body"),
     };
 
     assert!(
         constraint_elements
             .iter()
-            .any(|e| matches!(e.value, sysml_parser::ast::ConstraintDefBodyElement::Doc(_))),
+            .any(|e| matches!(e.value, sysml_v2_parser::ast::ConstraintDefBodyElement::Doc(_))),
         "fixture require constraint should preserve doc members"
     );
 }

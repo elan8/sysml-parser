@@ -1,9 +1,9 @@
 //! Tests that AST node spans (offset, line, column, len) are calculated correctly.
 
-use sysml_parser::ast::{
+use sysml_v2_parser::ast::{
     AstNode, PackageBody, PackageBodyElement, PartUsageBody, PartUsageBodyElement, RootElement,
 };
-use sysml_parser::parse;
+use sysml_v2_parser::parse;
 
 fn assert_span(
     node: &impl AstNode,

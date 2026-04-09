@@ -1,12 +1,12 @@
 //! Parser test for `04-Functional Allocation/4a-Functional Allocation.sysml`.
 
-use sysml_parser::ast::{
+use sysml_v2_parser::ast::{
     DocComment, Expression, Identification, Import, InOut, Node, Package, PackageBody,
     PackageBodyElement, PartUsage, PartUsageBody, PartUsageBodyElement, Perform, PerformBody,
     PerformBodyElement, PerformInOutBinding, PortBody, PortUsage, RootElement, RootNamespace, Span,
     Visibility,
 };
-use sysml_parser::parse;
+use sysml_v2_parser::parse;
 
 fn id(name: &str) -> Identification {
     Identification {

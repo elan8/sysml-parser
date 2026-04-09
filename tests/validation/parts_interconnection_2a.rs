@@ -1,6 +1,6 @@
 //! Parser test for `02-Parts Interconnection/2a-Parts Interconnection.sysml`.
 
-use sysml_parser::ast::{
+use sysml_v2_parser::ast::{
     Bind, Connect, ConnectBody, ConnectStmt, EndDecl, Expression, Identification, Import,
     InterfaceDef, InterfaceDefBody, InterfaceDefBodyElement, InterfaceUsage,
     InterfaceUsageBodyElement, Node, Package, PackageBody, PackageBodyElement, PartDef,
@@ -8,7 +8,7 @@ use sysml_parser::ast::{
     PortDef, PortDefBody, PortDefBodyElement, PortUsage, RefBody, RefDecl, RootElement,
     RootNamespace, Span, Visibility,
 };
-use sysml_parser::parse;
+use sysml_v2_parser::parse;
 
 fn id(name: &str) -> Identification {
     Identification {

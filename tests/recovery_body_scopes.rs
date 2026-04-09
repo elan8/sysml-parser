@@ -1,8 +1,8 @@
-use sysml_parser::ast::{
+use sysml_v2_parser::ast::{
     PackageBody, PackageBodyElement, RequirementDefBody, RequirementDefBodyElement, RootElement,
     StateDefBody, StateDefBodyElement, UseCaseDefBody, UseCaseDefBodyElement,
 };
-use sysml_parser::parse_with_diagnostics;
+use sysml_v2_parser::parse_with_diagnostics;
 
 #[test]
 fn requirement_recovery_keeps_later_members() {

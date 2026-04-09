@@ -1,5 +1,5 @@
-use sysml_parser::ast::{PackageBody, PackageBodyElement, RootElement};
-use sysml_parser::{parse, parse_with_diagnostics};
+use sysml_v2_parser::ast::{PackageBody, PackageBodyElement, RootElement};
+use sysml_v2_parser::{parse, parse_with_diagnostics};
 
 #[test]
 fn package_recovery_inserts_error_node_and_keeps_later_sibling() {

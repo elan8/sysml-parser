@@ -1,7 +1,7 @@
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use proptest::prelude::*;
-use sysml_parser::{parse, parse_with_diagnostics};
+use sysml_v2_parser::{parse, parse_with_diagnostics};
 
 fn malformed_inputs() -> Vec<&'static str> {
     vec![

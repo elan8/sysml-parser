@@ -1,10 +1,10 @@
 # SysML v2 Parser Status
 
-This document is the narrative status view of the parser as of April 9, 2026. It complements the compact snapshot in [`docs/BNF_COMPLIANCE_MATRIX.md`](C:\Git\sysml-parser\docs\BNF_COMPLIANCE_MATRIX.md).
+This document is the narrative status view of the parser as of April 9, 2026. It complements the compact snapshot in [`docs/BNF_COMPLIANCE_MATRIX.md`](C:\Git\sysml-v2-parser\docs\BNF_COMPLIANCE_MATRIX.md).
 
 Reference grammar:
 
-- [`sysml-v2-release/bnf/SysML-textual-bnf.kebnf`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf)
+- [`sysml-v2-release/bnf/SysML-textual-bnf.kebnf`](C:\Git\sysml-v2-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf)
 
 ## Scope
 
@@ -38,7 +38,7 @@ That means the project is no longer in a state where large parser families are s
 
 ## What is implemented and validated
 
-The parser has dedicated modules for the major SysML-facing construct families in [`src/parser`](C:\Git\sysml-parser\src\parser):
+The parser has dedicated modules for the major SysML-facing construct families in [`src/parser`](C:\Git\sysml-v2-parser\src\parser):
 
 - packages and imports
 - aliases
@@ -90,14 +90,14 @@ The strongest areas today are still packages/imports, parts, requirements, and t
 
 ### Some bodies are still accepted permissively
 
-Several modules still use `skip_until_brace_end()` or related helpers from [`src/parser/lex.rs`](C:\Git\sysml-parser\src\parser\lex.rs) to consume bodies without fully parsing their internal grammar.
+Several modules still use `skip_until_brace_end()` or related helpers from [`src/parser/lex.rs`](C:\Git\sysml-v2-parser\src\parser\lex.rs) to consume bodies without fully parsing their internal grammar.
 
 This still appears in or influences:
 
-- [`src/parser/metadata.rs`](C:\Git\sysml-parser\src\parser\metadata.rs)
-- [`src/parser/occurrence.rs`](C:\Git\sysml-parser\src\parser\occurrence.rs)
-- [`src/parser/alias.rs`](C:\Git\sysml-parser\src\parser\alias.rs)
-- [`src/parser/import.rs`](C:\Git\sysml-parser\src\parser\import.rs)
+- [`src/parser/metadata.rs`](C:\Git\sysml-v2-parser\src\parser\metadata.rs)
+- [`src/parser/occurrence.rs`](C:\Git\sysml-v2-parser\src\parser\occurrence.rs)
+- [`src/parser/alias.rs`](C:\Git\sysml-v2-parser\src\parser\alias.rs)
+- [`src/parser/import.rs`](C:\Git\sysml-v2-parser\src\parser\import.rs)
 - parts of connection, view, action, state, requirement, interface, port, and enumeration parsing
 
 Impact:
@@ -108,7 +108,7 @@ Impact:
 
 ### Expression support is useful but still incomplete
 
-[`src/parser/expr.rs`](C:\Git\sysml-parser\src\parser\expr.rs) now has precedence-aware parsing for its supported operators, so the earlier flat-chain description is outdated. Even so, expression coverage is still only a subset of full SysML/KerML `OwnedExpression`.
+[`src/parser/expr.rs`](C:\Git\sysml-v2-parser\src\parser\expr.rs) now has precedence-aware parsing for its supported operators, so the earlier flat-chain description is outdated. Even so, expression coverage is still only a subset of full SysML/KerML `OwnedExpression`.
 
 Impact:
 
@@ -123,7 +123,7 @@ Package-level fallback handling is no longer just "recover and emit diagnostics.
 - `KermlFeatureDecl`
 - `ExtendedLibraryDecl`
 
-These nodes are defined in [`src/ast.rs`](C:\Git\sysml-parser\src\ast.rs) and produced by package-level parsing in [`src/parser/package.rs`](C:\Git\sysml-parser\src\parser\package.rs).
+These nodes are defined in [`src/ast.rs`](C:\Git\sysml-v2-parser\src\ast.rs) and produced by package-level parsing in [`src/parser/package.rs`](C:\Git\sysml-v2-parser\src\parser\package.rs).
 
 Current status:
 

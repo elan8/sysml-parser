@@ -1,6 +1,6 @@
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
-use sysml_parser::parse_with_diagnostics;
+use sysml_v2_parser::parse_with_diagnostics;
 
 #[test]
 fn malformed_view_and_constraint_inputs_do_not_panic() {

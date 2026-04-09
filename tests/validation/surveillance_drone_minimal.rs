@@ -2,8 +2,8 @@
 //! See plan: fix_surveillancedrone_test — step 1.
 
 use std::path::Path;
-use sysml_parser::ast::{PackageBody, PackageBodyElement, RootElement};
-use sysml_parser::parse;
+use sysml_v2_parser::ast::{PackageBody, PackageBodyElement, RootElement};
+use sysml_v2_parser::parse;
 
 /// Parses "package SurveillanceDrone { attribute def Real; }" (no doc/comment before first element).
 /// If this passes, the failure with the full fixture is likely due to doc/comment handling.
@@ -18,7 +18,7 @@ fn test_parse_minimal_package_one_attribute() {
     };
     assert_eq!(root.elements.len(), 1, "expected one root package");
     let pkg = match &root.elements[0].value {
-        sysml_parser::ast::RootElement::Package(p) => &p.value,
+        sysml_v2_parser::ast::RootElement::Package(p) => &p.value,
         other => panic!("expected Package, got {:?}", other),
     };
     let body = match &pkg.body {
@@ -49,7 +49,7 @@ fn test_parse_package_with_doc_and_line_comment() {
     };
     assert_eq!(root.elements.len(), 1);
     let pkg = match &root.elements[0].value {
-        sysml_parser::ast::RootElement::Package(p) => &p.value,
+        sysml_v2_parser::ast::RootElement::Package(p) => &p.value,
         other => panic!("expected Package, got {:?}", other),
     };
     let body = match &pkg.body {
@@ -93,7 +93,7 @@ fn test_parse_fixture_exact_start() {
     };
     assert_eq!(root.elements.len(), 1);
     let pkg = match &root.elements[0].value {
-        sysml_parser::ast::RootElement::Package(p) => &p.value,
+        sysml_v2_parser::ast::RootElement::Package(p) => &p.value,
         other => panic!("expected Package, got {:?}", other),
     };
     let body = match &pkg.body {
@@ -146,18 +146,18 @@ fn test_perform_body_doc_comment_parsed_as_element() {
         })
         .expect("expected part usage p");
     let part_body = match &part_usage.body {
-        sysml_parser::ast::PartUsageBody::Brace { elements } => elements,
+        sysml_v2_parser::ast::PartUsageBody::Brace { elements } => elements,
         _ => panic!("expected part brace body"),
     };
     let perform = part_body
         .iter()
         .find_map(|e| match &e.value {
-            sysml_parser::ast::PartUsageBodyElement::Perform(p) => Some(&p.value),
+            sysml_v2_parser::ast::PartUsageBodyElement::Perform(p) => Some(&p.value),
             _ => None,
         })
         .expect("expected perform");
     let perform_body = match &perform.body {
-        sysml_parser::ast::PerformBody::Brace { elements } => elements,
+        sysml_v2_parser::ast::PerformBody::Brace { elements } => elements,
         _ => panic!("expected perform brace body"),
     };
     assert_eq!(
@@ -166,7 +166,7 @@ fn test_perform_body_doc_comment_parsed_as_element() {
         "perform body must have Doc then InOut (doc comments are not skipped)"
     );
     match &perform_body[0].value {
-        sysml_parser::ast::PerformBodyElement::Doc(d) => assert!(
+        sysml_v2_parser::ast::PerformBodyElement::Doc(d) => assert!(
             d.value.text.contains("allocation comment"),
             "doc text should contain the comment content, got {:?}",
             d.value.text
@@ -174,8 +174,8 @@ fn test_perform_body_doc_comment_parsed_as_element() {
         other => panic!("expected first element Doc, got {:?}", other),
     }
     match &perform_body[1].value {
-        sysml_parser::ast::PerformBodyElement::InOut(b) => {
-            assert_eq!(b.value.direction, sysml_parser::ast::InOut::In);
+        sysml_v2_parser::ast::PerformBodyElement::InOut(b) => {
+            assert_eq!(b.value.direction, sysml_v2_parser::ast::InOut::In);
             assert_eq!(b.value.name, "x");
         }
         other => panic!("expected second element InOut, got {:?}", other),

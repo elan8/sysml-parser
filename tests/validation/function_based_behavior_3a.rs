@@ -1,13 +1,13 @@
 //! Parser test for `03-Function-based Behavior/3a-Function-based Behavior-1.sysml`.
 
-use sysml_parser::ast::{
+use sysml_v2_parser::ast::{
     ActionDef, ActionDefBody, ActionDefBodyElement, ActionUsage, ActionUsageBody,
     ActionUsageBodyElement, AliasBody, AliasDef, AttributeBody, AttributeDef, Bind, ConnectBody,
     Expression, FirstMergeBody, FirstStmt, Flow, Identification, Import, InOut, InOutDecl,
     MergeStmt, Node, Package, PackageBody, PackageBodyElement, RootElement, RootNamespace, Span,
     Visibility,
 };
-use sysml_parser::parse;
+use sysml_v2_parser::parse;
 
 fn id(name: &str) -> Identification {
     Identification {

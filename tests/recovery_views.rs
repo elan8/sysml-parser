@@ -1,5 +1,5 @@
-use sysml_parser::ast::{PackageBody, PackageBodyElement, RootElement, ViewBody, ViewBodyElement, ViewDefBody, ViewDefBodyElement};
-use sysml_parser::parse_with_diagnostics;
+use sysml_v2_parser::ast::{PackageBody, PackageBodyElement, RootElement, ViewBody, ViewBodyElement, ViewDefBody, ViewDefBodyElement};
+use sysml_v2_parser::parse_with_diagnostics;
 
 #[test]
 fn view_def_recovery_inserts_error_node_and_keeps_later_render() {

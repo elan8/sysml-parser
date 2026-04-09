@@ -1,4 +1,4 @@
-# CI for sysml-parser: build, test, and SysML v2 validation suite
+# CI for sysml-v2-parser: build, test, and SysML v2 validation suite
 name: CI
 
 on:

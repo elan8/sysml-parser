@@ -2,11 +2,11 @@
 
 use std::path::PathBuf;
 
-use sysml_parser::ast::{
+use sysml_v2_parser::ast::{
     Identification, LibraryPackage, Node, Package, PackageBody, PackageBodyElement,
     RenderingDefBody, RootElement, RootNamespace, Span, ViewBody, ViewDefBody,
 };
-use sysml_parser::{parse, parse_with_diagnostics};
+use sysml_v2_parser::{parse, parse_with_diagnostics};
 
 fn id(name: &str) -> Identification {
     Identification {
@@ -239,17 +239,17 @@ fn test_action_def_is_not_parsed_as_action_usage() {
 action def ExecutePatrol {
 }
 }"#;
-    let root = sysml_parser::parse_root(input).expect("should parse");
+    let root = sysml_v2_parser::parse_root(input).expect("should parse");
     let pkg = match &root.elements[0].value {
-        sysml_parser::ast::RootElement::Package(p) => &p.value,
+        sysml_v2_parser::ast::RootElement::Package(p) => &p.value,
         _ => panic!("expected package root element"),
     };
-    let sysml_parser::ast::PackageBody::Brace { elements } = &pkg.body else {
+    let sysml_v2_parser::ast::PackageBody::Brace { elements } = &pkg.body else {
         panic!("expected brace body");
     };
     let first = elements.first().expect("expected a body element");
     match &first.value {
-        sysml_parser::ast::PackageBodyElement::ActionDef(a) => {
+        sysml_v2_parser::ast::PackageBodyElement::ActionDef(a) => {
             assert_eq!(
                 a.value.identification.name.as_deref(),
                 Some("ExecutePatrol"),
@@ -280,14 +280,14 @@ action def B { }
 
     // Ensure we still parsed the later action def `B`.
     let pkg = match &result.root.elements[0].value {
-        sysml_parser::ast::RootElement::Package(p) => &p.value,
+        sysml_v2_parser::ast::RootElement::Package(p) => &p.value,
         _ => panic!("expected package root element"),
     };
-    let sysml_parser::ast::PackageBody::Brace { elements } = &pkg.body else {
+    let sysml_v2_parser::ast::PackageBody::Brace { elements } = &pkg.body else {
         panic!("expected brace body");
     };
     let has_b = elements.iter().any(|e| match &e.value {
-        sysml_parser::ast::PackageBodyElement::ActionDef(a) => {
+        sysml_v2_parser::ast::PackageBodyElement::ActionDef(a) => {
             a.value.identification.name.as_deref() == Some("B")
         }
         _ => false,
@@ -364,11 +364,11 @@ fn test_root_level_import_then_package() {
     let result = parse(input).expect("parse should succeed");
     assert_eq!(result.elements.len(), 2);
     match &result.elements[0].value {
-        sysml_parser::ast::RootElement::Import(_) => {}
+        sysml_v2_parser::ast::RootElement::Import(_) => {}
         _ => panic!("expected first element to be Import"),
     }
     match &result.elements[1].value {
-        sysml_parser::ast::RootElement::Package(p) => {
+        sysml_v2_parser::ast::RootElement::Package(p) => {
             assert_eq!(p.identification.name.as_deref(), Some("P"));
         }
         _ => panic!("expected second element to be Package"),
@@ -483,20 +483,20 @@ fn test_use_case_def_body_parses_members() {
         _ => panic!("expected UseCaseDef"),
     };
     let body_elements = match &use_case.body {
-        sysml_parser::ast::UseCaseDefBody::Brace { elements } => elements,
+        sysml_v2_parser::ast::UseCaseDefBody::Brace { elements } => elements,
         _ => panic!("expected use case brace body"),
     };
     assert!(body_elements.iter().any(|e| matches!(
         e.value,
-        sysml_parser::ast::UseCaseDefBodyElement::SubjectDecl(_)
+        sysml_v2_parser::ast::UseCaseDefBodyElement::SubjectDecl(_)
     )));
     assert!(body_elements.iter().any(|e| matches!(
         e.value,
-        sysml_parser::ast::UseCaseDefBodyElement::ActorUsage(_)
+        sysml_v2_parser::ast::UseCaseDefBodyElement::ActorUsage(_)
     )));
     assert!(body_elements.iter().any(|e| matches!(
         e.value,
-        sysml_parser::ast::UseCaseDefBodyElement::Objective(_)
+        sysml_v2_parser::ast::UseCaseDefBodyElement::Objective(_)
     )));
 }
 
@@ -518,19 +518,19 @@ fn test_state_def_body_parses_members() {
         _ => panic!("expected StateDef"),
     };
     let body_elements = match &state_def.body {
-        sysml_parser::ast::StateDefBody::Brace { elements } => elements,
+        sysml_v2_parser::ast::StateDefBody::Brace { elements } => elements,
         _ => panic!("expected state brace body"),
     };
     assert!(body_elements
         .iter()
-        .any(|e| matches!(e.value, sysml_parser::ast::StateDefBodyElement::Then(_))));
+        .any(|e| matches!(e.value, sysml_v2_parser::ast::StateDefBodyElement::Then(_))));
     assert!(body_elements.iter().any(|e| matches!(
         e.value,
-        sysml_parser::ast::StateDefBodyElement::StateUsage(_)
+        sysml_v2_parser::ast::StateDefBodyElement::StateUsage(_)
     )));
     assert!(body_elements.iter().any(|e| matches!(
         e.value,
-        sysml_parser::ast::StateDefBodyElement::Transition(_)
+        sysml_v2_parser::ast::StateDefBodyElement::Transition(_)
     )));
 }
 
@@ -551,7 +551,7 @@ fn test_constraint_and_calc_bodies_parse_members() {
         _ => panic!("expected ConstraintDef"),
     };
     let constraint_elements = match &constraint_def.body {
-        sysml_parser::ast::ConstraintDefBody::Brace { elements } => elements,
+        sysml_v2_parser::ast::ConstraintDefBody::Brace { elements } => elements,
         _ => panic!("expected constraint brace body"),
     };
     assert!(
@@ -563,7 +563,7 @@ fn test_constraint_and_calc_bodies_parse_members() {
         _ => panic!("expected CalcDef"),
     };
     let calc_elements = match &calc_def.body {
-        sysml_parser::ast::CalcDefBody::Brace { elements } => elements,
+        sysml_v2_parser::ast::CalcDefBody::Brace { elements } => elements,
         _ => panic!("expected calc brace body"),
     };
     assert!(!calc_elements.is_empty(), "calc body should not be empty");
@@ -597,7 +597,7 @@ fn test_view_and_connection_bodies_parse_members() {
     };
     assert!(matches!(
         &connection_def.body,
-        sysml_parser::ast::ConnectionDefBody::Brace { elements } if !elements.is_empty()
+        sysml_v2_parser::ast::ConnectionDefBody::Brace { elements } if !elements.is_empty()
     ));
 }
 
@@ -684,7 +684,7 @@ fn test_case_family_bodies_parse_use_case_members() {
         _ => panic!("expected CaseDef"),
     };
     assert!(
-        matches!(&case_def.body, sysml_parser::ast::UseCaseDefBody::Brace { elements } if !elements.is_empty())
+        matches!(&case_def.body, sysml_v2_parser::ast::UseCaseDefBody::Brace { elements } if !elements.is_empty())
     );
 }
 
@@ -705,15 +705,15 @@ fn test_perform_action_decl_body_parses_bindings() {
         _ => panic!("expected PartDef"),
     };
     let part_body = match &part_def.body {
-        sysml_parser::ast::PartDefBody::Brace { elements } => elements,
+        sysml_v2_parser::ast::PartDefBody::Brace { elements } => elements,
         _ => panic!("expected part def brace body"),
     };
     let perform = match &part_body[0].value {
-        sysml_parser::ast::PartDefBodyElement::Perform(p) => &p.value,
+        sysml_v2_parser::ast::PartDefBodyElement::Perform(p) => &p.value,
         _ => panic!("expected perform action declaration"),
     };
     assert!(
-        matches!(&perform.body, sysml_parser::ast::PerformBody::Brace { elements } if !elements.is_empty()),
+        matches!(&perform.body, sysml_v2_parser::ast::PerformBody::Brace { elements } if !elements.is_empty()),
         "perform action brace body should retain parsed in/out bindings"
     );
 }
@@ -930,34 +930,34 @@ fn test_requirement_body_keeps_structured_attributes_and_later_require_constrain
         })
         .expect("requirement def should be present");
     let body_elements = match &req.body {
-        sysml_parser::ast::RequirementDefBody::Brace { elements } => elements,
+        sysml_v2_parser::ast::RequirementDefBody::Brace { elements } => elements,
         _ => panic!("expected requirement brace body"),
     };
     assert!(
         body_elements.iter().any(|e| matches!(
             e.value,
-            sysml_parser::ast::RequirementDefBodyElement::SubjectDecl(_)
+            sysml_v2_parser::ast::RequirementDefBodyElement::SubjectDecl(_)
         )),
         "subject should be parsed in requirement body"
     );
     assert!(
         body_elements.iter().any(|e| matches!(
             e.value,
-            sysml_parser::ast::RequirementDefBodyElement::AttributeDef(_)
+            sysml_v2_parser::ast::RequirementDefBodyElement::AttributeDef(_)
         )),
         "typed attribute members should be preserved as structured attribute defs"
     );
     assert!(
         body_elements.iter().any(|e| matches!(
             e.value,
-            sysml_parser::ast::RequirementDefBodyElement::AttributeUsage(_)
+            sysml_v2_parser::ast::RequirementDefBodyElement::AttributeUsage(_)
         )),
         "value-based attribute members should be preserved as structured attribute usages"
     );
     assert!(
         body_elements.iter().any(|e| matches!(
             e.value,
-            sysml_parser::ast::RequirementDefBodyElement::RequireConstraint(_)
+            sysml_v2_parser::ast::RequirementDefBodyElement::RequireConstraint(_)
         )),
         "require constraint should be preserved after structured attribute members"
     );
@@ -981,21 +981,21 @@ fn test_part_def_recovery_preserves_other_member_and_later_sibling() {
             _ => None,
         })
         .expect("part def should be present");
-    let sysml_parser::ast::PartDefBody::Brace { elements } = &part_def.body else {
+    let sysml_v2_parser::ast::PartDefBody::Brace { elements } = &part_def.body else {
         panic!("expected part def body");
     };
     assert!(
         elements.iter().any(|e| matches!(
             e.value,
-            sysml_parser::ast::PartDefBodyElement::Other(_)
-                | sysml_parser::ast::PartDefBodyElement::OpaqueMember(_)
+            sysml_v2_parser::ast::PartDefBodyElement::Other(_)
+                | sysml_v2_parser::ast::PartDefBodyElement::OpaqueMember(_)
         )),
         "library-tolerant unmodeled part members should be preserved explicitly"
     );
     assert!(
         elements.iter().any(|e| matches!(
             e.value,
-            sysml_parser::ast::PartDefBodyElement::AttributeDef(_)
+            sysml_v2_parser::ast::PartDefBodyElement::AttributeDef(_)
         )),
         "later modeled members should still parse"
     );
@@ -1019,19 +1019,19 @@ fn test_state_def_recovery_no_longer_truncates_body() {
             _ => None,
         })
         .expect("state def should be present");
-    let sysml_parser::ast::StateDefBody::Brace { elements } = &state_def.body else {
+    let sysml_v2_parser::ast::StateDefBody::Brace { elements } = &state_def.body else {
         panic!("expected state body");
     };
     assert!(
         elements
             .iter()
-            .any(|e| matches!(e.value, sysml_parser::ast::StateDefBodyElement::Other(_))),
+            .any(|e| matches!(e.value, sysml_v2_parser::ast::StateDefBodyElement::Other(_))),
         "unknown state members should be preserved explicitly instead of truncating the body"
     );
     assert!(
         elements.iter().any(|e| matches!(
             e.value,
-            sysml_parser::ast::StateDefBodyElement::Transition(_)
+            sysml_v2_parser::ast::StateDefBodyElement::Transition(_)
         )),
         "later valid state members should still parse"
     );
@@ -1068,20 +1068,20 @@ fn test_parse_requirement_body_supports_attribute_def_and_usage_forms() {
         })
         .expect("requirement def should be present");
     let body_elements = match &req.body {
-        sysml_parser::ast::RequirementDefBody::Brace { elements } => elements,
+        sysml_v2_parser::ast::RequirementDefBody::Brace { elements } => elements,
         _ => panic!("expected requirement brace body"),
     };
     assert!(
         body_elements.iter().any(|e| matches!(
             e.value,
-            sysml_parser::ast::RequirementDefBodyElement::AttributeDef(_)
+            sysml_v2_parser::ast::RequirementDefBodyElement::AttributeDef(_)
         )),
         "attribute def form should be preserved"
     );
     assert!(
         body_elements.iter().any(|e| matches!(
             e.value,
-            sysml_parser::ast::RequirementDefBodyElement::AttributeUsage(_)
+            sysml_v2_parser::ast::RequirementDefBodyElement::AttributeUsage(_)
         )),
         "attribute usage form should be preserved"
     );
@@ -1107,37 +1107,37 @@ fn test_parse_require_constraint_keeps_inner_members() {
         })
         .expect("requirement def should be present");
     let body_elements = match &req.body {
-        sysml_parser::ast::RequirementDefBody::Brace { elements } => elements,
+        sysml_v2_parser::ast::RequirementDefBody::Brace { elements } => elements,
         _ => panic!("expected requirement brace body"),
     };
     let require_constraint = body_elements
         .iter()
         .find_map(|e| match &e.value {
-            sysml_parser::ast::RequirementDefBodyElement::RequireConstraint(c) => Some(&c.value),
+            sysml_v2_parser::ast::RequirementDefBodyElement::RequireConstraint(c) => Some(&c.value),
             _ => None,
         })
         .expect("require constraint should be present");
     let constraint_elements = match &require_constraint.body {
-        sysml_parser::ast::RequireConstraintBody::Brace { elements } => elements,
+        sysml_v2_parser::ast::RequireConstraintBody::Brace { elements } => elements,
         _ => panic!("expected structured require constraint body"),
     };
     assert!(
         constraint_elements
             .iter()
-            .any(|e| matches!(e.value, sysml_parser::ast::ConstraintDefBodyElement::Doc(_))),
+            .any(|e| matches!(e.value, sysml_v2_parser::ast::ConstraintDefBodyElement::Doc(_))),
         "doc should be preserved inside require constraint"
     );
     assert!(
         constraint_elements.iter().any(|e| matches!(
             e.value,
-            sysml_parser::ast::ConstraintDefBodyElement::InOutDecl(_)
+            sysml_v2_parser::ast::ConstraintDefBodyElement::InOutDecl(_)
         )),
         "in/out declarations should be preserved inside require constraint"
     );
     assert!(
         constraint_elements.iter().any(|e| matches!(
             e.value,
-            sysml_parser::ast::ConstraintDefBodyElement::Expression(_)
+            sysml_v2_parser::ast::ConstraintDefBodyElement::Expression(_)
         )),
         "expressions should be preserved inside require constraint"
     );
@@ -1163,13 +1163,13 @@ fn test_parse_requirement_subject_shorthand_without_name() {
         })
         .expect("requirement def should be present");
     let body_elements = match &req.body {
-        sysml_parser::ast::RequirementDefBody::Brace { elements } => elements,
+        sysml_v2_parser::ast::RequirementDefBody::Brace { elements } => elements,
         _ => panic!("expected requirement brace body"),
     };
     let subject = body_elements
         .iter()
         .find_map(|e| match &e.value {
-            sysml_parser::ast::RequirementDefBodyElement::SubjectDecl(s) => Some(&s.value),
+            sysml_v2_parser::ast::RequirementDefBodyElement::SubjectDecl(s) => Some(&s.value),
             _ => None,
         })
         .expect("subject decl should be present");
@@ -1178,7 +1178,7 @@ fn test_parse_requirement_subject_shorthand_without_name() {
     assert!(
         body_elements.iter().any(|e| matches!(
             e.value,
-            sysml_parser::ast::RequirementDefBodyElement::RequireConstraint(_)
+            sysml_v2_parser::ast::RequirementDefBodyElement::RequireConstraint(_)
         )),
         "later requirement members should still parse after subject shorthand"
     );
@@ -1204,13 +1204,13 @@ fn test_parse_use_case_subject_shorthand_without_name() {
         })
         .expect("use case def should be present");
     let body_elements = match &use_case.body {
-        sysml_parser::ast::UseCaseDefBody::Brace { elements } => elements,
+        sysml_v2_parser::ast::UseCaseDefBody::Brace { elements } => elements,
         _ => panic!("expected use case brace body"),
     };
     let subject = body_elements
         .iter()
         .find_map(|e| match &e.value {
-            sysml_parser::ast::UseCaseDefBodyElement::SubjectDecl(s) => Some(&s.value),
+            sysml_v2_parser::ast::UseCaseDefBodyElement::SubjectDecl(s) => Some(&s.value),
             _ => None,
         })
         .expect("subject decl should be present");
@@ -1219,7 +1219,7 @@ fn test_parse_use_case_subject_shorthand_without_name() {
     assert!(
         body_elements.iter().any(|e| matches!(
             e.value,
-            sysml_parser::ast::UseCaseDefBodyElement::Objective(_)
+            sysml_v2_parser::ast::UseCaseDefBodyElement::Objective(_)
         )),
         "later use case members should still parse after subject shorthand"
     );

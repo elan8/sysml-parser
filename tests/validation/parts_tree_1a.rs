@@ -1,12 +1,12 @@
 //! Parser test for `01-Parts Tree/1a-Parts Tree.sysml`.
 
 use std::path::Path;
-use sysml_parser::ast::{
+use sysml_v2_parser::ast::{
     AttributeBody, AttributeDef, AttributeUsage, Expression, Identification, Import, Node, Package,
     PackageBody, PackageBodyElement, PartDef, PartDefBody, PartDefBodyElement, PartUsage,
     PartUsageBody, PartUsageBodyElement, RootElement, RootNamespace, Span, Visibility,
 };
-use sysml_parser::parse;
+use sysml_v2_parser::parse;
 
 fn id(name: &str) -> Identification {
     Identification {

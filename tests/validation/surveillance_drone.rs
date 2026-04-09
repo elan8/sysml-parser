@@ -1,8 +1,8 @@
 //! Parser tests for `tests/fixtures/SurveillanceDrone*.sysml`.
 
 use std::path::Path;
-use sysml_parser::ast::{PackageBodyElement, PartDef, RootElement};
-use sysml_parser::{parse, parse_with_diagnostics};
+use sysml_v2_parser::ast::{PackageBodyElement, PartDef, RootElement};
+use sysml_v2_parser::{parse, parse_with_diagnostics};
 
 /// Path to the SurveillanceDrone fixture (project-local, not sysml-v2-release).
 fn surveillance_drone_fixture_path() -> std::path::PathBuf {
@@ -61,7 +61,7 @@ fn test_parse_surveillance_drone() {
     );
 
     let body = match &package.body {
-        sysml_parser::ast::PackageBody::Brace { elements } => elements,
+        sysml_v2_parser::ast::PackageBody::Brace { elements } => elements,
         _ => panic!("expected package body to be brace form"),
     };
 

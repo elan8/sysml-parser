@@ -7,8 +7,8 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use sysml_parser::ast::{PackageBody, PackageBodyElement, RootElement, RootNamespace};
-use sysml_parser::{parse_with_diagnostics, ParseError};
+use sysml_v2_parser::ast::{PackageBody, PackageBodyElement, RootElement, RootNamespace};
+use sysml_v2_parser::{parse_with_diagnostics, ParseError};
 
 /// Root of the SysML v2 Release tree (from env or the sysml-v2-release submodule).
 fn sysml_v2_release_root() -> PathBuf {
