@@ -1,19 +1,22 @@
-# SysML v2 Compliance Gap Analysis
+# SysML v2 Parser Status
 
-This document compares the current parser implementation against the SysML v2 textual grammar in [`sysml-v2-release/bnf/SysML-textual-bnf.kebnf`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf).
+This document is the narrative status view of the parser as of April 9, 2026. It complements the compact snapshot in [`docs/BNF_COMPLIANCE_MATRIX.md`](C:\Git\sysml-parser\docs\BNF_COMPLIANCE_MATRIX.md).
+
+Reference grammar:
+
+- [`sysml-v2-release/bnf/SysML-textual-bnf.kebnf`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf)
 
 ## Scope
 
-This is a **parser compliance** analysis, not a full semantic compliance analysis.
+This is a parser-status document, not a semantic conformance claim.
 
-It answers:
+It describes:
 
-- which SysML v2 textual grammar areas are already implemented
-- which are only partially supported
-- which are still missing
-- which parser architecture gaps block broader grammar coverage
+- which major textual grammar families currently have dedicated parser coverage
+- where the parser still relies on permissive or shell-style parsing
+- what remains unfinished even though the validation and library suites are green
 
-It does **not** claim semantic conformance for:
+It does not claim semantic conformance for:
 
 - name resolution
 - type checking
@@ -21,760 +24,134 @@ It does **not** claim semantic conformance for:
 - KerML/SysML well-formedness constraints
 - derived or implicit abstract-syntax behavior
 
-## High-Level Conclusion
+## Current baseline
 
-The parser is currently:
+The parser currently has a stronger baseline than the earlier gap analysis implied:
 
-- strong enough for the existing validation suite
-- usable for a meaningful SysML v2 subset
-- not yet fully compliant with the full textual grammar in the official `.kebnf`
+- `cargo test` is green
+- `cargo test --test validation -- --include-ignored` is green
+- the full validation suite is green
+- the strict Systems Library and full-library syntax gates are green
+- the Systems Library and full-library node-shape gates both pass with `ExtendedLibraryDecl = 0`
 
-The biggest remaining gaps are:
+That means the project is no longer in a state where large parser families are simply absent from the implementation baseline. The remaining work is now mostly about depth, fidelity, and editor-grade resilience.
 
-1. the generic Definition/Usage/Specialization grammar layer is only partially modeled
-2. several large language families are still missing entirely
-3. action/state behavioral syntax is implemented as a subset
-4. the expression parser only covers a simplified subset of `OwnedExpression`
-5. several modules still skip bodies instead of parsing them according to the grammar
+## What is implemented and validated
 
-## Current Parser Surface
+The parser has dedicated modules for the major SysML-facing construct families in [`src/parser`](C:\Git\sysml-parser\src\parser):
 
-The current parser modules are in [`src/parser`](C:\Git\sysml-parser\src\parser):
+- packages and imports
+- aliases
+- attributes
+- enumerations
+- items
+- parts
+- ports
+- connections
+- interfaces
+- allocations
+- flows
+- actions
+- states
+- calculations and constraints
+- requirements and concerns
+- cases, analysis cases, and verification cases
+- use cases
+- views, viewpoints, and renderings
+- metadata
+- occurrences and individuals
 
-- [`action.rs`](C:\Git\sysml-parser\src\parser\action.rs)
-- [`alias.rs`](C:\Git\sysml-parser\src\parser\alias.rs)
-- [`attribute.rs`](C:\Git\sysml-parser\src\parser\attribute.rs)
-- [`connection.rs`](C:\Git\sysml-parser\src\parser\connection.rs)
-- [`constraint.rs`](C:\Git\sysml-parser\src\parser\constraint.rs)
-- [`dependency.rs`](C:\Git\sysml-parser\src\parser\dependency.rs)
-- [`enumeration.rs`](C:\Git\sysml-parser\src\parser\enumeration.rs)
-- [`expr.rs`](C:\Git\sysml-parser\src\parser\expr.rs)
-- [`import.rs`](C:\Git\sysml-parser\src\parser\import.rs)
-- [`individual.rs`](C:\Git\sysml-parser\src\parser\individual.rs)
-- [`interface.rs`](C:\Git\sysml-parser\src\parser\interface.rs)
-- [`item.rs`](C:\Git\sysml-parser\src\parser\item.rs)
-- [`metadata.rs`](C:\Git\sysml-parser\src\parser\metadata.rs)
-- [`metadata_annotation.rs`](C:\Git\sysml-parser\src\parser\metadata_annotation.rs)
-- [`occurrence.rs`](C:\Git\sysml-parser\src\parser\occurrence.rs)
-- [`package.rs`](C:\Git\sysml-parser\src\parser\package.rs)
-- [`part.rs`](C:\Git\sysml-parser\src\parser\part.rs)
-- [`port.rs`](C:\Git\sysml-parser\src\parser\port.rs)
-- [`requirement.rs`](C:\Git\sysml-parser\src\parser\requirement.rs)
-- [`state.rs`](C:\Git\sysml-parser\src\parser\state.rs)
-- [`usecase.rs`](C:\Git\sysml-parser\src\parser\usecase.rs)
-- [`view.rs`](C:\Git\sysml-parser\src\parser\view.rs)
+This does not mean every production in those families is fully grammar-faithful, but it does mean these families are represented by real parser entry points and are covered by the current validation baseline.
 
-The AST lives in [`src/ast.rs`](C:\Git\sysml-parser\src\ast.rs).
+## What is still partial or permissive
 
-## Compliance Matrix
+### Generic definition and usage grammar remains the largest architectural gap
 
-### 1. Packages, imports, annotations
-
-Status: `Mostly implemented`
-
-Spec areas:
-
-- `Package`, `LibraryPackage`, `PackageBody`, `PackageBodyElement`
-- `AliasMember`
-- `Import`
-- `Comment`, `Documentation`, `TextualRepresentation`
-
-Spec references:
-
-- [`SysML-textual-bnf.kebnf#L109`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L109)
-- [`SysML-textual-bnf.kebnf#L142`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L142)
-- [`SysML-textual-bnf.kebnf#L149`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L149)
-- [`SysML-textual-bnf.kebnf#L82`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L82)
-
-Current implementation:
-
-- [`src/parser/package.rs`](C:\Git\sysml-parser\src\parser\package.rs)
-- [`src/parser/import.rs`](C:\Git\sysml-parser\src\parser\import.rs)
-- [`src/parser/alias.rs`](C:\Git\sysml-parser\src\parser\alias.rs)
-- [`src/parser/requirement.rs`](C:\Git\sysml-parser\src\parser\requirement.rs)
-
-Notes:
-
-- package structure and top-level dispatch are in good shape
-- imports support the common forms, including filter-package style
-- documentation/comments/textual representations exist
-- some relationship bodies are still simplified and may skip content
-
-### 2. Generic definition/usage framework
-
-Status: `Partially implemented`
-
-Spec areas:
-
-- `DefinitionPrefix`
-- `DefinitionDeclaration`
-- `DefinitionBodyItem`
-- `UsagePrefix`
-- `UsageDeclaration`
-- `UsageCompletion`
-- `FeatureSpecializationPart`
-- `SubclassificationPart`
-
-Spec references:
-
-- [`SysML-textual-bnf.kebnf#L225`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L225)
-- [`SysML-textual-bnf.kebnf#L237`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L237)
-- [`SysML-textual-bnf.kebnf#L308`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L308)
-- [`SysML-textual-bnf.kebnf#L417`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L417)
-
-Current implementation:
-
-- spread across [`src/parser/part.rs`](C:\Git\sysml-parser\src\parser\part.rs), [`src/parser/port.rs`](C:\Git\sysml-parser\src\parser\port.rs), [`src/parser/attribute.rs`](C:\Git\sysml-parser\src\parser\attribute.rs), [`src/parser/action.rs`](C:\Git\sysml-parser\src\parser\action.rs), [`src/parser/state.rs`](C:\Git\sysml-parser\src\parser\state.rs)
-
-Gap:
-
-- there is no single grammar layer for the generic definition/usage model
-- prefixes and specialization syntax are implemented per construct
-- many legal combinations from the spec are therefore unavailable
+The spec's shared definition/usage/specialization layer is still only partially modeled. Much of that logic remains distributed across construct-specific parsers such as parts, ports, attributes, actions, and states instead of being represented by a unified grammar layer.
 
 Impact:
 
-- this is the single biggest structural blocker for full SysML v2 coverage
+- many legal combinations from the spec are still unavailable
+- support is broader for common fixture forms than for the full grammar surface
+- extending support consistently across families is harder than it should be
 
-### 3. Attributes
+### Several families are parsed as useful subsets rather than full productions
 
-Status: `Partially implemented`
+The parser now covers flows, allocations, case families, and other formerly missing areas, but many of those families still operate as subset parsers rather than complete grammar implementations.
 
-Spec areas:
+Common remaining limitations:
 
-- `AttributeDefinition`
-- `AttributeUsage`
+- subset-only body item coverage
+- incomplete specialization/prefix combinations
+- simplified handling of nested forms
+- dedicated nodes for top-level declarations without equally deep body modeling
 
-Spec reference:
+The strongest areas today are still packages/imports, parts, requirements, and the general library-validation path.
 
-- [`SysML-textual-bnf.kebnf#L510`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L510)
+### Some bodies are still accepted permissively
 
-Current implementation:
+Several modules still use `skip_until_brace_end()` or related helpers from [`src/parser/lex.rs`](C:\Git\sysml-parser\src\parser\lex.rs) to consume bodies without fully parsing their internal grammar.
 
-- [`src/parser/attribute.rs`](C:\Git\sysml-parser\src\parser\attribute.rs)
-
-Notes:
-
-- basic defs and usages work
-- shorthand forms are supported
-- value parsing is still simplified in several places
-- full feature specialization coverage is not present
-
-### 4. Enumerations
-
-Status: `Mostly implemented`
-
-Spec area:
-
-- `EnumerationDefinition`
-
-Spec reference:
-
-- [`SysML-textual-bnf.kebnf#L518`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L518)
-
-Current implementation:
-
-- [`src/parser/enumeration.rs`](C:\Git\sysml-parser\src\parser\enumeration.rs)
-
-Notes:
-
-- basic enum definitions are covered
-- advanced interactions with generic specialization infrastructure still depend on the larger generic-definition gap
-
-### 5. Occurrences, individuals, portions, events
-
-Status: `Partially implemented to missing`
-
-Spec areas:
-
-- `OccurrenceDefinition`
-- `OccurrenceUsage`
-- `IndividualDefinition`
-- `IndividualUsage`
-- `PortionUsage`
-- `snapshot`
-- `timeslice`
-- `EventOccurrenceUsage`
-- `SourceSuccessionMember`
-
-Spec references:
-
-- [`SysML-textual-bnf.kebnf#L548`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L548)
-
-Current implementation:
-
-- defs: [`src/parser/occurrence.rs`](C:\Git\sysml-parser\src\parser\occurrence.rs)
-- individuals: [`src/parser/individual.rs`](C:\Git\sysml-parser\src\parser\individual.rs)
-
-Gap:
-
-- occurrence definitions exist, but occurrence usages are not covered as a general family
-- `snapshot`, `timeslice`, `portion`, and event occurrence syntax are missing
-- source succession is only partially represented in specific constructs
-
-### 6. Items
-
-Status: `Mostly implemented`
-
-Spec areas:
-
-- `ItemDefinition`
-- `ItemUsage`
-
-Spec reference:
-
-- [`SysML-textual-bnf.kebnf#L611`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L611)
-
-Current implementation:
-
-- `item def` exists in [`src/parser/item.rs`](C:\Git\sysml-parser\src\parser\item.rs)
-
-Gap:
-
-- general `item` usage support is not represented as a first-class parser family
-
-### 7. Parts
-
-Status: `Partially implemented`
-
-Spec areas:
-
-- `PartDefinition`
-- `PartUsage`
-
-Spec reference:
-
-- [`SysML-textual-bnf.kebnf#L620`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L620)
-
-Current implementation:
-
-- [`src/parser/part.rs`](C:\Git\sysml-parser\src\parser\part.rs)
-
-Notes:
-
-- this is one of the strongest parts of the parser today
-- common `part def` and `part` usage patterns work
-- body recovery is relatively mature
-
-Gap:
-
-- still not aligned with the full generic usage/specialization grammar
-- not all prefix combinations and feature-specialization combinations are supported
-
-### 8. Ports
-
-Status: `Partially implemented`
-
-Spec areas:
-
-- `PortDefinition`
-- `PortUsage`
-- conjugated typing
-
-Spec references:
-
-- [`SysML-textual-bnf.kebnf#L628`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L628)
-
-Current implementation:
-
-- [`src/parser/port.rs`](C:\Git\sysml-parser\src\parser\port.rs)
-
-Notes:
-
-- core `port def` and `port` usage support exists
-- `~Type` style typing is partially supported
-- attributes inside port defs now parse
-
-Gap:
-
-- conjugated-port semantics from the spec are not modeled fully
-- the implicit conjugated definition behavior from the abstract syntax is not represented
-- generic specialization combinations remain incomplete
-
-### 9. Connections and bindings
-
-Status: `Partially implemented`
-
-Spec areas:
-
-- `ConnectionDefinition`
-- `ConnectionUsage`
-- `BindingConnectorAsUsage`
-- `SuccessionAsUsage`
-- binary and n-ary connector parts
-
-Spec references:
-
-- [`SysML-textual-bnf.kebnf#L664`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L664)
-
-Current implementation:
-
-- defs: [`src/parser/connection.rs`](C:\Git\sysml-parser\src\parser\connection.rs)
-- part-level `bind` and `connect`: [`src/parser/part.rs`](C:\Git\sysml-parser\src\parser\part.rs)
-
-Gap:
-
-- no dedicated general `connection` usage parser
-- n-ary connectors are not implemented
-- succession syntax is only partially modeled
-- connector end semantics are simplified
-
-### 10. Interfaces
-
-Status: `Partially implemented`
-
-Spec areas:
-
-- `InterfaceDefinition`
-- `InterfaceUsage`
-- interface ends and interface parts
-
-Spec references:
-
-- [`SysML-textual-bnf.kebnf#L720`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L720)
-- [`SysML-textual-bnf.kebnf#L757`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L757)
-
-Current implementation:
-
-- [`src/parser/interface.rs`](C:\Git\sysml-parser\src\parser\interface.rs)
-- part-level interface usage support in [`src/parser/part.rs`](C:\Git\sysml-parser\src\parser\part.rs)
-
-Notes:
-
-- common `interface def` and typed `interface ... connect ... to ...` patterns work
-- `end port` and `~Type` support exist in a useful subset
-
-Gap:
-
-- interface grammar is still subset-only
-- n-ary interface parts are missing
-- full interface body-item coverage is not implemented
-
-### 11. Allocations
-
-Status: `Missing`
-
-Spec areas:
-
-- `AllocationDefinition`
-- `AllocationUsage`
-
-Spec reference:
-
-- [`SysML-textual-bnf.kebnf#L788`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L788)
-
-Current implementation:
-
-- there is no dedicated allocation parser module
-- `allocate` exists only as a part/action-level simplified construct in [`src/parser/part.rs`](C:\Git\sysml-parser\src\parser\part.rs)
-
-Gap:
-
-- no grammar-faithful allocation definition/usage support
-
-### 12. Flows and messages
-
-Status: `Mostly missing`
-
-Spec areas:
-
-- `FlowDefinition`
-- `FlowUsage`
-- `SuccessionFlowUsage`
-- `Message`
-- flow payloads
-- flow ends
-
-Spec references:
-
-- [`SysML-textual-bnf.kebnf#L802`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L802)
-- [`SysML-textual-bnf.kebnf#L825`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L825)
-
-Current implementation:
-
-- AST contains a `Flow` type in [`src/ast.rs`](C:\Git\sysml-parser\src\ast.rs)
-
-Gap:
-
-- there is no `flow.rs`
-- no actual grammar implementation for flow defs/usages/messages
-- payload features and flow-end syntax are absent
-
-### 13. Actions
-
-Status: `Partially implemented`
-
-Spec areas:
-
-- `ActionDefinition`
-- `ActionUsage`
-- `PerformActionUsage`
-- action nodes
-- initial nodes
-- guarded successions
-- `send`, `accept`, `assign`, `terminate`, `if`, `while`, `for`
-
-Spec references:
-
-- [`SysML-textual-bnf.kebnf#L894`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L894)
-- [`SysML-textual-bnf.kebnf#L944`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L944)
-
-Current implementation:
-
-- [`src/parser/action.rs`](C:\Git\sysml-parser\src\parser\action.rs)
-- some perform syntax also in [`src/parser/part.rs`](C:\Git\sysml-parser\src\parser\part.rs)
-
-Notes:
-
-- basic `action def`
-- basic `action` usage
-- simple perform forms
-- local recovery support
-
-Gap:
-
-- broad behavioral grammar from the spec is still absent
-- no full action-node family
-- loop/branch/assignment/send/accept coverage is incomplete
-- guarded and target succession coverage is only partial
-
-### 14. States and transitions
-
-Status: `Partially implemented`
-
-Spec areas:
-
-- `StateDefinition`
-- `StateUsage`
-- `ExhibitStateUsage`
-- `TransitionUsage`
-- entry/do/exit subactions
-- target transitions
-- triggers, guards, effects
-- parallel states
-
-Spec references:
-
-- [`SysML-textual-bnf.kebnf#L1191`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L1191)
-
-Current implementation:
-
-- [`src/parser/state.rs`](C:\Git\sysml-parser\src\parser\state.rs)
-
-Notes:
-
-- `state def`, `state`, `transition`, `entry`, `then`, nested state usage all exist in useful form
-
-Gap:
-
-- `do` and `exit` members are not fully covered
-- `parallel` is only handled as a loose modifier in some paths
-- triggers/effects are simplified
-- transition grammar is much richer in the spec than in the implementation
-
-### 15. Calculations and constraints
-
-Status: `Partially implemented`
-
-Spec areas:
-
-- `CalculationDefinition`
-- `CalculationUsage`
-- `ConstraintDefinition`
-- `ConstraintUsage`
-- `AssertConstraintUsage`
-
-Spec references:
-
-- [`SysML-textual-bnf.kebnf#L1351`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L1351)
-- [`SysML-textual-bnf.kebnf#L1378`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L1378)
-
-Current implementation:
-
-- [`src/parser/constraint.rs`](C:\Git\sysml-parser\src\parser\constraint.rs)
-
-Notes:
-
-- defs exist
-- some body items are supported
-
-Gap:
-
-- usage forms are incomplete
-- much of the calculation/constraint internals still depend on simplified expression coverage
-
-### 16. Requirements and concerns
-
-Status: `Partially implemented`
-
-Spec areas:
-
-- `RequirementDefinition`
-- `RequirementUsage`
-- `SatisfyRequirementUsage`
-- `ConcernDefinition`
-- `ConcernUsage`
-- subjects, frames, verify, actors, stakeholders
-
-Spec references:
-
-- [`SysML-textual-bnf.kebnf#L1400`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L1400)
-- [`SysML-textual-bnf.kebnf#L1462`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L1462)
-- [`SysML-textual-bnf.kebnf#L1489`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L1489)
-
-Current implementation:
-
-- [`src/parser/requirement.rs`](C:\Git\sysml-parser\src\parser\requirement.rs)
-
-Notes:
-
-- this area is relatively mature
-- requirement defs/usages, satisfy, subject, frame, concern usage, and some verification-related forms are present
-
-Gap:
-
-- concern definitions are not a dedicated parser family
-- stakeholder support is not complete
-- some nested requirement constraint forms still skip internal bodies
-
-### 17. Cases, analysis cases, verification cases
-
-Status: `Mostly missing`
-
-Spec areas:
-
-- `CaseDefinition`
-- `CaseUsage`
-- `AnalysisCaseDefinition`
-- `AnalysisCaseUsage`
-- `VerificationCaseDefinition`
-- `VerificationCaseUsage`
-
-Spec references:
-
-- [`SysML-textual-bnf.kebnf#L1499`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L1499)
-- [`SysML-textual-bnf.kebnf#L1529`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L1529)
-- [`SysML-textual-bnf.kebnf#L1539`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L1539)
-
-Current implementation:
-
-- no dedicated parser modules for these families
-
-Gap:
-
-- these language families are currently absent as grammar-faithful parsers
-
-### 18. Use cases
-
-Status: `Partially implemented`
-
-Spec areas:
-
-- `UseCaseDefinition`
-- `UseCaseUsage`
-- `IncludeUseCaseUsage`
-
-Spec references:
-
-- [`SysML-textual-bnf.kebnf#L1560`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L1560)
-
-Current implementation:
-
-- [`src/parser/usecase.rs`](C:\Git\sysml-parser\src\parser\usecase.rs)
-
-Notes:
-
-- basic `use case def`
-- basic `use case` usage
-- actor/objective/subject subset
-
-Gap:
-
-- `include` use case syntax is missing
-- the broader case-family grammar is not unified with use cases
-
-### 19. Views, viewpoints, renderings
-
-Status: `Partially implemented`
-
-Spec areas:
-
-- `ViewDefinition`
-- `ViewUsage`
-- `ViewpointDefinition`
-- `ViewpointUsage`
-- `RenderingDefinition`
-- `RenderingUsage`
-- `Expose`
-
-Spec references:
-
-- [`SysML-textual-bnf.kebnf#L1580`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L1580)
-- [`SysML-textual-bnf.kebnf#L1632`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L1632)
-- [`SysML-textual-bnf.kebnf#L1642`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L1642)
-
-Current implementation:
-
-- [`src/parser/view.rs`](C:\Git\sysml-parser\src\parser\view.rs)
-
-Notes:
-
-- a useful subset exists
-- expose and rendering constructs are present
-
-Gap:
-
-- several forms are simplified
-- they still depend on incomplete generic usage support
-
-### 20. Metadata
-
-Status: `Partially implemented`
-
-Spec areas:
-
-- `MetadataDefinition`
-- `MetadataUsage`
-- `PrefixMetadataAnnotation`
-- `PrefixMetadataMember`
-- metadata bodies
-- `ExtendedDefinition`
-- `ExtendedUsage`
-
-Spec references:
-
-- [`SysML-textual-bnf.kebnf#L1652`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L1652)
-- [`SysML-textual-bnf.kebnf#L1695`](C:\Git\sysml-parser\sysml-v2-release\bnf\SysML-textual-bnf.kebnf#L1695)
-
-Current implementation:
-
-- metadata defs: [`src/parser/metadata.rs`](C:\Git\sysml-parser\src\parser\metadata.rs)
-- metadata annotations/usages: [`src/parser/metadata_annotation.rs`](C:\Git\sysml-parser\src\parser\metadata_annotation.rs)
-
-Gap:
-
-- both modules are intentionally simplified
-- metadata bodies are largely skipped
-- prefix metadata and extended definition/usage support are incomplete
-
-## Cross-Cutting Gaps
-
-### Expressions are still a major blocker
-
-Status: `Partially implemented`
-
-Current implementation:
-
-- [`src/parser/expr.rs`](C:\Git\sysml-parser\src\parser\expr.rs)
-
-Gap:
-
-- no real precedence-aware expression grammar
-- `binary_chain()` currently parses all operators in a flat left-associative chain
-- many `OwnedExpression` forms from SysML/KerML are not supported
-
-Impact:
-
-- this limits correctness across constraints, calculations, guards, value parts, filters, and more
-
-### Body skipping hides compliance gaps
-
-Several parsers use `skip_until_brace_end()` from [`src/parser/lex.rs`](C:\Git\sysml-parser\src\parser\lex.rs) to accept bodies without actually parsing the grammar inside them.
-
-This is currently used in or influences:
+This still appears in or influences:
 
 - [`src/parser/metadata.rs`](C:\Git\sysml-parser\src\parser\metadata.rs)
 - [`src/parser/occurrence.rs`](C:\Git\sysml-parser\src\parser\occurrence.rs)
 - [`src/parser/alias.rs`](C:\Git\sysml-parser\src\parser\alias.rs)
 - [`src/parser/import.rs`](C:\Git\sysml-parser\src\parser\import.rs)
-- parts of [`src/parser/connection.rs`](C:\Git\sysml-parser\src\parser\connection.rs)
-- parts of [`src/parser/requirement.rs`](C:\Git\sysml-parser\src\parser\requirement.rs)
+- parts of connection, view, action, state, requirement, interface, port, and enumeration parsing
 
 Impact:
 
-- good for recovery and fixture compatibility
-- not sufficient for full textual-grammar compliance
+- broad fixture compatibility is preserved
+- top-level declaration coverage is stronger than deep body fidelity
+- body-level AST precision is still the main technical debt
 
-### Semantic compliance is mostly out of scope today
+### Expression support is useful but still incomplete
 
-Even after the missing syntax is implemented, the parser will still need additional layers for:
+[`src/parser/expr.rs`](C:\Git\sysml-parser\src\parser\expr.rs) now has precedence-aware parsing for its supported operators, so the earlier flat-chain description is outdated. Even so, expression coverage is still only a subset of full SysML/KerML `OwnedExpression`.
 
-- qualified-name resolution
-- conjugated port semantics
-- feature direction conformance
-- implicit/derived abstract-syntax behavior
-- KerML constraint enforcement
+Impact:
 
-## Recommended Roadmap Toward Full Compliance
+- common arithmetic, logical, member-access, and simple literal forms work
+- broader expression-family coverage is still needed for full spec fidelity across constraints, calculations, guards, filters, and value parts
 
-### Phase 1: Build the missing grammar foundation
+## Modeled fallback nodes
 
-1. Introduce explicit generic parsers for:
-   - `DefinitionPrefix`
-   - `UsagePrefix`
-   - `SubclassificationPart`
-   - `FeatureSpecializationPart`
-   - `ValuePart`
-2. Refactor construct parsers to reuse that common layer.
-3. Expand AST types so the generic grammar has a stable representation.
+Package-level fallback handling is no longer just "recover and emit diagnostics." The parser now models several declaration families directly in the AST:
 
-### Phase 2: Fill the large missing language families
+- `KermlSemanticDecl`
+- `KermlFeatureDecl`
+- `ExtendedLibraryDecl`
 
-1. Add dedicated parsers for:
-   - flows/messages
-   - allocations
-   - cases/analysis/verification cases
-   - occurrence usages and event occurrences
-2. Hook them into [`src/parser/package.rs`](C:\Git\sysml-parser\src\parser\package.rs) and relevant body parsers.
+These nodes are defined in [`src/ast.rs`](C:\Git\sysml-parser\src\ast.rs) and produced by package-level parsing in [`src/parser/package.rs`](C:\Git\sysml-parser\src\parser\package.rs).
 
-### Phase 3: Expand behavioral grammar
+Current status:
 
-1. Extend actions with:
-   - send
-   - accept
-   - assignment
-   - terminate
-   - if/while/for
-   - guarded successions
-2. Extend states with:
-   - do
-   - exit
-   - trigger/effect forms
-   - full target-transition syntax
-   - proper parallel-state support
+- `KermlSemanticDecl` and `KermlFeatureDecl` are intentional modeled families for broader library coverage
+- `ExtendedLibraryDecl` has been driven down to `0` in the current Systems Library and full std-library node-shape gates
 
-### Phase 4: Upgrade expression parsing
+This means package-level fallback elimination is no longer the main quality problem. The remaining issue is how deeply the parser models bodies after a declaration has already been recognized.
 
-1. Replace flat binary parsing with precedence-based expression parsing.
-2. Add the missing `OwnedExpression` families used by:
-   - constraints
-   - calculations
-   - filters
-   - guards
-   - value parts
+## What "not finished" means now
 
-### Phase 5: Replace skipped bodies with real grammar parsing
+The parser is not blocked on missing top-level support for major SysML families anymore. "Not finished" now means:
 
-1. Remove `skip_until_brace_end()`-style acceptance where a real grammar body exists.
-2. Add targeted conformance tests per grammar family.
+1. generic definition/usage/specialization grammar is not yet unified
+2. body-level modeling is still permissive in several modules
+3. action/state/expression coverage is still subset-oriented compared with the full grammar
+4. language-server recovery quality still needs hardening beyond the current solid baseline
+5. semantic conformance remains largely out of scope
 
-## Suggested Priority Order
+## Recommended next work
 
-If the goal is true parser compliance, I would prioritize work in this order:
+If the goal is deeper parser fidelity rather than just keeping the current suites green, the highest-value work is:
 
-1. generic definition/usage grammar layer
-2. expressions
-3. flows and allocations
-4. case/analysis/verification families
-5. occurrence usages
-6. action/state behavioral expansion
-7. metadata/extended definitions
-8. cleanup of remaining skipped bodies
+1. introduce a more explicit shared definition/usage/specialization layer
+2. replace permissive body skipping with real grammar parsing in the remaining high-value modules
+3. continue expanding expression coverage
+4. deepen behavioral grammar for actions and states
+5. continue language-server hardening: more specific diagnostics, broader error-node coverage, and more recovery-focused tests
 
 ## Summary
 
-The parser currently covers an important and useful SysML v2 subset, but it is still some distance from full compliance with the official textual grammar.
-
-The most important fact is that the remaining work is not just "more individual constructs". The largest compliance gap is architectural: the parser does not yet model the generic definition/usage/specialization layer that the SysML v2 grammar uses across almost every major construct family.
-
-Once that foundation exists, the remaining missing language families become much more straightforward to add consistently.
+The parser now covers a broad, validated SysML v2 subset and passes the repo's strict library and validation gates. The main story is no longer "large language families are missing." The main story is that the parser has broad declaration coverage, but still needs deeper body parsing, a better shared grammar foundation, and stronger editor-oriented recovery to approach full grammar fidelity.

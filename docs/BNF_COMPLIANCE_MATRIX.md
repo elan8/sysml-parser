@@ -1,14 +1,16 @@
 # BNF Compliance Matrix
 
+This is the primary compact coverage snapshot for the parser.
+
 Reference grammar:
 
 - `sysml-v2-release/bnf/SysML-textual-bnf.kebnf`
 
 Status labels:
 
-- `implemented`: dedicated AST + dedicated parser path
-- `partial`: dedicated parser exists for common forms, but not full production coverage
-- `modeled`: parsed into BNF-aligned modeled declaration nodes (`KermlSemanticDecl` / `KermlFeatureDecl` / `ExtendedLibraryDecl`)
+- `implemented`: dedicated AST + dedicated parser path, exercised by the current validation baseline
+- `partial`: dedicated parser exists and is validated for common forms, but coverage may still rely on permissive body parsing or subset-only grammar support
+- `modeled`: parsed into BNF-aligned modeled declaration nodes (`KermlSemanticDecl` / `KermlFeatureDecl` / `ExtendedLibraryDecl`) instead of a fully dedicated construct-specific AST
 
 ## Package-level declaration families
 
@@ -28,8 +30,10 @@ Status labels:
   - supports staged migration threshold via env var `FULL_LIBRARY_EXTENDED_MAX`
   - default threshold is `0` (strict)
 
-## Current quality baseline (2026-03-26)
+## Current quality baseline (2026-04-09)
 
-- Systems Library node-shape gate now passes with `ExtendedLibraryDecl = 0`.
-- Full std library node-shape gate now also passes with `ExtendedLibraryDecl = 0`.
-- Remaining improvement track is no longer package-level fallback elimination, but deeper body-level modeling precision for currently permissive declaration bodies.
+- `cargo test` is green.
+- `cargo test --test validation -- --include-ignored` is green, including the full validation suite and full SysML library gates.
+- Systems Library node-shape validation passes with `ExtendedLibraryDecl = 0`.
+- Full std-library node-shape validation also passes with `ExtendedLibraryDecl = 0`.
+- The main remaining work is deeper body-level modeling precision and language-server hardening, not package-level fallback elimination.

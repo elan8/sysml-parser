@@ -11,139 +11,59 @@ The parser should support editor workflows such as:
 - resilient parsing that localizes damage to the smallest possible region
 - stable downstream features such as outline, symbols, hover, semantic tokens, and navigation
 
+## Current status
+
+The parser already has a meaningful resilient-parsing base:
+
+- local recovery exists in major body parsers
+- `ParseErrorNode` variants exist in the highest-value body ASTs
+- `parse_with_diagnostics()` returns partial AST + diagnostics together
+- panic-safety and recovery behavior are covered by dedicated tests plus the validation suites
+
+The remaining backlog below is the still-actionable work after those completed steps.
+
 ## Priority P0
 
-### 1. Make recovery deterministic per grammar scope
+### 1. Tighten diagnostics emitted from current recovery paths
 
-Move recovery closer to each grammar scope instead of relying primarily on top-level recovery in [`src/parser/mod.rs`](C:\Git\sysml-parser\src\parser\mod.rs).
-
-Target scopes:
-
-- package bodies
-- part bodies
-- action bodies
-- state bodies
-- requirement bodies
-- use case bodies
+The current recovery architecture is in place, but many diagnostics are still generic or derived from `nom` defaults in [`src/parser/mod.rs`](C:\Git\sysml-parser\src\parser\mod.rs).
 
 Expected outcome:
 
-- syntax errors stay localized
-- later sibling elements still parse correctly
-- fewer cascaded or misplaced diagnostics
-
-### 2. Replace heuristic error filtering with grammar-aware recovery
-
-The current `should_report_error_inside_package()` heuristic in [`src/parser/mod.rs`](C:\Git\sysml-parser\src\parser\mod.rs) is useful but fragile.
-
-Replace it with recovery logic based on:
-
-- explicit synchronization tokens such as `;` and `}`
-- known body-element starters for each grammar scope
-- recovery decisions made by the body parser itself
-
-Expected outcome:
-
-- fewer missed diagnostics
-- fewer false suppressions
-- better behavior as support for more SysML constructs is added
-
-### 3. Introduce error nodes in the AST
-
-Add placeholder or error variants to the AST in [`src/ast.rs`](C:\Git\sysml-parser\src\ast.rs).
-
-Examples:
-
-- `PackageBodyElement::Error`
-- `PartUsageBodyElement::Error`
-- `RequirementDefBodyElement::Error`
-
-Expected outcome:
-
-- invalid regions still have a stable place in the syntax tree
-- editor features can remain usable around damaged code
-- recovery becomes more explicit and debuggable
-
-### 4. Make diagnostics more specific
-
-Improve diagnostics emitted through [`src/error.rs`](C:\Git\sysml-parser\src\error.rs) and [`src/parser/mod.rs`](C:\Git\sysml-parser\src\parser\mod.rs).
-
-Add:
-
-- stable error codes
 - more precise `expected` messages
-- targeted `suggestion` text where practical
+- more targeted `suggestion` text
+- less reliance on generic messages such as `expected keyword or token`
 
-Examples:
+### 2. Expand AST error-node coverage to additional grammar scopes
 
-- `expected ';' after attribute declaration`
-- `expected '}' to close package body`
-- `unexpected token in requirement body`
+The most important body scopes already have error nodes, but coverage is not yet uniform across all nested grammar families.
 
-Expected outcome:
+Priority candidates:
 
-- higher-quality LSP diagnostics
-- better quick-fix integration later
-
-## Priority P1
-
-### 5. Add grammar-aware skip helpers
-
-Extend [`src/parser/lex.rs`](C:\Git\sysml-parser\src\parser\lex.rs) with recovery helpers that sync to the next valid construct within a specific body type.
-
-Examples:
-
-- `skip_to_next_package_body_element`
-- `skip_to_next_part_body_element`
-- `skip_to_next_requirement_body_element`
-- `skip_to_next_state_body_element`
+- view/rendering-related bodies
+- constraint/calculation internals
+- additional nested requirement and state substructures
+- parser areas that still recover by skipping without preserving a stable AST placeholder
 
 Expected outcome:
 
-- more accurate recovery than generic line-based skipping
-- less over-skipping into later constructs
+- invalid regions remain visible to editor features more consistently
+- recovery behavior becomes easier to reason about and debug
 
-### 6. Normalize recovery patterns across parser modules
+### 3. Remove recovery paths that still silently reshape invalid input
 
-Several modules already contain custom recovery loops:
-
-- [`src/parser/package.rs`](C:\Git\sysml-parser\src\parser\package.rs)
-- [`src/parser/part.rs`](C:\Git\sysml-parser\src\parser\part.rs)
-- [`src/parser/action.rs`](C:\Git\sysml-parser\src\parser\action.rs)
-- [`src/parser/state.rs`](C:\Git\sysml-parser\src\parser\state.rs)
-- [`src/parser/requirement.rs`](C:\Git\sysml-parser\src\parser\requirement.rs)
-
-Unify these around shared patterns or combinators so they all:
-
-- guarantee forward progress
-- report errors consistently
-- sync at the right structural boundary
-
-Expected outcome:
-
-- more predictable parser behavior
-- lower maintenance cost
-
-### 7. Remove recovery paths that silently reshape invalid input
-
-Some recovery is currently tolerant in ways that help parsing continue but may hide the exact structural problem.
-
-Review and tighten cases where the parser:
-
-- silently accepts trailing unmatched braces
-- swallows malformed blocks without producing a focused diagnostic
-- accepts malformed subtrees without an AST marker
+Some recovery is still tolerant in ways that help parsing continue but may hide the exact structural problem.
 
 Expected outcome:
 
 - better diagnostic fidelity
-- less surprising editor behavior
+- less surprising editor behavior around malformed blocks and unmatched delimiters
 
-### 8. Add recovery-focused tests per construct
+### 4. Add recovery-focused tests per construct
 
 Expand tests beyond end-to-end fixtures in [`tests/parser_tests.rs`](C:\Git\sysml-parser\tests\parser_tests.rs) and validation tests.
 
-Add dedicated cases for malformed:
+Add dedicated malformed-input cases for:
 
 - package bodies
 - part bodies
@@ -162,11 +82,46 @@ Each test should check:
 - later siblings still parse
 - no infinite loop
 
+## Priority P1
+
+### 5. Normalize recovery patterns across parser modules
+
+Several modules already contain local recovery loops:
+
+- [`src/parser/package.rs`](C:\Git\sysml-parser\src\parser\package.rs)
+- [`src/parser/part.rs`](C:\Git\sysml-parser\src\parser\part.rs)
+- [`src/parser/action.rs`](C:\Git\sysml-parser\src\parser\action.rs)
+- [`src/parser/state.rs`](C:\Git\sysml-parser\src\parser\state.rs)
+- [`src/parser/requirement.rs`](C:\Git\sysml-parser\src\parser\requirement.rs)
+- [`src/parser/usecase.rs`](C:\Git\sysml-parser\src\parser\usecase.rs)
+
+Unify them around shared patterns or combinators so they all:
+
+- guarantee forward progress
+- report errors consistently
+- sync at the right structural boundary
+
 Expected outcome:
 
-- confidence that recovery is stable as grammar support grows
+- more predictable parser behavior
+- lower maintenance cost
 
-### 9. Make spans robust under recovery
+### 6. Add or tighten grammar-aware sync helpers where recovery is still coarse
+
+[`src/parser/lex.rs`](C:\Git\sysml-parser\src\parser\lex.rs) already provides shared recovery helpers. Extend them only where current scopes still over-skip or recover at the wrong structural boundary.
+
+Examples:
+
+- finer-grained sync for view bodies
+- finer-grained sync for constraint/calculation internals
+- narrower helpers for parser areas that still rely on generic brace or statement skipping
+
+Expected outcome:
+
+- more accurate recovery than generic line-based skipping
+- less over-skipping into later constructs
+
+### 7. Make spans robust under recovery
 
 Review span generation in [`src/ast.rs`](C:\Git\sysml-parser\src\ast.rs) and parser modules.
 
@@ -182,7 +137,7 @@ Expected outcome:
 
 ## Priority P2
 
-### 10. Separate strict parsing and resilient parsing more clearly
+### 8. Separate strict parsing and resilient parsing more clearly
 
 The API in [`src/lib.rs`](C:\Git\sysml-parser\src\lib.rs) already distinguishes `parse()` from `parse_with_diagnostics()`.
 
@@ -195,24 +150,7 @@ Expected outcome:
 
 - less coupling between test-suite parsing behavior and editor recovery behavior
 
-### 11. Update the error recovery documentation
-
-Refresh [`docs/ERROR_RECOVERY.md`](C:\Git\sysml-parser\docs\ERROR_RECOVERY.md) so it matches the current implementation.
-
-Document:
-
-- actual recovery flow
-- sync points in use
-- forward-progress invariants
-- known weaknesses
-- intended language-server semantics
-
-Expected outcome:
-
-- lower onboarding cost
-- easier maintenance
-
-### 12. Evaluate richer error infrastructure
+### 9. Evaluate richer error infrastructure
 
 Investigate whether to adopt:
 
@@ -230,25 +168,23 @@ Expected outcome:
 
 ### Phase 1
 
-- make recovery deterministic per scope
-- replace heuristic filtering with grammar-aware recovery
-- add grammar-aware skip helpers
+- tighten diagnostics
+- expand error-node coverage
+- remove silent reshaping paths
 
 ### Phase 2
 
-- add AST error nodes
-- improve diagnostics
+- expand recovery tests
 - normalize recovery patterns across modules
+- add narrower sync helpers where current recovery is still coarse
 
 ### Phase 3
 
-- expand recovery tests
 - harden spans
 - separate strict and resilient parse paths
 
 ### Phase 4
 
-- update documentation
 - evaluate richer error infrastructure
 
 ## Definition of Done for Language-Server Use
