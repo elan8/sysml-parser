@@ -2,6 +2,13 @@
 name = "sysml-parser"
 version = "0.1.0"
 edition = "2021"
+description = "SysML v2 textual notation parser for Rust"
+license = "MIT"
+repository = "https://github.com/elan8/sysml-parser"
+readme = "README.md"
+keywords = ["sysml", "parser", "modeling", "kerml"]
+categories = ["parser-implementations"]
+exclude = ["sysml-v2-release/*", "target/*", "test-logs/*"]
 
 [dependencies]
 log = "0.4"
