@@ -528,3 +528,24 @@ fn system_part_body_accepts_named_interface_and_individual_members() {
         .iter()
         .any(|e| matches!(e.value, PartDefBodyElement::InterfaceUsage(_))));
 }
+
+#[test]
+fn part_defs_accept_multiple_specialization_targets() {
+    let input = "package P {\npart def ApolloSpacecraft :> System, Spacecraft {\npart commandServiceModule;\n}\npart def ExtravehicularMobilityUnit :> System, EVASystem;\n}";
+    let result = parse_with_diagnostics(input);
+    assert!(
+        result.errors.is_empty(),
+        "unexpected diagnostics: {:?}",
+        result.errors
+    );
+
+    let pkg = match &result.root.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let PackageBody::Brace { elements } = &pkg.body else {
+        panic!("expected brace body");
+    };
+    assert!(matches!(elements[0].value, PackageBodyElement::PartDef(_)));
+    assert!(matches!(elements[1].value, PackageBodyElement::PartDef(_)));
+}

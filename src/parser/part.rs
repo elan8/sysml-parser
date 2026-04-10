@@ -390,6 +390,15 @@ pub(crate) fn part_def(input: Input<'_>) -> IResult<Input<'_>, Node<PartDef>> {
         preceded(ws_and_comments, qualified_name),
     ))
     .parse(input)?;
+    let (input, _) = if opt_specializes.is_some() {
+        many0(preceded(
+            preceded(ws_and_comments, tag(&b","[..])),
+            preceded(ws_and_comments, qualified_name),
+        ))
+        .parse(input)?
+    } else {
+        (input, Vec::new())
+    };
     let (specializes, specializes_span) = match opt_specializes {
         Some((_, type_name)) => (
             Some(type_name),
@@ -442,6 +451,15 @@ pub(crate) fn part_def_or_usage(input: Input<'_>) -> IResult<Input<'_>, PartDefO
             preceded(ws_and_comments, qualified_name),
         ))
         .parse(input)?;
+        let (input, _) = if opt_specializes.is_some() {
+            many0(preceded(
+                preceded(ws_and_comments, tag(&b","[..])),
+                preceded(ws_and_comments, qualified_name),
+            ))
+            .parse(input)?
+        } else {
+            (input, Vec::new())
+        };
         let (specializes, specializes_span) = match opt_specializes {
             Some((_, type_name)) => (
                 Some(type_name),
