@@ -652,6 +652,9 @@ fn collect_state_body_errors(body: &StateDefBody, errors: &mut Vec<ParseError>) 
                     errors.push(parse_error_from_recovery_node(&element.span, &n.value));
                 }
                 StateDefBodyElement::Entry(n) => collect_state_body_errors(&n.value.body, errors),
+                StateDefBodyElement::RequirementUsage(n) => {
+                    collect_requirement_body_errors(&n.value.body, errors)
+                }
                 StateDefBodyElement::StateUsage(n) => {
                     collect_state_body_errors(&n.value.body, errors)
                 }

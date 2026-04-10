@@ -13,7 +13,7 @@ use crate::parser::lex::{
 };
 use crate::parser::node_from_to;
 use crate::parser::metadata_annotation::annotation;
-use crate::parser::requirement::doc_comment;
+use crate::parser::requirement::{doc_comment, requirement_usage};
 use crate::parser::Input;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
@@ -252,6 +252,9 @@ fn state_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<StateDefB
         }),
         map(state_ref, |n| {
             node_from_to(start, input, StateDefBodyElement::Ref(n))
+        }),
+        map(requirement_usage, |n| {
+            node_from_to(start, input, StateDefBodyElement::RequirementUsage(n))
         }),
         map(state_usage, |n| {
             node_from_to(start, input, StateDefBodyElement::StateUsage(n))

@@ -6,6 +6,7 @@ use crate::ast::{
 };
 use crate::parser::attribute::attribute_usage;
 use crate::parser::build_recovery_error_node;
+use crate::parser::constraint::structured_constraint_body;
 use crate::parser::lex::{
     identification, name, qualified_name, recover_body_element, skip_until_brace_end, ws1,
     ws_and_comments,
@@ -77,50 +78,99 @@ pub(crate) fn occurrence_def(input: Input<'_>) -> IResult<Input<'_>, Node<Occurr
 }
 
 pub(crate) fn occurrence_usage(input: Input<'_>) -> IResult<Input<'_>, Node<OccurrenceUsage>> {
-    occurrence_usage_with_modifiers(input, false, None)
+    occurrence_usage_with_modifiers(input, false, false, None)
 }
 
 pub(crate) fn individual_usage(input: Input<'_>) -> IResult<Input<'_>, Node<OccurrenceUsage>> {
     let (input, _) = preceded(ws_and_comments, tag(&b"individual"[..])).parse(input)?;
     let (input, _) = ws1(input)?;
-    occurrence_usage_tail(input, true, None)
+    occurrence_usage_tail(input, true, false, None)
 }
 
 pub(crate) fn snapshot_usage(input: Input<'_>) -> IResult<Input<'_>, Node<OccurrenceUsage>> {
     let (input, _) = preceded(ws_and_comments, tag(&b"snapshot"[..])).parse(input)?;
     let (input, _) = ws1(input)?;
-    occurrence_usage_tail(input, false, Some("snapshot".to_string()))
+    occurrence_usage_tail(input, false, false, Some("snapshot".to_string()))
 }
 
 pub(crate) fn timeslice_usage(input: Input<'_>) -> IResult<Input<'_>, Node<OccurrenceUsage>> {
     let (input, _) = preceded(ws_and_comments, tag(&b"timeslice"[..])).parse(input)?;
     let (input, _) = ws1(input)?;
-    occurrence_usage_tail(input, false, Some("timeslice".to_string()))
+    occurrence_usage_tail(input, false, false, Some("timeslice".to_string()))
+}
+
+pub(crate) fn then_timeslice_usage(input: Input<'_>) -> IResult<Input<'_>, Node<OccurrenceUsage>> {
+    let (input, _) = preceded(ws_and_comments, tag(&b"then"[..])).parse(input)?;
+    let (input, _) = ws1(input)?;
+    let (input, _) = tag(&b"timeslice"[..]).parse(input)?;
+    let (input, _) = ws1(input)?;
+    occurrence_usage_tail(input, false, true, Some("timeslice".to_string()))
 }
 
 fn occurrence_usage_with_modifiers(
     input: Input<'_>,
     is_individual: bool,
+    is_then: bool,
     portion_kind: Option<String>,
 ) -> IResult<Input<'_>, Node<OccurrenceUsage>> {
     let (input, _) = preceded(ws_and_comments, tag(&b"occurrence"[..])).parse(input)?;
     let (input, _) = ws1(input)?;
-    occurrence_usage_tail(input, is_individual, portion_kind)
+    occurrence_usage_tail(input, is_individual, is_then, portion_kind)
 }
 
 fn occurrence_usage_tail(
     input: Input<'_>,
     is_individual: bool,
+    is_then: bool,
     portion_kind: Option<String>,
 ) -> IResult<Input<'_>, Node<OccurrenceUsage>> {
     let start = input;
     let (input, name_str) = name(input)?;
+    let (input, subsets) = opt(preceded(
+        preceded(ws_and_comments, tag(&b":>"[..])),
+        preceded(ws_and_comments, qualified_name),
+    ))
+    .parse(input)?;
+    let (input, redefines) = opt(preceded(
+        preceded(ws_and_comments, tag(&b":>>"[..])),
+        preceded(ws_and_comments, qualified_name),
+    ))
+    .parse(input)?;
     let (input, type_name) = opt(preceded(
         preceded(ws_and_comments, tag(&b":"[..])),
         preceded(ws_and_comments, qualified_name),
     ))
     .parse(input)?;
+    let (input, trailing_subsets) = opt(preceded(
+        preceded(ws_and_comments, tag(&b":>"[..])),
+        preceded(ws_and_comments, qualified_name),
+    ))
+    .parse(input)?;
+    let (input, trailing_redefines) = opt(preceded(
+        preceded(ws_and_comments, tag(&b":>>"[..])),
+        preceded(ws_and_comments, qualified_name),
+    ))
+    .parse(input)?;
     let (input, body) = occurrence_usage_body(input)?;
+    let (input, post_body_subsets) = opt(preceded(
+        preceded(ws_and_comments, tag(&b":>"[..])),
+        preceded(ws_and_comments, qualified_name),
+    ))
+    .parse(input)?;
+    let (input, post_body_redefines) = opt(preceded(
+        preceded(ws_and_comments, tag(&b":>>"[..])),
+        preceded(ws_and_comments, qualified_name),
+    ))
+    .parse(input)?;
+    let has_post_body_modifier = post_body_subsets.is_some() || post_body_redefines.is_some();
+    let subsets = subsets.or(trailing_subsets).or(post_body_subsets);
+    let redefines = redefines.or(trailing_redefines).or(post_body_redefines);
+    let input = if has_post_body_modifier {
+        let (input, _) = preceded(ws_and_comments, tag(&b";"[..])).parse(input)?;
+        input
+    } else {
+        input
+    };
     Ok((
         input,
         node_from_to(
@@ -128,9 +178,12 @@ fn occurrence_usage_tail(
             input,
             OccurrenceUsage {
                 is_individual,
+                is_then,
                 portion_kind,
                 name: name_str,
                 type_name,
+                subsets,
+                redefines,
                 body,
             },
         ),
@@ -205,6 +258,7 @@ fn occurrence_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<Occurren
     let (input, elem) = alt((
         map(doc_comment, OccurrenceBodyElement::Doc),
         map(annotation, OccurrenceBodyElement::Annotation),
+        map(assert_constraint_member, OccurrenceBodyElement::Other),
         map(attribute_usage, OccurrenceBodyElement::AttributeUsage),
         map(part_usage, |p| OccurrenceBodyElement::PartUsage(Box::new(p))),
         map(individual_usage, |n| {
@@ -216,10 +270,21 @@ fn occurrence_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<Occurren
         map(timeslice_usage, |n| {
             OccurrenceBodyElement::OccurrenceUsage(Box::new(n))
         }),
+        map(then_timeslice_usage, |n| {
+            OccurrenceBodyElement::OccurrenceUsage(Box::new(n))
+        }),
         map(occurrence_usage, |n| {
             OccurrenceBodyElement::OccurrenceUsage(Box::new(n))
         }),
     ))
     .parse(input)?;
     Ok((input, node_from_to(start, input, elem)))
+}
+
+fn assert_constraint_member(input: Input<'_>) -> IResult<Input<'_>, String> {
+    let (input, _) = preceded(ws_and_comments, tag(&b"assert"[..])).parse(input)?;
+    let (input, _) = ws1(input)?;
+    let (input, _) = tag(&b"constraint"[..]).parse(input)?;
+    let (input, _) = structured_constraint_body(input)?;
+    Ok((input, "assert constraint".to_string()))
 }

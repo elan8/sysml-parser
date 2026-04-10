@@ -17,7 +17,9 @@ use crate::parser::lex::{
     starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments, PART_BODY_STARTERS,
 };
 use crate::parser::metadata_annotation::{annotation, metadata_annotation};
-use crate::parser::occurrence::{individual_usage, occurrence_usage, snapshot_usage, timeslice_usage};
+use crate::parser::occurrence::{
+    individual_usage, occurrence_usage, snapshot_usage, then_timeslice_usage, timeslice_usage,
+};
 use crate::parser::port::port_usage;
 use crate::parser::requirement::{doc_comment, requirement_usage};
 use crate::parser::with_span;
@@ -154,6 +156,17 @@ fn exhibit_state(input: Input<'_>) -> IResult<Input<'_>, Node<ExhibitState>> {
     ))
     .parse(input)?;
     let (input, body) = crate::parser::state::state_def_body(input)?;
+    let (input, redefines) = opt(preceded(
+        preceded(ws_and_comments, tag(&b":>>"[..])),
+        preceded(ws_and_comments, qualified_name),
+    ))
+    .parse(input)?;
+    let input = if redefines.is_some() {
+        let (input, _) = preceded(ws_and_comments, tag(&b";"[..])).parse(input)?;
+        input
+    } else {
+        input
+    };
     Ok((
         input,
         node_from_to(
@@ -162,6 +175,7 @@ fn exhibit_state(input: Input<'_>) -> IResult<Input<'_>, Node<ExhibitState>> {
             ExhibitState {
                 name: name_str,
                 type_name,
+                redefines,
                 body,
             },
         ),
@@ -171,6 +185,9 @@ fn exhibit_state(input: Input<'_>) -> IResult<Input<'_>, Node<ExhibitState>> {
 fn part_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PartDefBodyElement>> {
     let (input, _) = ws_and_comments(input)?;
     let start = input;
+    if let Ok((input, elem)) = map(connection_usage_member, PartDefBodyElement::OpaqueMember).parse(input) {
+        return Ok((input, node_from_to(start, input, elem)));
+    }
     let (input, elem) = alt((
         map(doc_comment, PartDefBodyElement::Doc),
         map(annotation, PartDefBodyElement::Annotation),
@@ -183,6 +200,7 @@ fn part_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PartDefBod
         map(individual_usage, |n| PartDefBodyElement::OccurrenceUsage(Box::new(n))),
         map(snapshot_usage, |n| PartDefBodyElement::OccurrenceUsage(Box::new(n))),
         map(timeslice_usage, |n| PartDefBodyElement::OccurrenceUsage(Box::new(n))),
+        map(then_timeslice_usage, |n| PartDefBodyElement::OccurrenceUsage(Box::new(n))),
         map(occurrence_usage, |n| PartDefBodyElement::OccurrenceUsage(Box::new(n))),
         map(interface_usage, PartDefBodyElement::InterfaceUsage),
         map(port_usage, PartDefBodyElement::PortUsage),
@@ -200,13 +218,76 @@ fn part_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PartDefBod
     Ok((input, node_from_to(start, input, elem)))
 }
 
+fn connection_usage_member(input: Input<'_>) -> IResult<Input<'_>, Node<OpaqueMemberDecl>> {
+    let start = input;
+    let (input, _) = ws_and_comments(input)?;
+    let (input, _) = tag(&b"connection"[..]).parse(input)?;
+    let (input, header_tail) = take_until_terminator(input, b";{")?;
+    let (input, _) = ws_and_comments(input)?;
+    let (input, body) = alt((
+        map(tag(&b";"[..]), |_| AttributeBody::Semicolon),
+        map(
+            delimited(
+                tag(&b"{"[..]),
+                skip_until_brace_end,
+                preceded(ws_and_comments, tag(&b"}"[..])),
+            ),
+            |_| AttributeBody::Brace,
+        ),
+    ))
+    .parse(input)?;
+    let (input, trailing_subsets) = opt(preceded(
+        preceded(ws_and_comments, tag(&b":>"[..])),
+        preceded(ws_and_comments, qualified_name),
+    ))
+    .parse(input)?;
+    let (input, trailing_redefines) = opt(preceded(
+        preceded(ws_and_comments, tag(&b":>>"[..])),
+        preceded(ws_and_comments, qualified_name),
+    ))
+    .parse(input)?;
+    let input = if trailing_subsets.is_some() || trailing_redefines.is_some() {
+        let (input, _) = preceded(ws_and_comments, tag(&b";"[..])).parse(input)?;
+        input
+    } else {
+        input
+    };
+
+    let text = format!("connection{}", header_tail);
+    let name = header_tail
+        .split(|c: char| {
+            c.is_whitespace() || c == ':' || c == '[' || c == ',' || c == '(' || c == ')'
+        })
+        .filter(|s| !s.is_empty())
+        .find(|token| *token != "connection")
+        .unwrap_or("connection")
+        .to_string();
+
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            OpaqueMemberDecl {
+                keyword: "connection".to_string(),
+                name,
+                text,
+                body,
+            },
+        ),
+    ))
+}
+
 /// Permissive parser for library-style part members not yet modeled with dedicated AST nodes.
 /// Examples: `abstract ref action ... { ... }`, `state monitor: StateKind { ... }`.
 fn opaque_part_member_decl(input: Input<'_>) -> IResult<Input<'_>, Node<OpaqueMemberDecl>> {
     let start = input;
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = opt(preceded(tag(&b"abstract"[..]), ws1)).parse(input)?;
-    if !starts_with_any_keyword(input.fragment(), &[b"ref", b"action", b"state", b"port"]) {
+    if !starts_with_any_keyword(
+        input.fragment(),
+        &[b"ref", b"action", b"state", b"port", b"connection"],
+    ) {
         return Err(nom::Err::Error(nom::error::Error::new(
             input,
             nom::error::ErrorKind::Tag,
@@ -219,6 +300,8 @@ fn opaque_part_member_decl(input: Input<'_>) -> IResult<Input<'_>, Node<OpaqueMe
         "action"
     } else if starts_with_any_keyword(input.fragment(), &[b"state"]) {
         "state"
+    } else if starts_with_any_keyword(input.fragment(), &[b"connection"]) {
+        "connection"
     } else {
         "port"
     }
@@ -231,7 +314,7 @@ fn opaque_part_member_decl(input: Input<'_>) -> IResult<Input<'_>, Node<OpaqueMe
         .find(|token| {
             !matches!(
                 *token,
-                "ref" | "action" | "state" | "port" | "part" | "private" | "protected" | "public"
+                "ref" | "action" | "state" | "port" | "connection" | "part" | "private" | "protected" | "public"
             )
         })
         .unwrap_or("member")
@@ -249,6 +332,22 @@ fn opaque_part_member_decl(input: Input<'_>) -> IResult<Input<'_>, Node<OpaqueMe
         ),
     ))
     .parse(input)?;
+    let (input, trailing_subsets) = opt(preceded(
+        preceded(ws_and_comments, tag(&b":>"[..])),
+        preceded(ws_and_comments, qualified_name),
+    ))
+    .parse(input)?;
+    let (input, trailing_redefines) = opt(preceded(
+        preceded(ws_and_comments, tag(&b":>>"[..])),
+        preceded(ws_and_comments, qualified_name),
+    ))
+    .parse(input)?;
+    let input = if trailing_subsets.is_some() || trailing_redefines.is_some() {
+        let (input, _) = preceded(ws_and_comments, tag(&b";"[..])).parse(input)?;
+        input
+    } else {
+        input
+    };
     Ok((
         input,
         node_from_to(
@@ -443,6 +542,7 @@ fn part_usage_named<'a>(start: Input<'a>, input: Input<'a>) -> IResult<Input<'a>
     let (input, _) = opt(preceded(ws_and_comments, tag(&b":>>"[..]))).parse(input)?;
     let (input, _) = ws_and_comments(input)?;
     let (input, (name_span, name_str)) = with_span(name).parse(input)?;
+    let (input, multiplicity_opt) = opt(multiplicity).parse(input)?;
     let (input, type_result) = {
         let (peek, _) = ws_and_comments(input)?;
         if peek.fragment().starts_with(b":") && !peek.fragment().starts_with(b":>") {
@@ -457,6 +557,130 @@ fn part_usage_named<'a>(start: Input<'a>, input: Input<'a>) -> IResult<Input<'a>
     let (type_ref_span, type_name) = type_result
         .map(|(s, t)| (Some(s), t))
         .unwrap_or((None, String::new()));
+    let (input, trailing_multiplicity_opt) = opt(multiplicity).parse(input)?;
+    let multiplicity_opt = multiplicity_opt.or(trailing_multiplicity_opt);
+    let (input, ordered) = opt(preceded(ws_and_comments, tag(&b"ordered"[..]))).parse(input)?;
+    let (input, subsets) = opt(preceded(
+        alt((
+            preceded(ws_and_comments, tag(&b":>"[..])),
+            preceded(ws_and_comments, tag(&b"subsets"[..])),
+        )),
+        preceded(
+            ws_and_comments,
+            (
+                name,
+                opt(preceded(
+                    preceded(ws_and_comments, tag(&b"="[..])),
+                    preceded(ws_and_comments, expression),
+                )),
+            ),
+        ),
+    ))
+    .parse(input)?;
+    let (input, redefines) = opt(alt((
+        preceded(
+            preceded(ws_and_comments, tag(&b"redefines"[..])),
+            preceded(ws1, qualified_name),
+        ),
+        preceded(
+            preceded(ws_and_comments, tag(&b":>>"[..])),
+            preceded(ws_and_comments, qualified_name),
+        ),
+    )))
+    .parse(input)?;
+    let (input, value) = opt(preceded(ws_and_comments, usage_value_part)).parse(input)?;
+    let (input, _) = ws_and_comments(input)?;
+    let (input, _) = take_until_terminator(input, b";{")?;
+    let (input, body) = part_usage_body(input)?;
+    let (input, trailing_subsets) = opt(preceded(
+        alt((
+            preceded(ws_and_comments, tag(&b":>"[..])),
+            preceded(ws_and_comments, tag(&b"subsets"[..])),
+        )),
+        preceded(
+            ws_and_comments,
+            (
+                name,
+                opt(preceded(
+                    preceded(ws_and_comments, tag(&b"="[..])),
+                    preceded(ws_and_comments, expression),
+                )),
+            ),
+        ),
+    ))
+    .parse(input)?;
+    let (input, trailing_redefines) = opt(alt((
+        preceded(
+            preceded(ws_and_comments, tag(&b"redefines"[..])),
+            preceded(ws1, qualified_name),
+        ),
+        preceded(
+            preceded(ws_and_comments, tag(&b":>>"[..])),
+            preceded(ws_and_comments, qualified_name),
+        ),
+    )))
+    .parse(input)?;
+    let subsets = subsets.or(trailing_subsets.clone());
+    let redefines = redefines.or(trailing_redefines.clone());
+    let input = if trailing_subsets.is_some() || trailing_redefines.is_some() {
+        let (input, _) = preceded(ws_and_comments, tag(&b";"[..])).parse(input)?;
+        input
+    } else {
+        input
+    };
+    Ok((
+        input,
+        node_from_to(
+            start,
+            input,
+            PartUsage {
+                is_individual: false,
+                name: name_str,
+                type_name,
+                multiplicity: multiplicity_opt,
+                ordered: ordered.is_some(),
+                subsets,
+                redefines,
+                value,
+                body,
+                name_span: Some(name_span),
+                type_ref_span,
+            },
+        ),
+    ))
+}
+
+/// Part usage: 'part' ( ':>>' qualified_name | (':>>')? name ':' type_name? ... ) multiplicity? ... body
+pub(crate) fn part_usage(input: Input<'_>) -> IResult<Input<'_>, Node<PartUsage>> {
+    let start = input;
+    let (input, _) = ws_and_comments(input)?;
+    let (input, is_individual) = opt(preceded(tag(&b"individual"[..]), ws1))
+        .parse(input)
+        .map(|(i, o)| (i, o.is_some()))?;
+    let (input, _) = tag(&b"part"[..]).parse(input)?;
+    let (input, _) = ws1(input)?;
+    let (peek, _) = ws_and_comments(input)?;
+    if peek.fragment().starts_with(b":") && !peek.fragment().starts_with(b":>") && !peek.fragment().starts_with(b":>>") {
+        let (input, mut usage) = anonymous_part_usage(start, input)?;
+        usage.value.is_individual = is_individual;
+        return Ok((input, usage));
+    }
+    if let Ok((input, usage)) = part_usage_redefines_only(start, input) {
+        let mut usage = usage;
+        usage.value.is_individual = is_individual;
+        return Ok((input, usage));
+    }
+    let (input, mut usage) = part_usage_named(start, input)?;
+    usage.value.is_individual = is_individual;
+    Ok((input, usage))
+}
+
+fn anonymous_part_usage<'a>(
+    start: Input<'a>,
+    input: Input<'a>,
+) -> IResult<Input<'a>, Node<PartUsage>> {
+    let (input, _) = preceded(ws_and_comments, tag(&b":"[..])).parse(input)?;
+    let (input, type_name) = preceded(ws_and_comments, qualified_name).parse(input)?;
     let (input, multiplicity_opt) = opt(multiplicity).parse(input)?;
     let (input, ordered) = opt(preceded(ws_and_comments, tag(&b"ordered"[..]))).parse(input)?;
     let (input, subsets) = opt(preceded(
@@ -498,7 +722,7 @@ fn part_usage_named<'a>(start: Input<'a>, input: Input<'a>) -> IResult<Input<'a>
             input,
             PartUsage {
                 is_individual: false,
-                name: name_str,
+                name: String::new(),
                 type_name,
                 multiplicity: multiplicity_opt,
                 ordered: ordered.is_some(),
@@ -506,30 +730,11 @@ fn part_usage_named<'a>(start: Input<'a>, input: Input<'a>) -> IResult<Input<'a>
                 redefines,
                 value,
                 body,
-                name_span: Some(name_span),
-                type_ref_span,
+                name_span: None,
+                type_ref_span: None,
             },
         ),
     ))
-}
-
-/// Part usage: 'part' ( ':>>' qualified_name | (':>>')? name ':' type_name? ... ) multiplicity? ... body
-pub(crate) fn part_usage(input: Input<'_>) -> IResult<Input<'_>, Node<PartUsage>> {
-    let start = input;
-    let (input, _) = ws_and_comments(input)?;
-    let (input, is_individual) = opt(preceded(tag(&b"individual"[..]), ws1))
-        .parse(input)
-        .map(|(i, o)| (i, o.is_some()))?;
-    let (input, _) = tag(&b"part"[..]).parse(input)?;
-    let (input, _) = ws1(input)?;
-    if let Ok((input, usage)) = part_usage_redefines_only(start, input) {
-        let mut usage = usage;
-        usage.value.is_individual = is_individual;
-        return Ok((input, usage));
-    }
-    let (input, mut usage) = part_usage_named(start, input)?;
-    usage.value.is_individual = is_individual;
-    Ok((input, usage))
 }
 
 /// Part usage body: ';' or '{' PartUsageBodyElement* '}'
@@ -806,6 +1011,22 @@ fn connect_(input: Input<'_>) -> IResult<Input<'_>, Node<Connect>> {
     let (input, _) = preceded(ws_and_comments, tag(&b"to"[..])).parse(input)?;
     let (input, to_expr) = preceded(ws_and_comments, path_expression).parse(input)?;
     let (input, body) = connect_body(input)?;
+    let (input, trailing_subsets) = opt(preceded(
+        preceded(ws_and_comments, tag(&b":>"[..])),
+        preceded(ws_and_comments, qualified_name),
+    ))
+    .parse(input)?;
+    let (input, trailing_redefines) = opt(preceded(
+        preceded(ws_and_comments, tag(&b":>>"[..])),
+        preceded(ws_and_comments, qualified_name),
+    ))
+    .parse(input)?;
+    let input = if trailing_subsets.is_some() || trailing_redefines.is_some() {
+        let (input, _) = preceded(ws_and_comments, tag(&b";"[..])).parse(input)?;
+        input
+    } else {
+        input
+    };
     Ok((
         input,
         node_from_to(
@@ -900,17 +1121,28 @@ fn connector_end_expression(input: Input<'_>) -> IResult<Input<'_>, Node<Express
     preceded(ws_and_comments, path_expression).parse(input)
 }
 
-/// Interface usage: `interface` ( `:Type` )? `connect` path `to` path body  OR  `interface` path `to` path body?
+/// Interface usage: `interface` ( name `:` )? ( `:Type` )? `connect` path `to` path body
+/// or `interface` path `to` path body. The optional interface member name is currently ignored.
 fn interface_usage(input: Input<'_>) -> IResult<Input<'_>, Node<InterfaceUsage>> {
     let start = input;
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = tag(&b"interface"[..]).parse(input)?;
     let (input, _) = ws1(input)?;
-    let (input, interface_type) = opt(preceded(
-        tag(&b":"[..]),
+    let (input, named_interface) = opt((
+        name,
+        preceded(ws_and_comments, tag(&b":"[..])),
         preceded(ws_and_comments, qualified_name),
     ))
     .parse(input)?;
+    let (input, interface_type) = if let Some((_, _, interface_type)) = named_interface {
+        (input, Some(interface_type))
+    } else {
+        opt(preceded(
+            tag(&b":"[..]),
+            preceded(ws_and_comments, qualified_name),
+        ))
+        .parse(input)?
+    };
     let (input, _) = ws_and_comments(input)?;
     if input.fragment().starts_with(b"connect") {
         let (input, _) = tag(&b"connect"[..]).parse(input)?;
@@ -1027,6 +1259,7 @@ fn part_usage_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PartUsag
         map(individual_usage, |n| PartUsageBodyElement::OccurrenceUsage(Box::new(n))),
         map(snapshot_usage, |n| PartUsageBodyElement::OccurrenceUsage(Box::new(n))),
         map(timeslice_usage, |n| PartUsageBodyElement::OccurrenceUsage(Box::new(n))),
+        map(then_timeslice_usage, |n| PartUsageBodyElement::OccurrenceUsage(Box::new(n))),
         map(occurrence_usage, |n| PartUsageBodyElement::OccurrenceUsage(Box::new(n))),
         map(port_usage, PartUsageBodyElement::PortUsage),
         map(part_ref_usage, PartUsageBodyElement::Ref),

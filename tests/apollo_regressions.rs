@@ -97,10 +97,17 @@ fn exhibit_state_body_supports_unnamed_and_accepting_transitions() {
     let PackageBody::Brace { elements } = &pkg.body else {
         panic!("expected brace body");
     };
-    let mission = match &elements[0].value {
-        PackageBodyElement::PartDef(def) => &def.value,
-        _ => panic!("expected part def"),
-    };
+    let mission = elements
+        .iter()
+        .find_map(|e| match &e.value {
+            PackageBodyElement::PartDef(def)
+                if def.value.identification.name.as_deref() == Some("Mission") =>
+            {
+                Some(&def.value)
+            }
+            _ => None,
+        })
+        .expect("expected Mission part def");
     let PartDefBody::Brace { elements } = &mission.body else {
         panic!("expected part body");
     };
@@ -172,6 +179,230 @@ fn timeslice_and_snapshot_parse_inside_part_and_occurrence_bodies() {
 }
 
 #[test]
+fn then_timeslice_and_specialized_snapshot_parse_inside_individual_part() {
+    let input = "package P {\nindividual part def MissionIndividual :> Mission;\nindividual part mission : MissionIndividual {\ntimeslice ingress {\nassert constraint { ready }\nsnapshot atIngress :> system : MissionSystem {\nattribute missionTime = 0;\n}\n}\nthen timeslice liftoff {\nsnapshot atT0 :> system : MissionSystem {\nattribute missionTime = 1;\n}\n}\n}\n}";
+    let result = parse_with_diagnostics(input);
+    assert!(
+        result.errors.is_empty(),
+        "unexpected diagnostics: {:?}",
+        result.errors
+    );
+
+    let pkg = match &result.root.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let PackageBody::Brace { elements } = &pkg.body else {
+        panic!("expected brace body");
+    };
+    let usage = match &elements[1].value {
+        PackageBodyElement::PartUsage(usage) => &usage.value,
+        _ => panic!("expected part usage"),
+    };
+    let PartUsageBody::Brace { elements } = &usage.body else {
+        panic!("expected part usage body");
+    };
+    let occurrences: Vec<_> = elements
+        .iter()
+        .filter_map(|e| match &e.value {
+            PartUsageBodyElement::OccurrenceUsage(occ) => Some(&occ.value),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(occurrences.len(), 2);
+    assert_eq!(occurrences[0].portion_kind.as_deref(), Some("timeslice"));
+    assert_eq!(occurrences[0].subsets.as_deref(), None);
+    assert_eq!(occurrences[1].portion_kind.as_deref(), Some("timeslice"));
+
+    let OccurrenceUsageBody::Brace { elements } = &occurrences[1].body else {
+        panic!("expected timeslice body");
+    };
+    let snapshot = elements
+        .iter()
+        .find_map(|e| match &e.value {
+            OccurrenceBodyElement::OccurrenceUsage(occ) => Some(&occ.value),
+            _ => None,
+        })
+        .expect("snapshot should parse in then timeslice body");
+    assert_eq!(snapshot.subsets.as_deref(), Some("system"));
+    assert_eq!(snapshot.type_name.as_deref(), Some("MissionSystem"));
+}
+
+#[test]
+fn anonymous_individual_parts_and_body_trailing_subsets_parse() {
+    let input = "package P {\npart def Mission {\npart crew;\n}\npart apolloProgram {\npart apollo1 : Mission {\nindividual part : 'Gus Grissom' :> crew;\nindividual part : 'Ed White' :> crew;\n} :> missions;\n}\n}";
+    let result = parse_with_diagnostics(input);
+    assert!(
+        result.errors.is_empty(),
+        "unexpected diagnostics: {:?}",
+        result.errors
+    );
+
+    let pkg = match &result.root.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let PackageBody::Brace { elements } = &pkg.body else {
+        panic!("expected brace body");
+    };
+    let program = elements
+        .iter()
+        .find_map(|e| match &e.value {
+            PackageBodyElement::PartUsage(usage) if usage.value.name == "apolloProgram" => {
+                Some(&usage.value)
+            }
+            _ => None,
+        })
+        .expect("expected program part usage");
+    let PartUsageBody::Brace { elements } = &program.body else {
+        panic!("expected program body");
+    };
+    let apollo1 = match &elements[0].value {
+        PartUsageBodyElement::PartUsage(usage) => &usage.value,
+        _ => panic!("expected nested part usage"),
+    };
+    assert_eq!(apollo1.subsets.as_ref().map(|(name, _)| name.as_str()), Some("missions"));
+
+    let PartUsageBody::Brace { elements } = &apollo1.body else {
+        panic!("expected nested mission body");
+    };
+    let crew_members: Vec<_> = elements
+        .iter()
+        .filter_map(|e| match &e.value {
+            PartUsageBodyElement::PartUsage(usage) if usage.value.is_individual => Some(&usage.value),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(crew_members.len(), 2);
+    assert_eq!(crew_members[0].name, "");
+    assert_eq!(crew_members[0].type_name, "Gus Grissom");
+    assert_eq!(
+        crew_members[0].subsets.as_ref().map(|(name, _)| name.as_str()),
+        Some("crew")
+    );
+}
+
+#[test]
+fn exhibit_state_supports_trailing_redefinition_after_body() {
+    let input = "package P {\npart def Mission {\nexhibit state phases {\nstate initial : Initial;\ntransition first initial then initial;\n} :>> missionPhases;\n}\n}";
+    let result = parse_with_diagnostics(input);
+    assert!(
+        result.errors.is_empty(),
+        "unexpected diagnostics: {:?}",
+        result.errors
+    );
+
+    let pkg = match &result.root.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let PackageBody::Brace { elements } = &pkg.body else {
+        panic!("expected brace body");
+    };
+    let mission = elements
+        .iter()
+        .find_map(|e| match &e.value {
+            PackageBodyElement::PartDef(def)
+                if def.value.identification.name.as_deref() == Some("Mission") =>
+            {
+                Some(&def.value)
+            }
+            _ => None,
+        })
+        .expect("expected Mission part def");
+    let PartDefBody::Brace { elements } = &mission.body else {
+        panic!("expected part body");
+    };
+    let exhibit = elements
+        .iter()
+        .find_map(|e| match &e.value {
+            PartDefBodyElement::ExhibitState(exhibit) => Some(&exhibit.value),
+            _ => None,
+        })
+        .expect("exhibit state should be present");
+    assert_eq!(exhibit.redefines.as_deref(), Some("missionPhases"));
+}
+
+#[test]
+fn exhibit_state_body_accepts_requirement_usage_members() {
+    let input = "package P {\nrequirement def Goal;\nstate def MissionPhase;\npart def Mission {\nrequirement goals[1..*] : Goal;\nexhibit state phases : MissionPhase {\nrequirement goToMoon : Goal {\ndoc /* Example */\n} :> goals;\nstate launch;\n}\n}\n}";
+    let result = parse_with_diagnostics(input);
+    assert!(
+        result.errors.is_empty(),
+        "unexpected diagnostics: {:?}",
+        result.errors
+    );
+
+    let pkg = match &result.root.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let PackageBody::Brace { elements } = &pkg.body else {
+        panic!("expected brace body");
+    };
+    let mission = elements
+        .iter()
+        .find_map(|e| match &e.value {
+            PackageBodyElement::PartDef(def)
+                if def.value.identification.name.as_deref() == Some("Mission") =>
+            {
+                Some(&def.value)
+            }
+            _ => None,
+        })
+        .expect("expected Mission part def");
+    let PartDefBody::Brace { elements } = &mission.body else {
+        panic!("expected part body");
+    };
+    let exhibit = elements
+        .iter()
+        .find_map(|e| match &e.value {
+            PartDefBodyElement::ExhibitState(exhibit) => Some(&exhibit.value),
+            _ => None,
+        })
+        .expect("exhibit state should be present");
+    let StateDefBody::Brace { elements } = &exhibit.body else {
+        panic!("expected exhibit state body");
+    };
+    assert!(elements.iter().any(|e| matches!(e.value, StateDefBodyElement::RequirementUsage(_))));
+    assert!(elements.iter().any(|e| matches!(e.value, StateDefBodyElement::StateUsage(_))));
+}
+
+#[test]
+fn part_usage_accepts_multiplicity_before_type() {
+    let input = "package P {\npart def System {\npart spaceSuits[2] : ExtravehicularMobilityUnit :> constituentSystems;\n}\n}";
+    let result = parse_with_diagnostics(input);
+    assert!(
+        result.errors.is_empty(),
+        "unexpected diagnostics: {:?}",
+        result.errors
+    );
+
+    let pkg = match &result.root.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let PackageBody::Brace { elements } = &pkg.body else {
+        panic!("expected brace body");
+    };
+    let system = match &elements[0].value {
+        PackageBodyElement::PartDef(def) => &def.value,
+        _ => panic!("expected part def"),
+    };
+    let PartDefBody::Brace { elements } = &system.body else {
+        panic!("expected part body");
+    };
+    let suit = match &elements[0].value {
+        PartDefBodyElement::PartUsage(usage) => &usage.value,
+        _ => panic!("expected part usage"),
+    };
+    assert_eq!(suit.name, "spaceSuits");
+    assert_eq!(suit.multiplicity.as_deref(), Some("[2]"));
+    assert_eq!(suit.type_name, "ExtravehicularMobilityUnit");
+    assert_eq!(suit.subsets.as_ref().map(|(name, _)| name.as_str()), Some("constituentSystems"));
+}
+
+#[test]
 fn rationale_and_refinement_annotations_stay_localized() {
     let input = "package P {\naction def PerformCrewIngress {\nout isCrewAboard: Boolean;\n@Rationale { }\n#refinement dependency PerformCrewIngress to OperationsPackage::TransferCrewToVehicle;\n}\nrequirement def R {\n@Rationale { }\n#refinement dependency 'HLR-R001' to CapabilitiesPackage::DeepSpaceHabitationAndLifeSupport;\n}\n}";
     let result = parse_with_diagnostics(input);
@@ -225,4 +456,75 @@ fn quoted_requirement_identifier_parses() {
         }
         other => panic!("expected requirement def, got {other:?}"),
     }
+}
+
+#[test]
+fn mission_capability_connections_with_trailing_subsets_parse() {
+    let input = "package P {\npart def Mission {\nconnection : CapabilityToGoalDerivation {\nend capa ::> toolDevelopment;\nend goal ::> deploy;\n} :> capabilityToGoals;\n}\n}";
+    let result = parse_with_diagnostics(input);
+    assert!(
+        result.errors.is_empty(),
+        "unexpected diagnostics: {:?}",
+        result.errors
+    );
+
+    let pkg = match &result.root.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let PackageBody::Brace { elements } = &pkg.body else {
+        panic!("expected brace body");
+    };
+    let mission = match &elements[0].value {
+        PackageBodyElement::PartDef(def) => &def.value,
+        _ => panic!("expected part def"),
+    };
+    let PartDefBody::Brace { elements } = &mission.body else {
+        panic!("expected part body");
+    };
+    assert!(elements.iter().any(|e| matches!(e.value, PartDefBodyElement::OpaqueMember(_))));
+}
+
+#[test]
+fn system_part_body_accepts_named_interface_and_individual_members() {
+    let input = "package P {\npart def Apollo11MissionSystem :> SystemOfSystems {\nindividual part launchVehicle : 'SA-506' :> constituentSystems;\npart spacecraft : ApolloSpacecraft :> constituentSystems {\nindividual part csm : 'CSM-107' :>> commandServiceModule;\nindividual part lm : 'LM-5' :>> lunarModule;\n}\npart spaceSuits[2] : ExtravehicularMobilityUnit :> constituentSystems;\ninterface lvToPayload : LVPayloadInterface connect launchVehicle.instrumentUnit.payloadInterfacePort to spacecraft.spacecraftLMAdapter.launchVehicleInterfacePort;\n}\n}";
+    let result = parse_with_diagnostics(input);
+    assert!(
+        result.errors.is_empty(),
+        "unexpected diagnostics: {:?}",
+        result.errors
+    );
+
+    let pkg = match &result.root.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let PackageBody::Brace { elements } = &pkg.body else {
+        panic!("expected brace body");
+    };
+    let system = match &elements[0].value {
+        PackageBodyElement::PartDef(def) => &def.value,
+        _ => panic!("expected part def"),
+    };
+    let PartDefBody::Brace { elements } = &system.body else {
+        panic!("expected part body");
+    };
+    let spacecraft = match &elements[1].value {
+        PartDefBodyElement::PartUsage(usage) => &usage.value,
+        _ => panic!("expected part usage"),
+    };
+    let PartUsageBody::Brace { elements: spacecraft_elements } = &spacecraft.body else {
+        panic!("expected nested part body");
+    };
+    let csm = match &spacecraft_elements[0].value {
+        PartUsageBodyElement::PartUsage(usage) => &usage.value,
+        _ => panic!("expected individual part usage"),
+    };
+    assert_eq!(csm.name, "csm");
+    assert!(csm.is_individual);
+    assert_eq!(csm.type_name, "CSM-107");
+    assert_eq!(csm.redefines.as_deref(), Some("commandServiceModule"));
+    assert!(elements
+        .iter()
+        .any(|e| matches!(e.value, PartDefBodyElement::InterfaceUsage(_))));
 }

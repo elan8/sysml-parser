@@ -380,6 +380,7 @@ pub struct OpaqueMemberDecl {
 pub struct ExhibitState {
     pub name: String,
     pub type_name: Option<String>,
+    pub redefines: Option<String>,
     pub body: StateDefBody,
 }
 
@@ -730,9 +731,12 @@ pub struct OccurrenceDef {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OccurrenceUsage {
     pub is_individual: bool,
+    pub is_then: bool,
     pub portion_kind: Option<String>,
     pub name: String,
     pub type_name: Option<String>,
+    pub subsets: Option<String>,
+    pub redefines: Option<String>,
     pub body: OccurrenceUsageBody,
 }
 
@@ -749,6 +753,7 @@ pub enum OccurrenceBodyElement {
     Error(Node<ParseErrorNode>),
     Doc(Node<DocComment>),
     Annotation(Node<Annotation>),
+    Other(String),
     AttributeUsage(Node<AttributeUsage>),
     PartUsage(Box<Node<PartUsage>>),
     OccurrenceUsage(Box<Node<OccurrenceUsage>>),
@@ -1370,6 +1375,7 @@ pub enum StateDefBodyElement {
     Then(Node<ThenStmt>),
     /// `ref` name `:` type body – reference binding in state.
     Ref(Node<RefDecl>),
+    RequirementUsage(Node<RequirementUsage>),
     StateUsage(Node<StateUsage>),
     Transition(Node<Transition>),
 }
