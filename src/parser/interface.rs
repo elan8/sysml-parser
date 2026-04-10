@@ -54,6 +54,7 @@ fn end_decl(input: Input<'_>) -> IResult<Input<'_>, Node<EndDecl>> {
                 } else {
                     type_name
                 },
+                uses_derived_syntax: false,
                 name_span: Some(name_span),
                 type_ref_span: Some(type_ref_span),
             },

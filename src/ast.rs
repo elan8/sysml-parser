@@ -632,6 +632,7 @@ pub enum InterfaceDefBodyElement {
 pub struct EndDecl {
     pub name: String,
     pub type_name: String,
+    pub uses_derived_syntax: bool,
     /// Span of the name (for semantic tokens).
     pub name_span: Option<Span>,
     /// Span of the type after `:` (for semantic tokens).
@@ -666,6 +667,7 @@ pub enum RefBody {
 /// Connection definition: `connection def` Identification body (BNF ConnectionDefinition).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConnectionDef {
+    pub annotation: Option<String>,
     pub identification: Identification,
     pub body: ConnectionDefBody,
 }
@@ -2179,6 +2181,7 @@ fn normalize_interface_def(i: &InterfaceDef) -> InterfaceDef {
 
 fn normalize_connection_def(c: &ConnectionDef) -> ConnectionDef {
     ConnectionDef {
+        annotation: c.annotation.clone(),
         identification: c.identification.clone(),
         body: normalize_connection_def_body(&c.body),
     }
@@ -2272,6 +2275,7 @@ fn normalize_end_decl(e: &EndDecl) -> EndDecl {
     EndDecl {
         name: e.name.clone(),
         type_name: e.type_name.clone(),
+        uses_derived_syntax: e.uses_derived_syntax,
         name_span: None,
         type_ref_span: None,
     }

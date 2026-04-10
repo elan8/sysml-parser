@@ -366,12 +366,14 @@ fn interface_def_engine_to_transmission() -> PackageBodyElement {
                 n(InterfaceDefBodyElement::EndDecl(n(EndDecl {
                     name: "drivePwrPort".to_string(),
                     type_name: "DrivePwrPort".to_string(),
+                    uses_derived_syntax: false,
                     name_span: None,
                     type_ref_span: None,
                 }))),
                 n(InterfaceDefBodyElement::EndDecl(n(EndDecl {
                     name: "clutchPort".to_string(),
                     type_name: "ClutchPort".to_string(),
+                    uses_derived_syntax: false,
                     name_span: None,
                     type_ref_span: None,
                 }))),
@@ -388,12 +390,14 @@ fn interface_def_driveshaft() -> PackageBodyElement {
                 n(InterfaceDefBodyElement::EndDecl(n(EndDecl {
                     name: "shaftPort_a".to_string(),
                     type_name: "ShaftPort_a".to_string(),
+                    uses_derived_syntax: false,
                     name_span: None,
                     type_ref_span: None,
                 }))),
                 n(InterfaceDefBodyElement::EndDecl(n(EndDecl {
                     name: "shaftPort_d".to_string(),
                     type_name: "ShaftPort_d".to_string(),
+                    uses_derived_syntax: false,
                     name_span: None,
                     type_ref_span: None,
                 }))),

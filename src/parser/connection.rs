@@ -15,22 +15,55 @@ use crate::parser::node_from_to;
 use crate::parser::with_span;
 use crate::parser::Input;
 use nom::branch::alt;
-use nom::bytes::complete::tag;
-use nom::combinator::map;
+use nom::bytes::complete::{tag, take_while1};
+use nom::combinator::{map, opt};
 use nom::multi::many0;
 use nom::sequence::preceded;
 use nom::IResult;
 use nom::Parser;
+
+fn derived_end_name(input: Input<'_>) -> IResult<Input<'_>, String> {
+    let (input, _) = tag(&b"#"[..]).parse(input)?;
+    let (input, value) =
+        take_while1(|c: u8| c.is_ascii_alphanumeric() || c == b'_').parse(input)?;
+    Ok((
+        input,
+        format!("#{}", String::from_utf8_lossy(value.fragment())),
+    ))
+}
 
 fn end_decl(input: Input<'_>) -> IResult<Input<'_>, Node<EndDecl>> {
     let start = input;
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = tag(&b"end"[..]).parse(input)?;
     let (input, _) = ws1(input)?;
-    let (input, (name_span, name_str)) = with_span(name).parse(input)?;
-    let (input, _) = preceded(ws_and_comments, tag(&b":"[..])).parse(input)?;
-    let (input, (type_ref_span, type_name)) =
-        preceded(ws_and_comments, with_span(qualified_name)).parse(input)?;
+    let (input, (name_span, name_str)) =
+        with_span(|input| alt((derived_end_name, name)).parse(input)).parse(input)?;
+    let (input, _) = ws_and_comments(input)?;
+    let (input, uses_derived_syntax) = if let Ok((input, _)) =
+        tag::<_, _, nom::error::Error<Input<'_>>>(&b"::>"[..]).parse(input)
+    {
+        (input, true)
+    } else {
+        let (input, _) = tag(&b":"[..]).parse(input)?;
+        (input, false)
+    };
+    let (input, (type_ref_span, type_name)) = if uses_derived_syntax {
+        let (input, _) = ws_and_comments(input)?;
+        let start_type = input;
+        let (input, value) =
+            take_while1(|c: u8| c != b';' && c != b'\n' && c != b'\r').parse(input)?;
+        let type_name = String::from_utf8_lossy(value.fragment()).trim().to_string();
+        let span = crate::ast::Span {
+            offset: start_type.location_offset(),
+            line: start_type.location_line(),
+            column: start_type.get_column(),
+            len: value.fragment().len(),
+        };
+        (input, (span, type_name))
+    } else {
+        preceded(ws_and_comments, with_span(qualified_name)).parse(input)?
+    };
     let (input, _) = preceded(ws_and_comments, tag(&b";"[..])).parse(input)?;
     Ok((
         input,
@@ -40,6 +73,7 @@ fn end_decl(input: Input<'_>) -> IResult<Input<'_>, Node<EndDecl>> {
             EndDecl {
                 name: name_str,
                 type_name,
+                uses_derived_syntax,
                 name_span: Some(name_span),
                 type_ref_span: Some(type_ref_span),
             },
@@ -193,6 +227,13 @@ fn connection_def_body(input: Input<'_>) -> IResult<Input<'_>, ConnectionDefBody
 pub(crate) fn connection_def(input: Input<'_>) -> IResult<Input<'_>, Node<ConnectionDef>> {
     let start = input;
     let (input, _) = ws_and_comments(input)?;
+    let (input, annotation) = opt(preceded(
+        tag(&b"#"[..]),
+        take_while1(|c: u8| c.is_ascii_alphanumeric() || c == b'_'),
+    ))
+    .parse(input)?;
+    let annotation = annotation.map(|raw| String::from_utf8_lossy(raw.fragment()).to_string());
+    let (input, _) = ws_and_comments(input)?;
     let (input, _) = nom::combinator::opt(preceded(tag(&b"abstract"[..]), ws1)).parse(input)?;
     let (input, _) = tag(&b"connection"[..]).parse(input)?;
     let (input, _) = ws1(input)?;
@@ -207,6 +248,7 @@ pub(crate) fn connection_def(input: Input<'_>) -> IResult<Input<'_>, Node<Connec
             start,
             input,
             ConnectionDef {
+                annotation,
                 identification,
                 body,
             },
