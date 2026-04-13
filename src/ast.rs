@@ -116,6 +116,8 @@ pub enum Expression {
         op: String,
         operand: Box<Node<Expression>>,
     },
+    /// Comma-separated sequence in parentheses, e.g. `(engine1, engine2)` for ordered composition values.
+    Tuple(Vec<Node<Expression>>),
     /// KerML null or empty sequence ().
     Null,
 }
@@ -2050,6 +2052,9 @@ fn normalize_expression_node(node: &Node<Expression>) -> Node<Expression> {
             op: op.clone(),
             operand: Box::new(normalize_expression_node(operand)),
         },
+        Expression::Tuple(items) => Expression::Tuple(
+            items.iter().map(normalize_expression_node).collect(),
+        ),
         Expression::Null => Expression::Null,
     };
     Node::new(Span::dummy(), value)

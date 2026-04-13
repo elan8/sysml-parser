@@ -1,7 +1,7 @@
 use sysml_v2_parser::ast::{
-    ActionDefBody, OccurrenceBodyElement, OccurrenceUsageBody, PackageBody, PackageBodyElement,
-    PartDefBody, PartDefBodyElement, PartUsageBody, PartUsageBodyElement, RequirementDefBody,
-    RequirementDefBodyElement, RootElement, StateDefBody, StateDefBodyElement,
+    ActionDefBody, Expression, OccurrenceBodyElement, OccurrenceUsageBody, PackageBody,
+    PackageBodyElement, PartDefBody, PartDefBodyElement, PartUsageBody, PartUsageBodyElement,
+    RequirementDefBody, RequirementDefBodyElement, RootElement, StateDefBody, StateDefBodyElement,
 };
 use sysml_v2_parser::{parse, parse_with_diagnostics};
 
@@ -548,4 +548,59 @@ fn part_defs_accept_multiple_specialization_targets() {
     };
     assert!(matches!(elements[0].value, PackageBodyElement::PartDef(_)));
     assert!(matches!(elements[1].value, PackageBodyElement::PartDef(_)));
+}
+
+#[test]
+fn part_redefinition_value_parses_parenthesized_tuple_of_engines() {
+    let input = "package P {\npart def SII :> RocketStage {\npart engine1;\npart engine2;\npart engine3;\npart engine4;\npart engine5;\npart :>> engines[5] = (engine1, engine2, engine3, engine4, engine5);\n}\n}";
+    let result = parse_with_diagnostics(input);
+    assert!(
+        result.errors.is_empty(),
+        "unexpected diagnostics: {:?}",
+        result.errors
+    );
+
+    let pkg = match &result.root.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let PackageBody::Brace { elements } = &pkg.body else {
+        panic!("expected brace body");
+    };
+    let sii = match &elements[0].value {
+        PackageBodyElement::PartDef(def) => &def.value,
+        _ => panic!("expected part def"),
+    };
+    let PartDefBody::Brace { elements } = &sii.body else {
+        panic!("expected part body");
+    };
+    let engines = elements
+        .iter()
+        .find_map(|e| match &e.value {
+            PartDefBodyElement::PartUsage(p) if p.value.redefines.as_deref() == Some("engines") => {
+                Some(&**p)
+            }
+            _ => None,
+        })
+        .expect("engines part usage");
+    assert_eq!(engines.value.multiplicity.as_deref(), Some("[5]"));
+    let value = engines
+        .value
+        .value
+        .as_ref()
+        .expect("tuple value should parse");
+    let Expression::Tuple(items) = &value.value else {
+        panic!("expected Expression::Tuple, got {:?}", value.value);
+    };
+    assert_eq!(items.len(), 5);
+    let expected = [
+        "engine1", "engine2", "engine3", "engine4", "engine5",
+    ];
+    for (i, name) in expected.iter().enumerate() {
+        assert!(
+            matches!(&items[i].value, Expression::FeatureRef(s) if s == name),
+            "element {i}: expected FeatureRef({name:?}), got {:?}",
+            items[i].value
+        );
+    }
 }

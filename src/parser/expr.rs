@@ -154,15 +154,50 @@ fn literal_with_unit(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
     Ok((input, node_from_to(start, input, expr)))
 }
 
-/// Parenthesized expression: ( expression ).
+/// Parenthesized expression: `( expression )` for grouping, or `( e1, e2, ... )` as [`Expression::Tuple`].
 fn parenthesized(input: Input<'_>) -> IResult<Input<'_>, Node<Expression>> {
+    let start = input;
     let (input, _) = ws_and_comments(input)?;
-    delimited(
-        tag(&b"("[..]),
-        preceded(ws_and_comments, expression),
-        preceded(ws_and_comments, tag(&b")"[..])),
-    )
-    .parse(input)
+    let (input, _) = tag(&b"("[..]).parse(input)?;
+    let (input, _) = ws_and_comments(input)?;
+    let (input, first) = expression(input)?;
+    let (input, _) = ws_and_comments(input)?;
+    if input.fragment().starts_with(b")") {
+        let (input, _) = tag(&b")"[..]).parse(input)?;
+        return Ok((input, first));
+    }
+    let (input, _) = tag(&b","[..]).parse(input)?;
+    let mut elements = vec![first];
+    let mut input = input;
+    loop {
+        let (next, _) = ws_and_comments(input)?;
+        if next.fragment().starts_with(b")") {
+            let (input, _) = tag(&b")"[..]).parse(next)?;
+            return Ok((
+                input,
+                node_from_to(start, input, Expression::Tuple(elements)),
+            ));
+        }
+        let (next, expr) = expression(next)?;
+        elements.push(expr);
+        let (next, _) = ws_and_comments(next)?;
+        if next.fragment().starts_with(b")") {
+            let (input, _) = tag(&b")"[..]).parse(next)?;
+            return Ok((
+                input,
+                node_from_to(start, input, Expression::Tuple(elements)),
+            ));
+        }
+        if next.fragment().starts_with(b",") {
+            let (next, _) = tag(&b","[..]).parse(next)?;
+            input = next;
+            continue;
+        }
+        return Err(nom::Err::Error(nom::error::Error::new(
+            next,
+            nom::error::ErrorKind::Tag,
+        )));
+    }
 }
 
 /// KerML null or empty sequence ().
