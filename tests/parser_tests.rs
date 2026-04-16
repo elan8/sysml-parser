@@ -1088,6 +1088,203 @@ fn test_parse_requirement_body_supports_attribute_def_and_usage_forms() {
 }
 
 #[test]
+fn test_parse_part_attribute_prefix_redefines_shorthand() {
+    let input = "package P {\npart def Laptop { attribute name : String; }\npart office {\npart laptop1: Laptop {\nattribute :>> name = \"My Laptop\";\n}\n}\n}";
+    let result = parse(input).expect("attribute prefix redefines shorthand should parse");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    let office = elements
+        .iter()
+        .find_map(|e| match &e.value {
+            PackageBodyElement::PartUsage(p) if p.value.name == "office" => Some(&p.value),
+            _ => None,
+        })
+        .expect("office part usage should be present");
+    let office_body = match &office.body {
+        sysml_v2_parser::ast::PartUsageBody::Brace { elements } => elements,
+        _ => panic!("expected office part body"),
+    };
+    let laptop1 = office_body
+        .iter()
+        .find_map(|e| match &e.value {
+            sysml_v2_parser::ast::PartUsageBodyElement::PartUsage(p) if p.value.name == "laptop1" => {
+                Some(&p.value)
+            }
+            _ => None,
+        })
+        .expect("laptop1 part usage should be present");
+    let laptop1_body = match &laptop1.body {
+        sysml_v2_parser::ast::PartUsageBody::Brace { elements } => elements,
+        _ => panic!("expected laptop1 part body"),
+    };
+    let attribute = laptop1_body
+        .iter()
+        .find_map(|e| match &e.value {
+            sysml_v2_parser::ast::PartUsageBodyElement::AttributeUsage(a) => Some(&a.value),
+            _ => None,
+        })
+        .expect("attribute usage should be present");
+    assert_eq!(attribute.name, "name");
+    assert_eq!(attribute.redefines.as_deref(), Some("name"));
+    assert!(attribute.value.is_some(), "attribute value should be parsed");
+}
+
+#[test]
+fn test_parse_part_attribute_prefix_redefines_with_subsets_clause() {
+    let input = "package P {\npart def Room { attribute outlet: Outlet; }\npart def Home {\npart livingRoom : Room {\nattribute :>> outlet :> electricGrid.outlets;\n}\n}\n}";
+    let result = parse(input).expect("attribute prefix redefines with subsets should parse");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    let home = elements
+        .iter()
+        .find_map(|e| match &e.value {
+            PackageBodyElement::PartDef(p)
+                if p.value.identification.name.as_deref() == Some("Home") =>
+            {
+                Some(&p.value)
+            }
+            _ => None,
+        })
+        .expect("Home part def should be present");
+    let home_body = match &home.body {
+        sysml_v2_parser::ast::PartDefBody::Brace { elements } => elements,
+        _ => panic!("expected Home part def body"),
+    };
+    let living_room = home_body
+        .iter()
+        .find_map(|e| match &e.value {
+            sysml_v2_parser::ast::PartDefBodyElement::PartUsage(p) if p.value.name == "livingRoom" => {
+                Some(&p.value)
+            }
+            _ => None,
+        })
+        .expect("livingRoom part usage should be present");
+    let living_room_body = match &living_room.body {
+        sysml_v2_parser::ast::PartUsageBody::Brace { elements } => elements,
+        _ => panic!("expected livingRoom part usage body"),
+    };
+    let attribute = living_room_body
+        .iter()
+        .find_map(|e| match &e.value {
+            sysml_v2_parser::ast::PartUsageBodyElement::AttributeUsage(a) => Some(&a.value),
+            _ => None,
+        })
+        .expect("attribute usage should be present");
+    assert_eq!(attribute.name, "outlet");
+    assert_eq!(attribute.redefines.as_deref(), Some("outlet"));
+}
+
+#[test]
+fn test_parse_part_usage_body_satisfy_shorthand() {
+    let input = "package P {\npart def Home {\npart livingRoom: Room {\nsatisfy heatSuff5;\n}\n}\n}";
+    let result = parse(input).expect("satisfy shorthand in part usage should parse");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    let home = elements
+        .iter()
+        .find_map(|e| match &e.value {
+            PackageBodyElement::PartDef(p)
+                if p.value.identification.name.as_deref() == Some("Home") =>
+            {
+                Some(&p.value)
+            }
+            _ => None,
+        })
+        .expect("Home part def should be present");
+    let home_body = match &home.body {
+        sysml_v2_parser::ast::PartDefBody::Brace { elements } => elements,
+        _ => panic!("expected Home part def body"),
+    };
+    let living_room = home_body
+        .iter()
+        .find_map(|e| match &e.value {
+            sysml_v2_parser::ast::PartDefBodyElement::PartUsage(p) if p.value.name == "livingRoom" => {
+                Some(&p.value)
+            }
+            _ => None,
+        })
+        .expect("livingRoom part usage should be present");
+    let living_room_body = match &living_room.body {
+        sysml_v2_parser::ast::PartUsageBody::Brace { elements } => elements,
+        _ => panic!("expected livingRoom part usage body"),
+    };
+    assert!(
+        living_room_body.iter().any(|e| matches!(
+            e.value,
+            sysml_v2_parser::ast::PartUsageBodyElement::Satisfy(_)
+        )),
+        "satisfy shorthand should be preserved in part usage body"
+    );
+}
+
+#[test]
+fn test_parse_interface_usage_named_with_multiplicity() {
+    let input = "package P {\npart def Home {\npart livingRoom: Room {\ninterface heater2PowerOutlet[1] : Socket2OutletInterface connect heater.socket to outlet;\n}\n}\n}";
+    let result = parse(input).expect("named interface usage with multiplicity should parse");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    let home = elements
+        .iter()
+        .find_map(|e| match &e.value {
+            PackageBodyElement::PartDef(p)
+                if p.value.identification.name.as_deref() == Some("Home") =>
+            {
+                Some(&p.value)
+            }
+            _ => None,
+        })
+        .expect("Home part def should be present");
+    let home_body = match &home.body {
+        sysml_v2_parser::ast::PartDefBody::Brace { elements } => elements,
+        _ => panic!("expected Home part def body"),
+    };
+    let living_room = home_body
+        .iter()
+        .find_map(|e| match &e.value {
+            sysml_v2_parser::ast::PartDefBodyElement::PartUsage(p) if p.value.name == "livingRoom" => {
+                Some(&p.value)
+            }
+            _ => None,
+        })
+        .expect("livingRoom part usage should be present");
+    let living_room_body = match &living_room.body {
+        sysml_v2_parser::ast::PartUsageBody::Brace { elements } => elements,
+        _ => panic!("expected livingRoom part usage body"),
+    };
+    assert!(
+        living_room_body.iter().any(|e| matches!(
+            e.value,
+            sysml_v2_parser::ast::PartUsageBodyElement::InterfaceUsage(_)
+        )),
+        "named interface usage with multiplicity should be preserved"
+    );
+}
+
+#[test]
 fn test_parse_require_constraint_keeps_inner_members() {
     let input = "package P {\nrequirement def R {\nrequire constraint {\ndoc /* requirement logic */\nin x : Real;\nout y : Real;\nx >= y;\n}\n}\n}";
     let result = parse(input).expect("require constraint body should parse");

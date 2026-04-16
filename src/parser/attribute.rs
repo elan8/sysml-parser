@@ -16,6 +16,10 @@ use nom::sequence::{delimited, preceded};
 use nom::IResult;
 use nom::Parser;
 
+fn local_name_from_qualified_name(qname: &str) -> String {
+    qname.rsplit("::").next().unwrap_or(qname).to_string()
+}
+
 fn is_reserved_shorthand_starter(name: &str) -> bool {
     matches!(
         name,
@@ -154,29 +158,83 @@ pub(crate) fn attribute_def(input: Input<'_>) -> IResult<Input<'_>, Node<Attribu
     ))
 }
 
-/// Attribute usage: 'attribute' name ( 'redefines' qualified_name )? ( '=' value )? body
+/// Attribute usage:
+/// - `attribute` name ( `redefines` qualified_name )? ( '=' value )? body
+/// - `attribute :>>` qualified_name ( '=' value )? body
 pub(crate) fn attribute_usage(input: Input<'_>) -> IResult<Input<'_>, Node<AttributeUsage>> {
+    enum AttributeUsageHead {
+        Named {
+            name_span: crate::ast::Span,
+            name: String,
+        },
+        PrefixRedefines {
+            redefines_span: crate::ast::Span,
+            redefines: String,
+        },
+    }
+
     let start = input;
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = tag(&b"attribute"[..]).parse(input)?;
     let (input, _) = ws1(input)?;
-    let (input, (name_span, name_str)) = with_span(name).parse(input)?;
-    let (input, redefines_result) = nom::combinator::opt(alt((
-        preceded(
-            preceded(ws_and_comments, tag(&b"redefines"[..])),
-            preceded(ws1, with_span(qualified_name)),
+    let (input, usage_head) = alt((
+        map(
+            preceded(
+                preceded(ws_and_comments, tag(&b":>>"[..])),
+                preceded(ws_and_comments, with_span(qualified_name)),
+            ),
+            |(redefines_span, redefines)| AttributeUsageHead::PrefixRedefines {
+                redefines_span,
+                redefines,
+            },
         ),
-        preceded(
-            preceded(ws_and_comments, tag(&b":>>"[..])),
-            preceded(ws_and_comments, with_span(qualified_name)),
-        ),
-    )))
+        map(with_span(name), |(name_span, name)| {
+            AttributeUsageHead::Named { name_span, name }
+        }),
+    ))
     .parse(input)?;
-    let (redefines_span, redefines) = redefines_result
-        .map(|(span, s)| (Some(span), Some(s)))
-        .unwrap_or((None, None));
+    let (input, name_span, name_str, redefines_span, redefines) = match usage_head {
+        AttributeUsageHead::PrefixRedefines {
+            redefines_span,
+            redefines,
+        } => (
+            input,
+            None,
+            local_name_from_qualified_name(&redefines),
+            Some(redefines_span),
+            Some(redefines),
+        ),
+        AttributeUsageHead::Named { name_span, name } => {
+            let (input, redefines_result) = nom::combinator::opt(alt((
+                preceded(
+                    preceded(ws_and_comments, tag(&b"redefines"[..])),
+                    preceded(ws1, with_span(qualified_name)),
+                ),
+                preceded(
+                    preceded(ws_and_comments, tag(&b":>>"[..])),
+                    preceded(ws_and_comments, with_span(qualified_name)),
+                ),
+            )))
+            .parse(input)?;
+            let (redefines_span, redefines) = redefines_result
+                .map(|(span, s)| (Some(span), Some(s)))
+                .unwrap_or((None, None));
+            (input, Some(name_span), name, redefines_span, redefines)
+        }
+    };
     let (input, value) =
         nom::combinator::opt(preceded(ws_and_comments, value_part)).parse(input)?;
+    // Accept trailing subsetting forms used in libraries and examples, e.g.
+    // `attribute :>> outlet :> electricGrid.outlets;`
+    // while preserving existing AST shape (AttributeUsage currently has no subsets field).
+    let (input, _) = nom::combinator::opt(preceded(
+        alt((
+            preceded(ws_and_comments, tag(&b":>"[..])),
+            preceded(ws_and_comments, tag(&b"subsets"[..])),
+        )),
+        preceded(ws_and_comments, |i| take_until_terminator(i, b";{")),
+    ))
+    .parse(input)?;
     let (input, body) = attribute_body(input)?;
     Ok((
         input,
@@ -188,7 +246,7 @@ pub(crate) fn attribute_usage(input: Input<'_>) -> IResult<Input<'_>, Node<Attri
                 redefines,
                 value,
                 body,
-                name_span: Some(name_span),
+                name_span,
                 redefines_span,
             },
         ),

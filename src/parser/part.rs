@@ -21,7 +21,7 @@ use crate::parser::occurrence::{
     individual_usage, occurrence_usage, snapshot_usage, then_timeslice_usage, timeslice_usage,
 };
 use crate::parser::port::port_usage;
-use crate::parser::requirement::{doc_comment, requirement_usage};
+use crate::parser::requirement::{doc_comment, requirement_usage, satisfy};
 use crate::parser::with_span;
 use crate::parser::Input;
 use crate::parser::{node_from_to, span_from_to};
@@ -1148,11 +1148,12 @@ fn interface_usage(input: Input<'_>) -> IResult<Input<'_>, Node<InterfaceUsage>>
     let (input, _) = ws1(input)?;
     let (input, named_interface) = opt((
         name,
+        opt(multiplicity),
         preceded(ws_and_comments, tag(&b":"[..])),
         preceded(ws_and_comments, qualified_name),
     ))
     .parse(input)?;
-    let (input, interface_type) = if let Some((_, _, interface_type)) = named_interface {
+    let (input, interface_type) = if let Some((_, _, _, interface_type)) = named_interface {
         (input, Some(interface_type))
     } else {
         opt(preceded(
@@ -1282,6 +1283,7 @@ fn part_usage_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PartUsag
         map(port_usage, PartUsageBodyElement::PortUsage),
         map(part_ref_usage, PartUsageBodyElement::Ref),
         map(bind_, PartUsageBodyElement::Bind),
+        map(satisfy, PartUsageBodyElement::Satisfy),
         map(interface_usage, PartUsageBodyElement::InterfaceUsage),
         map(connect_, PartUsageBodyElement::Connect),
     ))

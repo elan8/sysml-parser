@@ -449,9 +449,17 @@ pub(crate) fn satisfy(input: Input<'_>) -> IResult<Input<'_>, Node<Satisfy>> {
     let (input, _) = preceded(ws_and_comments, tag(&b"satisfy"[..])).parse(input)?;
     let (input, _) = ws1(input)?;
     let (input, source) = expression(input)?;
-    let (input, _) = preceded(ws_and_comments, tag(&b"by"[..])).parse(input)?;
-    let (input, _) = ws1(input)?;
-    let (input, target) = expression(input)?;
+    let (input, target) = if let Ok((input, _)) =
+        preceded(ws_and_comments, tag::<_, _, nom::error::Error<Input>>(&b"by"[..])).parse(input)
+    {
+        let (input, _) = ws1(input)?;
+        let (input, target) = expression(input)?;
+        (input, target)
+    } else {
+        // Support shorthand `satisfy RequirementRef;` used in part bodies.
+        // We preserve AST shape by mirroring source/target.
+        (input, source.clone())
+    };
     let (input, body) = alt((
         map(preceded(ws_and_comments, tag(&b";"[..])), |_| {
             crate::ast::ConnectBody::Semicolon
