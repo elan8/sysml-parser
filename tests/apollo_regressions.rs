@@ -604,3 +604,51 @@ fn part_redefinition_value_parses_parenthesized_tuple_of_engines() {
         );
     }
 }
+
+#[test]
+fn part_def_attribute_redefinition_usage_keeps_redefines_and_value() {
+    let input = "package P {\npart def RocketStage {\nattribute propellantMass :> ISQ::mass;\nattribute dryMass :> ISQ::mass;\n}\npart def S_IC :> RocketStage {\nattribute :>> propellantMass = 2077000 [kg];\nattribute :>> dryMass = 137000 [kg];\n}\n}";
+    let result = parse_with_diagnostics(input);
+    assert!(
+        result.errors.is_empty(),
+        "unexpected diagnostics: {:?}",
+        result.errors
+    );
+
+    let pkg = match &result.root.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let PackageBody::Brace { elements } = &pkg.body else {
+        panic!("expected brace body");
+    };
+    let sic = elements
+        .iter()
+        .find_map(|e| match &e.value {
+            PackageBodyElement::PartDef(def)
+                if def.value.identification.name.as_deref() == Some("S_IC") =>
+            {
+                Some(&def.value)
+            }
+            _ => None,
+        })
+        .expect("expected S_IC part def");
+    let PartDefBody::Brace { elements } = &sic.body else {
+        panic!("expected part body");
+    };
+
+    let attrs: Vec<_> = elements
+        .iter()
+        .filter_map(|e| match &e.value {
+            PartDefBodyElement::AttributeUsage(attr) => Some(&attr.value),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(attrs.len(), 2, "expected both attribute redefinitions as usages");
+    assert_eq!(attrs[0].name, "propellantMass");
+    assert_eq!(attrs[0].redefines.as_deref(), Some("propellantMass"));
+    assert!(attrs[0].value.is_some(), "propellantMass should keep assigned value");
+    assert_eq!(attrs[1].name, "dryMass");
+    assert_eq!(attrs[1].redefines.as_deref(), Some("dryMass"));
+    assert!(attrs[1].value.is_some(), "dryMass should keep assigned value");
+}
