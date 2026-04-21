@@ -6,7 +6,7 @@ use nom::branch::alt;
 use nom::bytes::complete::{tag, take_until, take_while, take_while1};
 use nom::combinator::{map, opt, rest, value};
 use nom::multi::many0;
-use nom::sequence::{delimited, preceded};
+use nom::sequence::{delimited, preceded, terminated};
 use nom::IResult;
 use nom::Parser;
 
@@ -500,4 +500,14 @@ pub(crate) fn skip_statement_or_block(input: Input<'_>) -> IResult<Input<'_>, ()
     let advance = pos.max(1).min(frag.len());
     let (input, _) = nom::bytes::complete::take(advance).parse(input)?;
     Ok((input, ()))
+}
+
+/// Parse specialization marker in SysML concrete syntax:
+/// either symbolic `:>` or keyword `specializes`.
+pub(crate) fn specialization_operator(input: Input<'_>) -> IResult<Input<'_>, ()> {
+    alt((
+        value((), tag(&b":>"[..])),
+        value((), terminated(tag(&b"specializes"[..]), ws1)),
+    ))
+    .parse(input)
 }

@@ -6,8 +6,8 @@ use crate::parser::action::in_out_decl;
 use crate::parser::attribute::{attribute_def, attribute_usage};
 use crate::parser::expr::expression;
 use crate::parser::lex::{
-    identification, name, qualified_name, skip_until_brace_end, take_until_terminator, ws1,
-    ws_and_comments,
+    identification, name, qualified_name, skip_until_brace_end, specialization_operator,
+    take_until_terminator, ws1, ws_and_comments,
 };
 use crate::parser::node_from_to;
 use crate::parser::requirement::doc_comment;
@@ -171,7 +171,7 @@ fn port_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PortDefBod
     Ok((input, node_from_to(start, input, elem)))
 }
 
-/// Port definition: 'port' 'def' Identification ( ':>' qualified_name )? body
+/// Port definition: 'port' 'def' Identification ( (':>' | 'specializes') qualified_name )? body
 pub(crate) fn port_def(input: Input<'_>) -> IResult<Input<'_>, Node<PortDef>> {
     let start = input;
     let (input, _) = ws_and_comments(input)?;
@@ -181,7 +181,7 @@ pub(crate) fn port_def(input: Input<'_>) -> IResult<Input<'_>, Node<PortDef>> {
     let (input, _) = opt(preceded(tag(&b"def"[..]), ws1)).parse(input)?;
     let (input, identification) = identification(input)?;
     let (input, specializes) = nom::combinator::opt(nom::sequence::preceded(
-        nom::sequence::preceded(ws_and_comments, tag(&b":>"[..])),
+        nom::sequence::preceded(ws_and_comments, specialization_operator),
         nom::sequence::preceded(ws_and_comments, qualified_name),
     ))
     .parse(input)?;

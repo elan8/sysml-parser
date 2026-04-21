@@ -1778,3 +1778,70 @@ fn test_invalid_input_corpus_is_handled_gracefully() {
         );
     }
 }
+
+#[test]
+fn test_part_def_accepts_specializes_keyword_as_specialization() {
+    let input = r#"package P {
+part def A specializes B;
+}"#;
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => p,
+        other => panic!("expected package, got {:?}", other),
+    };
+    let elements = match &pkg.value.body {
+        PackageBody::Brace { elements } => elements,
+        other => panic!("expected brace body, got {:?}", other),
+    };
+    let part_def = match &elements[0].value {
+        PackageBodyElement::PartDef(p) => p,
+        other => panic!("expected part def, got {:?}", other),
+    };
+    assert_eq!(part_def.value.specializes.as_deref(), Some("B"));
+    assert!(
+        part_def.value.specializes_span.is_some(),
+        "specializes span should be present for keyword form"
+    );
+}
+
+#[test]
+fn test_port_def_accepts_specializes_keyword_as_specialization() {
+    let input = r#"package P {
+port def ControlPort specializes BasePort;
+}"#;
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => p,
+        other => panic!("expected package, got {:?}", other),
+    };
+    let elements = match &pkg.value.body {
+        PackageBody::Brace { elements } => elements,
+        other => panic!("expected brace body, got {:?}", other),
+    };
+    let port_def = match &elements[0].value {
+        PackageBodyElement::PortDef(p) => p,
+        other => panic!("expected port def, got {:?}", other),
+    };
+    assert_eq!(port_def.value.specializes.as_deref(), Some("BasePort"));
+}
+
+#[test]
+fn test_individual_def_accepts_specializes_keyword_as_specialization() {
+    let input = r#"package P {
+individual def Rover specializes MobileRobot;
+}"#;
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => p,
+        other => panic!("expected package, got {:?}", other),
+    };
+    let elements = match &pkg.value.body {
+        PackageBody::Brace { elements } => elements,
+        other => panic!("expected brace body, got {:?}", other),
+    };
+    let individual_def = match &elements[0].value {
+        PackageBodyElement::IndividualDef(p) => p,
+        other => panic!("expected individual def, got {:?}", other),
+    };
+    assert_eq!(individual_def.value.specializes.as_deref(), Some("MobileRobot"));
+}

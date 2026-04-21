@@ -15,7 +15,8 @@ use crate::parser::expr::{expression, path_expression};
 use crate::parser::interface::connect_body;
 use crate::parser::lex::{
     identification, name, qualified_name, recover_body_element, skip_until_brace_end,
-    starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments, PART_BODY_STARTERS,
+    specialization_operator, starts_with_any_keyword, take_until_terminator, ws1,
+    ws_and_comments, PART_BODY_STARTERS,
 };
 use crate::parser::metadata_annotation::{annotation, metadata_annotation};
 use crate::parser::occurrence::{
@@ -378,7 +379,7 @@ fn opaque_part_member_decl(input: Input<'_>) -> IResult<Input<'_>, Node<OpaqueMe
     ))
 }
 
-/// Part definition: ( 'abstract' | 'variation' )? 'part' 'def' Identification ( ':>' qualified_name )? body
+/// Part definition: ( 'abstract' | 'variation' )? 'part' 'def' Identification ( (':>' | 'specializes') qualified_name )? body
 pub(crate) fn part_def(input: Input<'_>) -> IResult<Input<'_>, Node<PartDef>> {
     let start = input;
     let (input, _) = ws_and_comments(input)?;
@@ -401,7 +402,7 @@ pub(crate) fn part_def(input: Input<'_>) -> IResult<Input<'_>, Node<PartDef>> {
     let (input, identification) = identification(input)?;
     let before_specializes = input;
     let (input, opt_specializes) = opt((
-        preceded(ws_and_comments, tag(&b":>"[..])),
+        preceded(ws_and_comments, specialization_operator),
         preceded(ws_and_comments, qualified_name),
     ))
     .parse(input)?;
@@ -462,7 +463,7 @@ pub(crate) fn part_def_or_usage(input: Input<'_>) -> IResult<Input<'_>, PartDefO
         let (input, identification) = identification(input)?;
         let before_specializes = input;
         let (input, opt_specializes) = opt((
-            preceded(ws_and_comments, tag(&b":>"[..])),
+            preceded(ws_and_comments, specialization_operator),
             preceded(ws_and_comments, qualified_name),
         ))
         .parse(input)?;
