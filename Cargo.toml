@@ -1,6 +1,6 @@
 [package]
 name = "sysml-v2-parser"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 description = "SysML v2 textual notation parser for Rust"
 license = "MIT"
