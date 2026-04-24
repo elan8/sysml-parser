@@ -5,7 +5,7 @@ use crate::ast::{
     ActionUsageBodyElement, AssignStmt, FirstMergeBody, FirstStmt, Flow, ForLoop, InOut, InOutDecl,
     MergeStmt, Node, ParseErrorNode, ThenAction,
 };
-use crate::parser::build_recovery_error_node;
+use crate::parser::build_recovery_error_node_from_span;
 use crate::parser::expr::path_expression;
 use crate::parser::interface::connect_body;
 use crate::parser::lex::{
@@ -326,8 +326,9 @@ pub(crate) fn action_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, Acti
                         nom::error::ErrorKind::Many0,
                     )));
                 }
-                let recovery = build_recovery_error_node(
+                let recovery = build_recovery_error_node_from_span(
                     start_unknown,
+                    next,
                     ACTION_BODY_STARTERS,
                     "action body",
                     "recovered_action_body_element",
@@ -599,8 +600,9 @@ fn action_usage_body_brace(input: Input<'_>) -> IResult<Input<'_>, ActionUsageBo
                         nom::error::ErrorKind::Many0,
                     )));
                 }
-                let recovery = build_recovery_error_node(
+                let recovery = build_recovery_error_node_from_span(
                     start_unknown,
+                    next,
                     ACTION_BODY_STARTERS,
                     "action body",
                     "recovered_action_body_element",

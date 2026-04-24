@@ -41,7 +41,10 @@ fn walk_occurrence(
 fn apollo_execution_file_preserves_assert_constraints_structurally() {
     let path = Path::new(APOLLO_EXECUTION_FILE);
     if !path.exists() {
-        eprintln!("Skipping integration check; file not found: {}", APOLLO_EXECUTION_FILE);
+        eprintln!(
+            "Skipping integration check; file not found: {}",
+            APOLLO_EXECUTION_FILE
+        );
         return;
     }
 
@@ -68,7 +71,9 @@ fn apollo_execution_file_preserves_assert_constraints_structurally() {
             PackageBodyElement::PartUsage(part_usage) => {
                 if let PartUsageBody::Brace { elements } = &part_usage.value.body {
                     for body_element in elements {
-                        if let PartUsageBodyElement::OccurrenceUsage(occurrence) = &body_element.value {
+                        if let PartUsageBodyElement::OccurrenceUsage(occurrence) =
+                            &body_element.value
+                        {
                             walk_occurrence(
                                 &occurrence.value.body,
                                 &mut structured_assert_count,
@@ -81,7 +86,8 @@ fn apollo_execution_file_preserves_assert_constraints_structurally() {
             PackageBodyElement::PartDef(part_def) => {
                 if let PartDefBody::Brace { elements } = &part_def.value.body {
                     for body_element in elements {
-                        if let PartDefBodyElement::OccurrenceUsage(occurrence) = &body_element.value {
+                        if let PartDefBodyElement::OccurrenceUsage(occurrence) = &body_element.value
+                        {
                             walk_occurrence(
                                 &occurrence.value.body,
                                 &mut structured_assert_count,

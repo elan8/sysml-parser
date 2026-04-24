@@ -6,7 +6,6 @@ use crate::ast::{
     ThenIncludeUseCase, ThenUseCaseUsage, UseCaseDef, UseCaseDefBody, UseCaseDefBodyElement,
     UseCaseUsage,
 };
-use crate::parser::build_recovery_error_node;
 use crate::parser::lex::{
     identification, name, qualified_name, recover_body_element, skip_statement_or_block,
     skip_until_brace_end, starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments,
@@ -15,6 +14,7 @@ use crate::parser::lex::{
 use crate::parser::node_from_to;
 use crate::parser::requirement::{doc_comment, subject_decl};
 use crate::parser::Input;
+use crate::parser::{build_recovery_error_node, build_recovery_error_node_from_span};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::combinator::{map, opt};
@@ -401,8 +401,9 @@ fn use_case_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, UseCaseDefBod
                 // suites can remain diagnostic-free.
                 let trimmed = start_unknown.fragment();
                 let is_redefinition = trimmed.windows(3).any(|w| w == b":>>");
-                let recovery = build_recovery_error_node(
+                let recovery = build_recovery_error_node_from_span(
                     start_unknown,
+                    next,
                     USE_CASE_BODY_STARTERS,
                     "use case body",
                     "recovered_use_case_body_element",

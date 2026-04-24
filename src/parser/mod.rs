@@ -354,12 +354,7 @@ fn missing_name_diagnostic(fragment: &[u8]) -> Option<(&'static str, String, Str
             "action name",
             "Use `perform action run: Runner;`.",
         ),
-        (
-            b"return",
-            &[],
-            "return name",
-            "Use `return result: Real;`.",
-        ),
+        (b"return", &[], "return name", "Use `return result: Real;`."),
     ];
 
     for (keyword, trailing, missing_what, suggestion) in cases {
@@ -558,51 +553,167 @@ pub(crate) fn build_recovery_error_node(
     scope_label: &str,
     generic_code: &str,
 ) -> ParseErrorNode {
+    build_recovery_error_node_from_span(input, input, starters, scope_label, generic_code)
+}
+
+enum RecoveryClassification {
+    MissingMemberName {
+        code: String,
+        message: String,
+        expected: String,
+        suggestion: String,
+    },
+    MissingTypeReference {
+        code: String,
+        message: String,
+        expected: String,
+        suggestion: String,
+    },
+    InvalidQualifiedNameSeparator {
+        code: String,
+        message: String,
+        expected: String,
+        suggestion: String,
+    },
+    MissingSemicolon,
+    UnsupportedAnnotation,
+    Unexpected,
+}
+
+fn trim_ascii_end(mut fragment: &[u8]) -> &[u8] {
+    while let Some(last) = fragment.last() {
+        if last.is_ascii_whitespace() {
+            fragment = &fragment[..fragment.len() - 1];
+        } else {
+            break;
+        }
+    }
+    fragment
+}
+
+fn classify_recovery(
+    input: Input<'_>,
+    recovery_end: Input<'_>,
+    starters: &[&[u8]],
+) -> RecoveryClassification {
     let trimmed = trim_ascii_start(input.fragment());
 
     if let Some((code, message, expected, suggestion)) = missing_name_diagnostic(trimmed) {
-        return ParseErrorNode {
-            message,
+        return RecoveryClassification::MissingMemberName {
             code: code.to_string(),
-            expected: Some(expected),
-            found: recovery_found_snippet(input),
-            suggestion: Some(suggestion),
+            message,
+            expected,
+            suggestion,
         };
     }
 
     if let Some((code, message, expected, suggestion)) = missing_type_diagnostic(trimmed) {
-        return ParseErrorNode {
-            message,
+        return RecoveryClassification::MissingTypeReference {
             code: code.to_string(),
-            expected: Some(expected),
-            found: recovery_found_snippet(input),
-            suggestion: Some(suggestion),
+            message,
+            expected,
+            suggestion,
         };
     }
 
-    if let Some((code, message, expected, suggestion)) = invalid_expose_separator_diagnostic(trimmed)
+    if let Some((code, message, expected, suggestion)) =
+        invalid_expose_separator_diagnostic(trimmed)
     {
-        return ParseErrorNode {
-            message,
+        return RecoveryClassification::InvalidQualifiedNameSeparator {
             code: code.to_string(),
-            expected: Some(expected),
-            found: recovery_found_snippet(input),
-            suggestion: Some(suggestion),
+            message,
+            expected,
+            suggestion,
         };
     }
 
-    if lex::looks_like_missing_semicolon(input, starters) {
-        return ParseErrorNode {
+    let consumed_len = recovery_end
+        .location_offset()
+        .saturating_sub(input.location_offset())
+        .min(input.fragment().len());
+    let raw_consumed = &input.fragment()[..consumed_len];
+    let consumed = trim_ascii_end(raw_consumed);
+    let recovered_to_boundary = recovery_end.location_offset() > input.location_offset() && {
+        let (next, _) = lex::ws_and_comments(recovery_end).unwrap_or((recovery_end, ()));
+        next.fragment().is_empty()
+            || next.fragment().starts_with(b"}")
+            || lex::starts_with_any_keyword(next.fragment(), starters)
+    };
+
+    let consumed_has_newline = raw_consumed.contains(&b'\n') || raw_consumed.contains(&b'\r');
+    let first_line_end = consumed
+        .iter()
+        .position(|b| matches!(*b, b'\n' | b'\r'))
+        .unwrap_or(consumed.len());
+    let first_line = trim_ascii_end(&consumed[..first_line_end]);
+    let consumed_has_delimiters = consumed
+        .iter()
+        .any(|b| matches!(*b, b'{' | b'}' | b'(' | b')' | b'[' | b']'));
+    let consumed_ends_incomplete = first_line.last().is_some_and(|b| {
+        matches!(
+            *b,
+            b':' | b'=' | b',' | b'.' | b'+' | b'-' | b'*' | b'/' | b'>' | b'<' | b'|'
+        )
+    });
+    let first_line_has_semicolon = first_line.contains(&b';');
+    if recovered_to_boundary
+        && lex::starts_with_any_keyword(trimmed, starters)
+        && (consumed_has_newline || recovery_end.fragment().starts_with(b"}"))
+        && !consumed.is_empty()
+        && !consumed_has_delimiters
+        && !consumed_ends_incomplete
+        && !first_line_has_semicolon
+    {
+        return RecoveryClassification::MissingSemicolon;
+    }
+
+    if lex::starts_with_keyword(trimmed, b"#") || lex::starts_with_keyword(trimmed, b"@") {
+        return RecoveryClassification::UnsupportedAnnotation;
+    }
+
+    RecoveryClassification::Unexpected
+}
+
+pub(crate) fn build_recovery_error_node_from_span(
+    input: Input<'_>,
+    recovery_end: Input<'_>,
+    starters: &[&[u8]],
+    scope_label: &str,
+    generic_code: &str,
+) -> ParseErrorNode {
+    match classify_recovery(input, recovery_end, starters) {
+        RecoveryClassification::MissingMemberName {
+            code,
+            message,
+            expected,
+            suggestion,
+        }
+        | RecoveryClassification::MissingTypeReference {
+            code,
+            message,
+            expected,
+            suggestion,
+        }
+        | RecoveryClassification::InvalidQualifiedNameSeparator {
+            code,
+            message,
+            expected,
+            suggestion,
+        } => ParseErrorNode {
+            message,
+            code,
+            expected: Some(expected),
+            found: recovery_found_snippet(input),
+            suggestion: Some(suggestion),
+        },
+        RecoveryClassification::MissingSemicolon => ParseErrorNode {
             message: "missing semicolon before next declaration".to_string(),
             code: "missing_semicolon".to_string(),
             expected: Some("';'".to_string()),
             found: recovery_found_snippet(input),
             suggestion: Some("Insert ';' before this declaration.".to_string()),
-        };
-    }
-
-    if lex::starts_with_keyword(trimmed, b"#") || lex::starts_with_keyword(trimmed, b"@") {
-        return ParseErrorNode {
+        },
+        RecoveryClassification::UnsupportedAnnotation => ParseErrorNode {
             message: format!("unsupported annotation syntax in {scope_label}"),
             code: generic_code.to_string(),
             expected: Some(format!("valid {scope_label} element")),
@@ -611,15 +722,14 @@ pub(crate) fn build_recovery_error_node(
                 "Remove this annotation or extend the parser to support annotated declarations."
                     .to_string(),
             ),
-        };
-    }
-
-    ParseErrorNode {
-        message: format!("unexpected token in {scope_label}"),
-        code: generic_code.to_string(),
-        expected: Some(format!("valid {scope_label} element")),
-        found: recovery_found_snippet(input),
-        suggestion: Some(format!("Fix this {scope_label} member and re-run parsing.")),
+        },
+        RecoveryClassification::Unexpected => ParseErrorNode {
+            message: format!("unexpected token in {scope_label}"),
+            code: generic_code.to_string(),
+            expected: Some(format!("valid {scope_label} element")),
+            found: recovery_found_snippet(input),
+            suggestion: Some(format!("Fix this {scope_label} member and re-run parsing.")),
+        },
     }
 }
 
@@ -1005,6 +1115,17 @@ pub fn parse_with_diagnostics(input: &str) -> ParseResult {
                 input = rest;
             }
             Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
+                let (trimmed, _) = lex::ws_and_comments(input).unwrap_or((input, ()));
+                if errors.is_empty()
+                    && has_unclosed_brace(bytes)
+                    && (lex::starts_with_keyword(trimmed.fragment(), b"package")
+                        || lex::starts_with_keyword(trimmed.fragment(), b"namespace")
+                        || lex::starts_with_keyword(trimmed.fragment(), b"library")
+                        || lex::starts_with_keyword(trimmed.fragment(), b"standard"))
+                {
+                    errors.push(missing_closing_brace_error_at_eof(bytes));
+                    break;
+                }
                 let pe = missing_closing_brace_error(bytes, e.input).unwrap_or_else(|| {
                     nom_err_to_parse_error(&e, None, Some("'package', 'namespace', or 'import'"))
                 });
@@ -1042,7 +1163,11 @@ pub fn parse_with_diagnostics(input: &str) -> ParseResult {
         errors.push(missing_closing_brace_error_at_eof(bytes));
     }
 
-    if !input.fragment().is_empty() {
+    if !input.fragment().is_empty()
+        && !errors
+            .iter()
+            .any(|e| e.code.as_deref() == Some("missing_closing_brace"))
+    {
         let (found_snippet, found_len) = fragment_to_found_snippet(input.fragment());
         let mut pe = ParseError::new("expected end of input")
             .with_location(

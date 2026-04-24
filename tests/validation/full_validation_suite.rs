@@ -93,9 +93,7 @@ fn test_full_validation_suite() {
 
     if !validation_path.exists() {
         log::debug!("Validation directory not found: {:?}", validation_path);
-        log::debug!(
-            "Skipping. Run `scripts/fetch-sysml-v2-release.*` or set SYSML_V2_RELEASE_DIR"
-        );
+        log::debug!("Skipping. Run `scripts/fetch-sysml-v2-release.*` or set SYSML_V2_RELEASE_DIR");
         return;
     }
 

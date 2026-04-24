@@ -1,4 +1,7 @@
-use sysml_v2_parser::ast::{PackageBody, PackageBodyElement, RootElement, ViewBody, ViewBodyElement, ViewDefBody, ViewDefBodyElement};
+use sysml_v2_parser::ast::{
+    PackageBody, PackageBodyElement, RootElement, ViewBody, ViewBodyElement, ViewDefBody,
+    ViewDefBodyElement,
+};
 use sysml_v2_parser::parse_with_diagnostics;
 
 #[test]

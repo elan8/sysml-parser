@@ -1921,7 +1921,9 @@ fn normalize_part_def_body_element_node(el: &Node<PartDefBodyElement>) -> Node<P
     let value = match &el.value {
         PartDefBodyElement::Error(n) => PartDefBodyElement::Error(dummy_node(n, n.value.clone())),
         PartDefBodyElement::Doc(n) => PartDefBodyElement::Doc(dummy_node(n, n.value.clone())),
-        PartDefBodyElement::Comment(n) => PartDefBodyElement::Comment(dummy_node(n, n.value.clone())),
+        PartDefBodyElement::Comment(n) => {
+            PartDefBodyElement::Comment(dummy_node(n, n.value.clone()))
+        }
         PartDefBodyElement::Annotation(n) => {
             PartDefBodyElement::Annotation(dummy_node(n, n.value.clone()))
         }
@@ -2076,9 +2078,9 @@ fn normalize_expression_node(node: &Node<Expression>) -> Node<Expression> {
             op: op.clone(),
             operand: Box::new(normalize_expression_node(operand)),
         },
-        Expression::Tuple(items) => Expression::Tuple(
-            items.iter().map(normalize_expression_node).collect(),
-        ),
+        Expression::Tuple(items) => {
+            Expression::Tuple(items.iter().map(normalize_expression_node).collect())
+        }
         Expression::Null => Expression::Null,
     };
     Node::new(Span::dummy(), value)

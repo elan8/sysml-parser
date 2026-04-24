@@ -5,7 +5,7 @@ use crate::ast::{
     OccurrenceDef, OccurrenceUsage, OccurrenceUsageBody, ParseErrorNode,
 };
 use crate::parser::attribute::attribute_usage;
-use crate::parser::build_recovery_error_node;
+use crate::parser::build_recovery_error_node_from_span;
 use crate::parser::constraint::{structured_constraint_body, StructuredConstraintBody};
 use crate::parser::lex::{
     identification, name, qualified_name, recover_body_element, redefine_operator,
@@ -235,8 +235,9 @@ fn occurrence_usage_body_brace(input: Input<'_>) -> IResult<Input<'_>, Occurrenc
                     let (input, _) = preceded(ws_and_comments, tag(&b"}"[..])).parse(input)?;
                     return Ok((input, OccurrenceUsageBody::Brace { elements }));
                 }
-                let recovery = build_recovery_error_node(
+                let recovery = build_recovery_error_node_from_span(
                     start_unknown,
+                    next,
                     OCCURRENCE_BODY_STARTERS,
                     "occurrence body",
                     "recovered_occurrence_body_element",
@@ -259,9 +260,14 @@ fn occurrence_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<Occurren
     let (input, elem) = alt((
         map(doc_comment, OccurrenceBodyElement::Doc),
         map(annotation, OccurrenceBodyElement::Annotation),
-        map(assert_constraint_member, OccurrenceBodyElement::AssertConstraint),
+        map(
+            assert_constraint_member,
+            OccurrenceBodyElement::AssertConstraint,
+        ),
         map(attribute_usage, OccurrenceBodyElement::AttributeUsage),
-        map(part_usage, |p| OccurrenceBodyElement::PartUsage(Box::new(p))),
+        map(part_usage, |p| {
+            OccurrenceBodyElement::PartUsage(Box::new(p))
+        }),
         map(individual_usage, |n| {
             OccurrenceBodyElement::OccurrenceUsage(Box::new(n))
         }),

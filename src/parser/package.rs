@@ -2,15 +2,14 @@
 
 use crate::ast::{
     ClassifierDecl, ExtendedLibraryDecl, FeatureDecl, FilterMember, KermlFeatureDecl,
-    KermlSemanticDecl, LibraryPackage,
-    NamespaceDecl, Node, Package, PackageBody, PackageBodyElement, RootElement, RootNamespace,
-    Visibility,
+    KermlSemanticDecl, LibraryPackage, NamespaceDecl, Node, Package, PackageBody,
+    PackageBodyElement, RootElement, RootNamespace, Visibility,
 };
 use crate::parser::action::{action_def, action_usage};
 use crate::parser::alias::alias_def;
 use crate::parser::allocation::{allocate_usage, allocation_def, allocation_usage};
 use crate::parser::attribute::attribute_def;
-use crate::parser::build_recovery_error_node;
+use crate::parser::build_recovery_error_node_from_span;
 use crate::parser::case::{
     analysis_case_def, analysis_case_usage, case_def, case_usage, verification_case_def,
     verification_case_usage,
@@ -344,14 +343,7 @@ fn feature_decl(input: Input<'_>) -> IResult<Input<'_>, Node<FeatureDecl>> {
     let (input, (keyword, text)) = parse_modeled_decl(input, starters)?;
     Ok((
         input,
-        node_from_to(
-            start,
-            input,
-            FeatureDecl {
-                keyword,
-                text,
-            },
-        ),
+        node_from_to(start, input, FeatureDecl { keyword, text }),
     ))
 }
 
@@ -361,14 +353,7 @@ fn classifier_decl(input: Input<'_>) -> IResult<Input<'_>, Node<ClassifierDecl>>
     let (input, (keyword, text)) = parse_modeled_decl(input, starters)?;
     Ok((
         input,
-        node_from_to(
-            start,
-            input,
-            ClassifierDecl {
-                keyword,
-                text,
-            },
-        ),
+        node_from_to(start, input, ClassifierDecl { keyword, text }),
     ))
 }
 
@@ -490,8 +475,9 @@ fn package_body_brace(input: Input<'_>) -> IResult<Input<'_>, PackageBody> {
                     next,
                     PackageBodyElement::Error(Node::new(
                         crate::ast::Span::dummy(),
-                        build_recovery_error_node(
+                        build_recovery_error_node_from_span(
                             input,
+                            next,
                             PACKAGE_BODY_STARTERS,
                             "package body",
                             "recovered_package_body_element",
@@ -745,8 +731,7 @@ pub(crate) fn package_body_element(
     if let Ok((input, elem)) = map(feature_decl, PackageBodyElement::FeatureDecl).parse(input) {
         return Ok((input, node_from_to(start, input, elem)));
     }
-    if let Ok((input, elem)) =
-        map(classifier_decl, PackageBodyElement::ClassifierDecl).parse(input)
+    if let Ok((input, elem)) = map(classifier_decl, PackageBodyElement::ClassifierDecl).parse(input)
     {
         return Ok((input, node_from_to(start, input, elem)));
     }

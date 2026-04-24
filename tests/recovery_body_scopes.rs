@@ -32,10 +32,9 @@ fn requirement_recovery_keeps_later_members() {
         "malformed requirement member should be preserved as an error node"
     );
     assert!(
-        elements.iter().any(|e| matches!(
-            e.value,
-            RequirementDefBodyElement::RequireConstraint(_)
-        )),
+        elements
+            .iter()
+            .any(|e| matches!(e.value, RequirementDefBodyElement::RequireConstraint(_))),
         "later requirement members should still parse"
     );
 }
@@ -77,8 +76,7 @@ fn use_case_recovery_keeps_later_members() {
 
 #[test]
 fn state_recovery_keeps_later_members() {
-    let input =
-        "package P {\nstate def Machine {\nstate: Mode;\ntransition t then Ready;\n}\n}";
+    let input = "package P {\nstate def Machine {\nstate: Mode;\ntransition t then Ready;\n}\n}";
     let result = parse_with_diagnostics(input);
     let pkg = match &result.root.elements[0].value {
         RootElement::Package(p) => &p.value,
@@ -110,4 +108,3 @@ fn state_recovery_keeps_later_members() {
         "later state members should still parse"
     );
 }
-

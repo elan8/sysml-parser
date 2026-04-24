@@ -1,4 +1,6 @@
-use sysml_v2_parser::ast::{ActionDefBody, ActionDefBodyElement, PackageBody, PackageBodyElement, RootElement};
+use sysml_v2_parser::ast::{
+    ActionDefBody, ActionDefBodyElement, PackageBody, PackageBodyElement, RootElement,
+};
 use sysml_v2_parser::parse_with_diagnostics;
 
 #[test]
@@ -34,11 +36,9 @@ action def A {
         "malformed action member should be preserved as an error node"
     );
     assert!(
-        elements.iter().any(|e| matches!(
-            e.value,
-            ActionDefBodyElement::ActionUsage(_)
-        )),
+        elements
+            .iter()
+            .any(|e| matches!(e.value, ActionDefBodyElement::ActionUsage(_))),
         "later action members should still parse"
     );
 }
-

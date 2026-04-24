@@ -12,9 +12,9 @@ use crate::parser::lex::{
     skip_until_brace_end, starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments,
     VIEW_BODY_STARTERS, VIEW_DEF_BODY_STARTERS,
 };
-use crate::parser::{build_recovery_error_node, node_from_to};
 use crate::parser::requirement::{doc_comment, requirement_def_body};
 use crate::parser::Input;
+use crate::parser::{build_recovery_error_node_from_span, node_from_to};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::combinator::{map, success};
@@ -108,8 +108,9 @@ fn view_def_body(input: Input<'_>) -> IResult<Input<'_>, ViewDefBody> {
                         nom::error::ErrorKind::Many0,
                     )));
                 }
-                let recovery = build_recovery_error_node(
+                let recovery = build_recovery_error_node_from_span(
                     start_unknown,
+                    next,
                     VIEW_DEF_BODY_STARTERS,
                     "view definition body",
                     "recovered_view_def_body_element",
@@ -364,8 +365,9 @@ fn view_body(input: Input<'_>) -> IResult<Input<'_>, ViewBody> {
                         nom::error::ErrorKind::Many0,
                     )));
                 }
-                let recovery = build_recovery_error_node(
+                let recovery = build_recovery_error_node_from_span(
                     start_unknown,
+                    next,
                     VIEW_BODY_STARTERS,
                     "view body",
                     "recovered_view_body_element",

@@ -257,9 +257,7 @@ fn test_full_library_suite() {
     let library_path = library_dir();
     if !library_path.exists() {
         log::debug!("Library directory not found: {:?}", library_path);
-        log::debug!(
-            "Skipping. Run `scripts/fetch-sysml-v2-release.*` or set SYSML_V2_RELEASE_DIR"
-        );
+        log::debug!("Skipping. Run `scripts/fetch-sysml-v2-release.*` or set SYSML_V2_RELEASE_DIR");
         return;
     }
 
@@ -359,9 +357,7 @@ fn test_systems_library_strict_no_diagnostics() {
     let systems_path = library_dir().join("Systems Library");
     if !systems_path.exists() {
         log::debug!("Systems Library directory not found: {:?}", systems_path);
-        log::debug!(
-            "Skipping. Run `scripts/fetch-sysml-v2-release.*` or set SYSML_V2_RELEASE_DIR"
-        );
+        log::debug!("Skipping. Run `scripts/fetch-sysml-v2-release.*` or set SYSML_V2_RELEASE_DIR");
         return;
     }
 
@@ -436,9 +432,7 @@ fn test_full_library_strict_no_diagnostics() {
     let library_path = library_dir();
     if !library_path.exists() {
         log::debug!("Library directory not found: {:?}", library_path);
-        log::debug!(
-            "Skipping. Run `scripts/fetch-sysml-v2-release.*` or set SYSML_V2_RELEASE_DIR"
-        );
+        log::debug!("Skipping. Run `scripts/fetch-sysml-v2-release.*` or set SYSML_V2_RELEASE_DIR");
         return;
     }
 

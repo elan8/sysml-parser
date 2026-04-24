@@ -9,14 +9,14 @@ use crate::ast::{
     RefDecl,
 };
 use crate::parser::attribute::{attribute_def, attribute_usage, attribute_usage_shorthand};
-use crate::parser::build_recovery_error_node;
+use crate::parser::build_recovery_error_node_from_span;
 use crate::parser::connection::connection_member_body;
 use crate::parser::expr::{expression, path_expression};
 use crate::parser::interface::connect_body;
 use crate::parser::lex::{
     identification, name, qualified_name, recover_body_element, skip_until_brace_end,
-    specialization_operator, starts_with_any_keyword, take_until_terminator, ws1,
-    ws_and_comments, PART_BODY_STARTERS,
+    specialization_operator, starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments,
+    PART_BODY_STARTERS,
 };
 use crate::parser::metadata_annotation::{annotation, metadata_annotation};
 use crate::parser::occurrence::{
@@ -94,8 +94,9 @@ fn part_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, PartDefBody> {
                     next,
                     PartDefBodyElement::Error(Node::new(
                         crate::ast::Span::dummy(),
-                        build_recovery_error_node(
+                        build_recovery_error_node_from_span(
                             input,
+                            next,
                             PART_BODY_STARTERS,
                             "part definition body",
                             "recovered_part_def_body_element",
@@ -106,8 +107,9 @@ fn part_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, PartDefBody> {
             }
             Err(_) => {
                 let start_unknown = input;
-                let recovery = build_recovery_error_node(
+                let recovery = build_recovery_error_node_from_span(
                     start_unknown,
+                    next,
                     PART_BODY_STARTERS,
                     "part definition body",
                     "recovered_part_def_body_element",
@@ -330,7 +332,15 @@ fn opaque_part_member_decl(input: Input<'_>) -> IResult<Input<'_>, Node<OpaqueMe
         .find(|token| {
             !matches!(
                 *token,
-                "ref" | "action" | "state" | "port" | "connection" | "part" | "private" | "protected" | "public"
+                "ref"
+                    | "action"
+                    | "state"
+                    | "port"
+                    | "connection"
+                    | "part"
+                    | "private"
+                    | "protected"
+                    | "public"
             )
         })
         .unwrap_or("member")
@@ -694,7 +704,10 @@ pub(crate) fn part_usage(input: Input<'_>) -> IResult<Input<'_>, Node<PartUsage>
     let (input, _) = tag(&b"part"[..]).parse(input)?;
     let (input, _) = ws1(input)?;
     let (peek, _) = ws_and_comments(input)?;
-    if peek.fragment().starts_with(b":") && !peek.fragment().starts_with(b":>") && !peek.fragment().starts_with(b":>>") {
+    if peek.fragment().starts_with(b":")
+        && !peek.fragment().starts_with(b":>")
+        && !peek.fragment().starts_with(b":>>")
+    {
         let (input, mut usage) = anonymous_part_usage(start, input)?;
         usage.value.is_individual = is_individual;
         return Ok((input, usage));
@@ -834,8 +847,9 @@ fn part_usage_body_brace(input: Input<'_>) -> IResult<Input<'_>, PartUsageBody> 
                     next,
                     PartUsageBodyElement::Error(Node::new(
                         crate::ast::Span::dummy(),
-                        build_recovery_error_node(
+                        build_recovery_error_node_from_span(
                             input,
+                            next,
                             PART_BODY_STARTERS,
                             "part usage body",
                             "recovered_part_usage_body_element",
@@ -1282,7 +1296,10 @@ fn part_usage_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PartUsag
             metadata_annotation,
             PartUsageBodyElement::MetadataAnnotation,
         ),
-        map(exhibit_state_as_state_usage, PartUsageBodyElement::StateUsage),
+        map(
+            exhibit_state_as_state_usage,
+            PartUsageBodyElement::StateUsage,
+        ),
         map(perform_action_decl, PartUsageBodyElement::Perform),
         map(perform_usage, PartUsageBodyElement::Perform),
         map(allocate_, PartUsageBodyElement::Allocate),
@@ -1292,11 +1309,21 @@ fn part_usage_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PartUsag
             PartUsageBodyElement::AttributeUsage,
         ),
         map(part_usage, |p| PartUsageBodyElement::PartUsage(Box::new(p))),
-        map(individual_usage, |n| PartUsageBodyElement::OccurrenceUsage(Box::new(n))),
-        map(snapshot_usage, |n| PartUsageBodyElement::OccurrenceUsage(Box::new(n))),
-        map(timeslice_usage, |n| PartUsageBodyElement::OccurrenceUsage(Box::new(n))),
-        map(then_timeslice_usage, |n| PartUsageBodyElement::OccurrenceUsage(Box::new(n))),
-        map(occurrence_usage, |n| PartUsageBodyElement::OccurrenceUsage(Box::new(n))),
+        map(individual_usage, |n| {
+            PartUsageBodyElement::OccurrenceUsage(Box::new(n))
+        }),
+        map(snapshot_usage, |n| {
+            PartUsageBodyElement::OccurrenceUsage(Box::new(n))
+        }),
+        map(timeslice_usage, |n| {
+            PartUsageBodyElement::OccurrenceUsage(Box::new(n))
+        }),
+        map(then_timeslice_usage, |n| {
+            PartUsageBodyElement::OccurrenceUsage(Box::new(n))
+        }),
+        map(occurrence_usage, |n| {
+            PartUsageBodyElement::OccurrenceUsage(Box::new(n))
+        }),
         map(port_usage, PartUsageBodyElement::PortUsage),
         map(part_ref_usage, PartUsageBodyElement::Ref),
         map(bind_, PartUsageBodyElement::Bind),
@@ -1308,7 +1335,9 @@ fn part_usage_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PartUsag
     Ok((input, node_from_to(start, input, elem)))
 }
 
-fn exhibit_state_as_state_usage(input: Input<'_>) -> IResult<Input<'_>, Node<crate::ast::StateUsage>> {
+fn exhibit_state_as_state_usage(
+    input: Input<'_>,
+) -> IResult<Input<'_>, Node<crate::ast::StateUsage>> {
     let (input, exhibit) = exhibit_state(input)?;
     let state = crate::ast::StateUsage {
         name: exhibit.value.name,

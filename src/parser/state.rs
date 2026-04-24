@@ -4,15 +4,15 @@ use crate::ast::{
     EntryAction, Node, RefBody, RefDecl, StateDef, StateDefBody, StateDefBodyElement, StateUsage,
     ThenStmt, Transition,
 };
-use crate::parser::build_recovery_error_node;
+use crate::parser::build_recovery_error_node_from_span;
 use crate::parser::expr::expression;
 use crate::parser::lex::{
     identification, name, qualified_name, recover_body_element, skip_statement_or_block,
     skip_until_brace_end, starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments,
     STATE_BODY_STARTERS,
 };
-use crate::parser::node_from_to;
 use crate::parser::metadata_annotation::annotation;
+use crate::parser::node_from_to;
 use crate::parser::requirement::{doc_comment, requirement_usage};
 use crate::parser::Input;
 use nom::branch::alt;
@@ -100,8 +100,9 @@ fn state_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, StateDefBody> {
                     next,
                     StateDefBodyElement::Error(Node::new(
                         crate::ast::Span::dummy(),
-                        build_recovery_error_node(
+                        build_recovery_error_node_from_span(
                             input,
+                            next,
                             STATE_BODY_STARTERS,
                             "state body",
                             "recovered_state_body_element",
@@ -126,8 +127,9 @@ fn state_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, StateDefBody> {
                         continue;
                     }
                 }
-                let recovery = build_recovery_error_node(
+                let recovery = build_recovery_error_node_from_span(
                     start_unknown,
+                    next,
                     STATE_BODY_STARTERS,
                     "state body",
                     "recovered_state_body_element",

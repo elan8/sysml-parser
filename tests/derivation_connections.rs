@@ -1,4 +1,6 @@
-use sysml_v2_parser::ast::{ConnectionDefBody, ConnectionDefBodyElement, PackageBody, PackageBodyElement, RootElement};
+use sysml_v2_parser::ast::{
+    ConnectionDefBody, ConnectionDefBodyElement, PackageBody, PackageBodyElement, RootElement,
+};
 use sysml_v2_parser::parse_with_diagnostics;
 
 #[test]

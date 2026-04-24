@@ -1,7 +1,9 @@
 use std::fs;
 use std::path::Path;
 
-use sysml_v2_parser::ast::{PackageBody, PackageBodyElement, PartDefBody, PartDefBodyElement, RootElement};
+use sysml_v2_parser::ast::{
+    PackageBody, PackageBodyElement, PartDefBody, PartDefBodyElement, RootElement,
+};
 use sysml_v2_parser::parse_with_diagnostics;
 
 const MISSION_PACKAGE_FILE: &str = r"C:\Git\apollo-11-sysml-v2\Purpose\MissionPackage.sysml";
@@ -48,7 +50,9 @@ fn missionpackage_structures_connection_and_comment_members() {
             match &member.value {
                 PartDefBodyElement::Connection(_) => structured_connection_count += 1,
                 PartDefBodyElement::Comment(_) => structured_comment_count += 1,
-                PartDefBodyElement::OpaqueMember(opaque) if opaque.value.keyword == "connection" => {
+                PartDefBodyElement::OpaqueMember(opaque)
+                    if opaque.value.keyword == "connection" =>
+                {
                     opaque_connection_count += 1
                 }
                 PartDefBodyElement::Other(text) if text.starts_with("comment ") => {

@@ -6,7 +6,6 @@ use crate::ast::{
     RequirementDefBodyElement, RequirementUsage, Satisfy, SubjectDecl, TextualRepresentation,
 };
 use crate::parser::attribute::{attribute_def, attribute_usage};
-use crate::parser::build_recovery_error_node;
 use crate::parser::constraint::{structured_constraint_body, StructuredConstraintBody};
 use crate::parser::expr::expression;
 use crate::parser::import::import_;
@@ -18,6 +17,7 @@ use crate::parser::lex::{
 use crate::parser::metadata_annotation::annotation;
 use crate::parser::node_from_to;
 use crate::parser::Input;
+use crate::parser::{build_recovery_error_node, build_recovery_error_node_from_span};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::combinator::{map, opt};
@@ -149,8 +149,9 @@ fn requirement_def_body_brace(input: Input<'_>) -> IResult<Input<'_>, Requiremen
                     || trimmed.starts_with(b"abstract ")
                     || trimmed.starts_with(b"return ")
                     || trimmed.starts_with(b"objective ");
-                let recovery = build_recovery_error_node(
+                let recovery = build_recovery_error_node_from_span(
                     start_unknown,
+                    next,
                     REQUIREMENT_BODY_STARTERS,
                     "requirement body",
                     "recovered_requirement_body_element",
@@ -449,8 +450,11 @@ pub(crate) fn satisfy(input: Input<'_>) -> IResult<Input<'_>, Node<Satisfy>> {
     let (input, _) = preceded(ws_and_comments, tag(&b"satisfy"[..])).parse(input)?;
     let (input, _) = ws1(input)?;
     let (input, source) = expression(input)?;
-    let (input, target) = if let Ok((input, _)) =
-        preceded(ws_and_comments, tag::<_, _, nom::error::Error<Input>>(&b"by"[..])).parse(input)
+    let (input, target) = if let Ok((input, _)) = preceded(
+        ws_and_comments,
+        tag::<_, _, nom::error::Error<Input>>(&b"by"[..]),
+    )
+    .parse(input)
     {
         let (input, _) = ws1(input)?;
         let (input, target) = expression(input)?;

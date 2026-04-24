@@ -796,9 +796,18 @@ fn test_feature_and_classifier_decls_map_to_dedicated_package_nodes() {
         PackageBody::Brace { elements } => elements,
         _ => panic!("expected brace body"),
     };
-    assert!(matches!(elements[0].value, PackageBodyElement::FeatureDecl(_)));
-    assert!(matches!(elements[1].value, PackageBodyElement::ClassifierDecl(_)));
-    assert!(matches!(elements[2].value, PackageBodyElement::ClassifierDecl(_)));
+    assert!(matches!(
+        elements[0].value,
+        PackageBodyElement::FeatureDecl(_)
+    ));
+    assert!(matches!(
+        elements[1].value,
+        PackageBodyElement::ClassifierDecl(_)
+    ));
+    assert!(matches!(
+        elements[2].value,
+        PackageBodyElement::ClassifierDecl(_)
+    ));
     assert!(
         !elements.iter().any(|e| matches!(
             e.value,
@@ -970,7 +979,8 @@ fn test_requirement_body_keeps_structured_attributes_and_later_require_constrain
 
 #[test]
 fn test_part_def_recovery_preserves_other_member_and_later_sibling() {
-    let input = "package P {\npart def Vehicle {\nstate monitor: Mode;\nattribute mass: MassValue;\n}\n}";
+    let input =
+        "package P {\npart def Vehicle {\nstate monitor: Mode;\nattribute mass: MassValue;\n}\n}";
     let result = parse_with_diagnostics(input);
     let pkg = match &result.root.elements[0].value {
         RootElement::Package(p) => &p.value,
@@ -1118,7 +1128,9 @@ fn test_parse_part_attribute_prefix_redefines_shorthand() {
     let laptop1 = office_body
         .iter()
         .find_map(|e| match &e.value {
-            sysml_v2_parser::ast::PartUsageBodyElement::PartUsage(p) if p.value.name == "laptop1" => {
+            sysml_v2_parser::ast::PartUsageBodyElement::PartUsage(p)
+                if p.value.name == "laptop1" =>
+            {
                 Some(&p.value)
             }
             _ => None,
@@ -1137,7 +1149,10 @@ fn test_parse_part_attribute_prefix_redefines_shorthand() {
         .expect("attribute usage should be present");
     assert_eq!(attribute.name, "name");
     assert_eq!(attribute.redefines.as_deref(), Some("name"));
-    assert!(attribute.value.is_some(), "attribute value should be parsed");
+    assert!(
+        attribute.value.is_some(),
+        "attribute value should be parsed"
+    );
 }
 
 #[test]
@@ -1170,7 +1185,9 @@ fn test_parse_part_attribute_prefix_redefines_with_subsets_clause() {
     let living_room = home_body
         .iter()
         .find_map(|e| match &e.value {
-            sysml_v2_parser::ast::PartDefBodyElement::PartUsage(p) if p.value.name == "livingRoom" => {
+            sysml_v2_parser::ast::PartDefBodyElement::PartUsage(p)
+                if p.value.name == "livingRoom" =>
+            {
                 Some(&p.value)
             }
             _ => None,
@@ -1193,7 +1210,8 @@ fn test_parse_part_attribute_prefix_redefines_with_subsets_clause() {
 
 #[test]
 fn test_parse_part_usage_body_satisfy_shorthand() {
-    let input = "package P {\npart def Home {\npart livingRoom: Room {\nsatisfy heatSuff5;\n}\n}\n}";
+    let input =
+        "package P {\npart def Home {\npart livingRoom: Room {\nsatisfy heatSuff5;\n}\n}\n}";
     let result = parse(input).expect("satisfy shorthand in part usage should parse");
     let pkg = match &result.elements[0].value {
         RootElement::Package(p) => &p.value,
@@ -1221,7 +1239,9 @@ fn test_parse_part_usage_body_satisfy_shorthand() {
     let living_room = home_body
         .iter()
         .find_map(|e| match &e.value {
-            sysml_v2_parser::ast::PartDefBodyElement::PartUsage(p) if p.value.name == "livingRoom" => {
+            sysml_v2_parser::ast::PartDefBodyElement::PartUsage(p)
+                if p.value.name == "livingRoom" =>
+            {
                 Some(&p.value)
             }
             _ => None,
@@ -1270,7 +1290,9 @@ fn test_parse_interface_usage_named_with_multiplicity() {
     let living_room = home_body
         .iter()
         .find_map(|e| match &e.value {
-            sysml_v2_parser::ast::PartDefBodyElement::PartUsage(p) if p.value.name == "livingRoom" => {
+            sysml_v2_parser::ast::PartDefBodyElement::PartUsage(p)
+                if p.value.name == "livingRoom" =>
+            {
                 Some(&p.value)
             }
             _ => None,
@@ -1335,9 +1357,10 @@ fn test_parse_require_constraint_keeps_inner_members() {
         _ => panic!("expected structured require constraint body"),
     };
     assert!(
-        constraint_elements
-            .iter()
-            .any(|e| matches!(e.value, sysml_v2_parser::ast::ConstraintDefBodyElement::Doc(_))),
+        constraint_elements.iter().any(|e| matches!(
+            e.value,
+            sysml_v2_parser::ast::ConstraintDefBodyElement::Doc(_)
+        )),
         "doc should be preserved inside require constraint"
     );
     assert!(
@@ -1881,7 +1904,10 @@ individual def Rover specializes MobileRobot;
         PackageBodyElement::IndividualDef(p) => p,
         other => panic!("expected individual def, got {:?}", other),
     };
-    assert_eq!(individual_def.value.specializes.as_deref(), Some("MobileRobot"));
+    assert_eq!(
+        individual_def.value.specializes.as_deref(),
+        Some("MobileRobot")
+    );
 }
 
 #[test]
@@ -1956,7 +1982,11 @@ part def Carrier {
         other => panic!("expected port usage, got {:?}", other),
     };
     assert_eq!(
-        port_usage.value.subsets.as_ref().map(|(name, _)| name.as_str()),
+        port_usage
+            .value
+            .subsets
+            .as_ref()
+            .map(|(name, _)| name.as_str()),
         Some("basePort")
     );
     assert_eq!(port_usage.value.redefines.as_deref(), Some("wheelPort"));

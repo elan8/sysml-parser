@@ -6,8 +6,8 @@ use crate::parser::action::in_out_decl;
 use crate::parser::attribute::{attribute_def, attribute_usage};
 use crate::parser::expr::expression;
 use crate::parser::lex::{
-    identification, name, qualified_name, skip_until_brace_end, specialization_operator,
-    redefine_operator, subset_operator, take_until_terminator, ws1, ws_and_comments,
+    identification, name, qualified_name, redefine_operator, skip_until_brace_end,
+    specialization_operator, subset_operator, take_until_terminator, ws1, ws_and_comments,
 };
 use crate::parser::node_from_to;
 use crate::parser::requirement::doc_comment;

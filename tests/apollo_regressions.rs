@@ -26,7 +26,10 @@ fn individual_part_definition_and_usage_parse_as_parts() {
     match &elements[0].value {
         PackageBodyElement::PartDef(def) => {
             assert!(def.value.is_individual);
-            assert_eq!(def.value.identification.name.as_deref(), Some("Neil Armstrong"));
+            assert_eq!(
+                def.value.identification.name.as_deref(),
+                Some("Neil Armstrong")
+            );
         }
         other => panic!("expected individual part def, got {other:?}"),
     }
@@ -71,12 +74,10 @@ fn requirement_usage_supports_trailing_subsets_after_body() {
     let PartDefBody::Brace { elements } = &part.body else {
         panic!("expected part body");
     };
-    let req = elements
-        .iter()
-        .find_map(|e| match &e.value {
-            PartDefBodyElement::RequirementUsage(req) => Some(&req.value),
-            _ => None,
-        });
+    let req = elements.iter().find_map(|e| match &e.value {
+        PartDefBodyElement::RequirementUsage(req) => Some(&req.value),
+        _ => None,
+    });
     let req = req.expect("requirement usage should parse in part body");
     assert_eq!(req.subsets.as_deref(), Some("goals"));
 }
@@ -298,7 +299,10 @@ fn anonymous_individual_parts_and_body_trailing_subsets_parse() {
         PartUsageBodyElement::PartUsage(usage) => &usage.value,
         _ => panic!("expected nested part usage"),
     };
-    assert_eq!(apollo1.subsets.as_ref().map(|(name, _)| name.as_str()), Some("missions"));
+    assert_eq!(
+        apollo1.subsets.as_ref().map(|(name, _)| name.as_str()),
+        Some("missions")
+    );
 
     let PartUsageBody::Brace { elements } = &apollo1.body else {
         panic!("expected nested mission body");
@@ -306,7 +310,9 @@ fn anonymous_individual_parts_and_body_trailing_subsets_parse() {
     let crew_members: Vec<_> = elements
         .iter()
         .filter_map(|e| match &e.value {
-            PartUsageBodyElement::PartUsage(usage) if usage.value.is_individual => Some(&usage.value),
+            PartUsageBodyElement::PartUsage(usage) if usage.value.is_individual => {
+                Some(&usage.value)
+            }
             _ => None,
         })
         .collect();
@@ -314,7 +320,10 @@ fn anonymous_individual_parts_and_body_trailing_subsets_parse() {
     assert_eq!(crew_members[0].name, "");
     assert_eq!(crew_members[0].type_name, "Gus Grissom");
     assert_eq!(
-        crew_members[0].subsets.as_ref().map(|(name, _)| name.as_str()),
+        crew_members[0]
+            .subsets
+            .as_ref()
+            .map(|(name, _)| name.as_str()),
         Some("crew")
     );
 }
@@ -401,8 +410,12 @@ fn exhibit_state_body_accepts_requirement_usage_members() {
     let StateDefBody::Brace { elements } = &exhibit.body else {
         panic!("expected exhibit state body");
     };
-    assert!(elements.iter().any(|e| matches!(e.value, StateDefBodyElement::RequirementUsage(_))));
-    assert!(elements.iter().any(|e| matches!(e.value, StateDefBodyElement::StateUsage(_))));
+    assert!(elements
+        .iter()
+        .any(|e| matches!(e.value, StateDefBodyElement::RequirementUsage(_))));
+    assert!(elements
+        .iter()
+        .any(|e| matches!(e.value, StateDefBodyElement::StateUsage(_))));
 }
 
 #[test]
@@ -436,7 +449,10 @@ fn part_usage_accepts_multiplicity_before_type() {
     assert_eq!(suit.name, "spaceSuits");
     assert_eq!(suit.multiplicity.as_deref(), Some("[2]"));
     assert_eq!(suit.type_name, "ExtravehicularMobilityUnit");
-    assert_eq!(suit.subsets.as_ref().map(|(name, _)| name.as_str()), Some("constituentSystems"));
+    assert_eq!(
+        suit.subsets.as_ref().map(|(name, _)| name.as_str()),
+        Some("constituentSystems")
+    );
 }
 
 #[test]
@@ -461,7 +477,10 @@ fn rationale_and_refinement_annotations_stay_localized() {
             let ActionDefBody::Brace { elements } = &action.value.body else {
                 panic!("expected action body");
             };
-            assert!(elements.iter().any(|e| matches!(e.value, sysml_v2_parser::ActionDefBodyElement::Annotation(_))));
+            assert!(elements.iter().any(|e| matches!(
+                e.value,
+                sysml_v2_parser::ActionDefBodyElement::Annotation(_)
+            )));
         }
         _ => panic!("expected action def"),
     }
@@ -470,7 +489,9 @@ fn rationale_and_refinement_annotations_stay_localized() {
             let RequirementDefBody::Brace { elements } = &req.value.body else {
                 panic!("expected requirement body");
             };
-            assert!(elements.iter().any(|e| matches!(e.value, RequirementDefBodyElement::Annotation(_))));
+            assert!(elements
+                .iter()
+                .any(|e| matches!(e.value, RequirementDefBodyElement::Annotation(_))));
         }
         _ => panic!("expected requirement def"),
     }
@@ -575,7 +596,13 @@ fn part_definition_comment_members_parse_structurally() {
             _ => None,
         })
         .expect("expected structured comment member in part body");
-    assert_eq!(comment.identification.as_ref().and_then(|id| id.name.as_deref()), Some("source"));
+    assert_eq!(
+        comment
+            .identification
+            .as_ref()
+            .and_then(|id| id.name.as_deref()),
+        Some("source")
+    );
     assert!(comment.text.contains("https://example.test/source"));
 }
 
@@ -607,7 +634,10 @@ fn system_part_body_accepts_named_interface_and_individual_members() {
         PartDefBodyElement::PartUsage(usage) => &usage.value,
         _ => panic!("expected part usage"),
     };
-    let PartUsageBody::Brace { elements: spacecraft_elements } = &spacecraft.body else {
+    let PartUsageBody::Brace {
+        elements: spacecraft_elements,
+    } = &spacecraft.body
+    else {
         panic!("expected nested part body");
     };
     let csm = match &spacecraft_elements[0].value {
@@ -687,9 +717,7 @@ fn part_redefinition_value_parses_parenthesized_tuple_of_engines() {
         panic!("expected Expression::Tuple, got {:?}", value.value);
     };
     assert_eq!(items.len(), 5);
-    let expected = [
-        "engine1", "engine2", "engine3", "engine4", "engine5",
-    ];
+    let expected = ["engine1", "engine2", "engine3", "engine4", "engine5"];
     for (i, name) in expected.iter().enumerate() {
         assert!(
             matches!(&items[i].value, Expression::FeatureRef(s) if s == name),
@@ -738,11 +766,21 @@ fn part_def_attribute_redefinition_usage_keeps_redefines_and_value() {
             _ => None,
         })
         .collect();
-    assert_eq!(attrs.len(), 2, "expected both attribute redefinitions as usages");
+    assert_eq!(
+        attrs.len(),
+        2,
+        "expected both attribute redefinitions as usages"
+    );
     assert_eq!(attrs[0].name, "propellantMass");
     assert_eq!(attrs[0].redefines.as_deref(), Some("propellantMass"));
-    assert!(attrs[0].value.is_some(), "propellantMass should keep assigned value");
+    assert!(
+        attrs[0].value.is_some(),
+        "propellantMass should keep assigned value"
+    );
     assert_eq!(attrs[1].name, "dryMass");
     assert_eq!(attrs[1].redefines.as_deref(), Some("dryMass"));
-    assert!(attrs[1].value.is_some(), "dryMass should keep assigned value");
+    assert!(
+        attrs[1].value.is_some(),
+        "dryMass should keep assigned value"
+    );
 }

@@ -40,8 +40,9 @@ fn package_recovery_diagnostic_is_specific() {
         "annotation recovery should explain the failure"
     );
     assert!(
-        err.found.as_deref().is_some_and(|f| f.contains("#fmeaspec")),
+        err.found
+            .as_deref()
+            .is_some_and(|f| f.contains("#fmeaspec")),
         "diagnostic should preserve recovered snippet"
     );
 }
-

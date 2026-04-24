@@ -8,11 +8,11 @@ use crate::parser::action::in_out_decl;
 use crate::parser::expr::expression;
 use crate::parser::lex::{
     identification, name, qualified_name, recover_body_element, skip_statement_or_block,
-    skip_until_brace_end, starts_with_any_keyword, starts_with_keyword, take_until_terminator,
-    ws1, ws_and_comments, CALC_DEF_BODY_STARTERS, CONSTRAINT_DEF_BODY_STARTERS,
+    skip_until_brace_end, starts_with_any_keyword, starts_with_keyword, take_until_terminator, ws1,
+    ws_and_comments, CALC_DEF_BODY_STARTERS, CONSTRAINT_DEF_BODY_STARTERS,
 };
-use crate::parser::{build_recovery_error_node, node_from_to};
 use crate::parser::Input;
+use crate::parser::{build_recovery_error_node_from_span, node_from_to};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::combinator::map;
@@ -100,8 +100,9 @@ pub(crate) fn structured_constraint_body(
                         nom::error::ErrorKind::Many0,
                     )));
                 }
-                let recovery = build_recovery_error_node(
+                let recovery = build_recovery_error_node_from_span(
                     start_unknown,
+                    next,
                     CONSTRAINT_DEF_BODY_STARTERS,
                     "constraint body",
                     "recovered_constraint_body_element",
@@ -243,8 +244,9 @@ fn calc_def_body(input: Input<'_>) -> IResult<Input<'_>, CalcDefBody> {
                         nom::error::ErrorKind::Many0,
                     )));
                 }
-                let recovery = build_recovery_error_node(
+                let recovery = build_recovery_error_node_from_span(
                     start_unknown,
+                    next,
                     CALC_DEF_BODY_STARTERS,
                     "calc body",
                     "recovered_calc_body_element",
@@ -343,7 +345,8 @@ fn named_in_out_missing_type(input: Input<'_>) -> bool {
         return false;
     }
     let mut name_len = 0usize;
-    while name_len < rest.len() && (rest[name_len].is_ascii_alphanumeric() || rest[name_len] == b'_')
+    while name_len < rest.len()
+        && (rest[name_len].is_ascii_alphanumeric() || rest[name_len] == b'_')
     {
         name_len += 1;
     }
@@ -392,7 +395,8 @@ fn named_return_missing_type(input: Input<'_>) -> bool {
         return false;
     }
     let mut name_len = 0usize;
-    while name_len < rest.len() && (rest[name_len].is_ascii_alphanumeric() || rest[name_len] == b'_')
+    while name_len < rest.len()
+        && (rest[name_len].is_ascii_alphanumeric() || rest[name_len] == b'_')
     {
         name_len += 1;
     }

@@ -133,9 +133,10 @@ fn test_requirement_constraints_keep_doc_members() {
     };
 
     assert!(
-        constraint_elements
-            .iter()
-            .any(|e| matches!(e.value, sysml_v2_parser::ast::ConstraintDefBodyElement::Doc(_))),
+        constraint_elements.iter().any(|e| matches!(
+            e.value,
+            sysml_v2_parser::ast::ConstraintDefBodyElement::Doc(_)
+        )),
         "fixture require constraint should preserve doc members"
     );
 }

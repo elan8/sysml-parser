@@ -107,8 +107,16 @@ pub(crate) const REQUIREMENT_BODY_STARTERS: &[&[u8]] = &[
 ];
 
 #[allow(dead_code)]
-pub(crate) const STATE_BODY_STARTERS: &[&[u8]] =
-    &[b"#", b"@", b"doc", b"entry", b"ref", b"state", b"then", b"transition"];
+pub(crate) const STATE_BODY_STARTERS: &[&[u8]] = &[
+    b"#",
+    b"@",
+    b"doc",
+    b"entry",
+    b"ref",
+    b"state",
+    b"then",
+    b"transition",
+];
 
 pub(crate) const USE_CASE_BODY_STARTERS: &[&[u8]] = &[
     b"abstract",
@@ -253,19 +261,79 @@ pub(crate) fn starts_with_any_keyword(fragment: &[u8], keywords: &[&[u8]]) -> bo
         .any(|keyword| starts_with_keyword(fragment, keyword))
 }
 
-pub(crate) fn looks_like_missing_semicolon(input: Input<'_>, starters: &[&[u8]]) -> bool {
-    let (input, _) = ws_and_comments(input).unwrap_or((input, ()));
+fn balanced_inline_depth(fragment: &[u8], pos: usize, brace_depth: &mut usize) -> Option<usize> {
+    match fragment[pos] {
+        b'{' => {
+            *brace_depth += 1;
+            Some(pos + 1)
+        }
+        b'}' => {
+            if *brace_depth == 0 {
+                None
+            } else {
+                *brace_depth -= 1;
+                Some(pos + 1)
+            }
+        }
+        _ => Some(pos + 1),
+    }
+}
+
+fn local_recovery_line_boundary<'a>(input: Input<'a>, starters: &[&[u8]]) -> Option<Input<'a>> {
+    let (input, _) = ws_and_comments(input).ok()?;
     let fragment = input.fragment();
-    if fragment.starts_with(b"}") {
-        return true;
+    if fragment.is_empty() {
+        return Some(input);
     }
-    if fragment.starts_with(b"//") || fragment.starts_with(b"/*") {
-        return false;
+
+    let mut pos = 0usize;
+    let mut brace_depth = 0usize;
+    while pos < fragment.len() {
+        if pos + 2 <= fragment.len() && fragment[pos..].starts_with(b"/*") {
+            if let Some(rel) = find_subslice(&fragment[pos..], b"*/") {
+                pos += rel + 2;
+                continue;
+            }
+            return None;
+        }
+        if pos + 2 <= fragment.len() && fragment[pos..].starts_with(b"//") {
+            while pos < fragment.len() && fragment[pos] != b'\n' && fragment[pos] != b'\r' {
+                pos += 1;
+            }
+        }
+
+        if pos < fragment.len()
+            && (fragment[pos] == b'\n' || fragment[pos] == b'\r')
+            && brace_depth == 0
+        {
+            let newline_start = pos;
+            while pos < fragment.len() && (fragment[pos] == b'\n' || fragment[pos] == b'\r') {
+                pos += 1;
+            }
+            let (candidate, _) =
+                nom::bytes::complete::take::<_, _, nom::error::Error<Input<'a>>>(pos)
+                    .parse(input)
+                    .ok()?;
+            let (candidate, _) = ws_and_comments(candidate).unwrap_or((candidate, ()));
+            if candidate.fragment().is_empty()
+                || candidate.fragment().starts_with(b"}")
+                || starts_with_any_keyword(candidate.fragment(), starters)
+            {
+                if newline_start > 0 {
+                    return Some(candidate);
+                }
+            }
+            continue;
+        }
+
+        if let Some(next_pos) = balanced_inline_depth(fragment, pos, &mut brace_depth) {
+            pos = next_pos;
+        } else {
+            break;
+        }
     }
-    if starts_with_keyword(fragment, b"#") || starts_with_keyword(fragment, b"@") {
-        return false;
-    }
-    starts_with_any_keyword(fragment, starters)
+
+    None
 }
 
 /// Skip to the next likely body element starter for the current grammar scope, or to the closing `}` / EOF.
@@ -295,6 +363,11 @@ pub(crate) fn recover_body_element<'a>(
     input: Input<'a>,
     starters: &[&[u8]],
 ) -> IResult<Input<'a>, ()> {
+    if let Some(next) = local_recovery_line_boundary(input, starters) {
+        if next.location_offset() != input.location_offset() {
+            return Ok((next, ()));
+        }
+    }
     let (input, _) = skip_statement_or_block(input)?;
     skip_to_next_body_element_or_end(input, starters)
 }
@@ -396,6 +469,64 @@ pub(crate) fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     haystack.windows(needle.len()).position(|w| w == needle)
 }
 
+const DECLARATION_BOUNDARY_STARTERS: &[&[u8]] = &[
+    b"package",
+    b"namespace",
+    b"import",
+    b"part",
+    b"attribute",
+    b"action",
+    b"requirement",
+    b"state",
+    b"transition",
+    b"view",
+    b"viewpoint",
+    b"rendering",
+    b"constraint",
+    b"calc",
+    b"ref",
+    b"port",
+    b"perform",
+    b"bind",
+    b"flow",
+    b"first",
+    b"merge",
+    b"then",
+    b"in",
+    b"out",
+    b"inout",
+    b"return",
+    b"actor",
+    b"subject",
+    b"objective",
+    b"require",
+    b"satisfy",
+    b"expose",
+    b"doc",
+];
+
+fn trim_ascii_end_bytes(mut fragment: &[u8]) -> &[u8] {
+    while let Some(last) = fragment.last() {
+        if last.is_ascii_whitespace() {
+            fragment = &fragment[..fragment.len() - 1];
+        } else {
+            break;
+        }
+    }
+    fragment
+}
+
+fn starts_new_declaration_after_newline(fragment: &[u8], newline_end: usize) -> bool {
+    let mut pos = newline_end;
+    while pos < fragment.len() && matches!(fragment[pos], b' ' | b'\t' | b'\n' | b'\r') {
+        pos += 1;
+    }
+    let candidate = &fragment[pos..];
+    candidate.is_empty()
+        || candidate.starts_with(b"}")
+        || starts_with_any_keyword(candidate, DECLARATION_BOUNDARY_STARTERS)
+}
+
 /// Identification: ( '<' ShortName '>' )? ( Name )?
 pub(crate) fn identification(input: Input<'_>) -> IResult<Input<'_>, Identification> {
     let (input, short_name) = opt(delimited(
@@ -426,6 +557,27 @@ pub(crate) fn take_until_terminator<'a>(
             let s = String::from_utf8_lossy(&frag[..i]).trim().to_string();
             let (input, _) = nom::bytes::complete::take(i).parse(input)?;
             return Ok((input, s));
+        }
+        if terminators.contains(&b';') && matches!(frag[i], b'\n' | b'\r') {
+            let mut newline_end = i;
+            while newline_end < frag.len() && matches!(frag[newline_end], b'\n' | b'\r') {
+                newline_end += 1;
+            }
+            let consumed = trim_ascii_end_bytes(&frag[..i]);
+            let consumed_ends_incomplete = consumed.last().is_some_and(|b| {
+                matches!(
+                    *b,
+                    b':' | b'=' | b',' | b'.' | b'+' | b'-' | b'*' | b'/' | b'>' | b'<' | b'|'
+                )
+            });
+            if !consumed.is_empty()
+                && !consumed_ends_incomplete
+                && starts_new_declaration_after_newline(frag, newline_end)
+            {
+                let s = String::from_utf8_lossy(&frag[..i]).trim().to_string();
+                let (input, _) = nom::bytes::complete::take(i).parse(input)?;
+                return Ok((input, s));
+            }
         }
         if frag[i] == b'/' && i + 1 < frag.len() && (frag[i + 1] == b'*' || frag[i + 1] == b'/') {
             break;
