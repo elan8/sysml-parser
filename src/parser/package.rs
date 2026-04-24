@@ -444,6 +444,36 @@ fn package_body_brace(input: Input<'_>) -> IResult<Input<'_>, PackageBody> {
                     input = next;
                     continue;
                 }
+                let (next, _) = recover_body_element(input, PACKAGE_BODY_STARTERS)?;
+                if next.location_offset() == input.location_offset() {
+                    return Err(nom::Err::Failure(nom::error::Error::new(
+                        input,
+                        nom::error::ErrorKind::Many0,
+                    )));
+                }
+                let recovery = build_recovery_error_node_from_span(
+                    input,
+                    next,
+                    PACKAGE_BODY_STARTERS,
+                    "package body",
+                    "recovered_package_body_element",
+                );
+                if matches!(
+                    recovery.code.as_str(),
+                    "invalid_typing_operator"
+                        | "missing_body_or_semicolon"
+                        | "missing_expression_after_operator"
+                        | "unexpected_keyword_in_scope"
+                        | "unsupported_annotation_syntax"
+                ) {
+                    elements.push(node_from_to(
+                        input,
+                        next,
+                        PackageBodyElement::Error(Node::new(crate::ast::Span::dummy(), recovery)),
+                    ));
+                    input = next;
+                    continue;
+                }
                 // If we couldn't parse a dedicated node but the line still looks like a modeled
                 // library declaration (including `abstract`/visibility prefixes), preserve it as
                 // an `ExtendedLibraryDecl` instead of aborting the entire package.
@@ -463,26 +493,10 @@ fn package_body_brace(input: Input<'_>) -> IResult<Input<'_>, PackageBody> {
                     input = next;
                     continue;
                 }
-                let (next, _) = recover_body_element(input, PACKAGE_BODY_STARTERS)?;
-                if next.location_offset() == input.location_offset() {
-                    return Err(nom::Err::Failure(nom::error::Error::new(
-                        input,
-                        nom::error::ErrorKind::Many0,
-                    )));
-                }
                 elements.push(node_from_to(
                     input,
                     next,
-                    PackageBodyElement::Error(Node::new(
-                        crate::ast::Span::dummy(),
-                        build_recovery_error_node_from_span(
-                            input,
-                            next,
-                            PACKAGE_BODY_STARTERS,
-                            "package body",
-                            "recovered_package_body_element",
-                        ),
-                    )),
+                    PackageBodyElement::Error(Node::new(crate::ast::Span::dummy(), recovery)),
                 ));
                 input = next;
             }
@@ -744,6 +758,30 @@ pub(crate) fn package_body_element(
         map(kerml_feature_decl, PackageBodyElement::KermlFeatureDecl).parse(input)
     {
         return Ok((input, node_from_to(start, input, elem)));
+    }
+    if let Ok((next, _)) = recover_body_element(input, PACKAGE_BODY_STARTERS) {
+        if next.location_offset() != input.location_offset() {
+            let recovery = build_recovery_error_node_from_span(
+                input,
+                next,
+                PACKAGE_BODY_STARTERS,
+                "package body",
+                "recovered_package_body_element",
+            );
+            if matches!(
+                recovery.code.as_str(),
+                "invalid_typing_operator"
+                    | "missing_body_or_semicolon"
+                    | "missing_expression_after_operator"
+                    | "unexpected_keyword_in_scope"
+                    | "unsupported_annotation_syntax"
+            ) {
+                return Err(nom::Err::Error(nom::error::Error::new(
+                    input,
+                    nom::error::ErrorKind::Tag,
+                )));
+            }
+        }
     }
     let (input, elem) = map(
         extended_library_decl,

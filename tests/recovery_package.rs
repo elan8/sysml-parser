@@ -33,7 +33,7 @@ fn package_recovery_diagnostic_is_specific() {
     let err = result
         .errors
         .iter()
-        .find(|e| e.code.as_deref() == Some("recovered_package_body_element"))
+        .find(|e| e.code.as_deref() == Some("unsupported_annotation_syntax"))
         .expect("expected package recovery diagnostic");
     assert!(
         err.message.contains("annotation"),

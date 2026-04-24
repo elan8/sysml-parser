@@ -238,7 +238,11 @@ fn other_use_case_body_element(input: Input<'_>) -> IResult<Input<'_>, UseCaseDe
     );
     if matches!(
         diag.code.as_str(),
-        "missing_member_name" | "missing_type_reference"
+        "missing_member_name"
+            | "missing_type_reference"
+            | "unexpected_keyword_in_scope"
+            | "missing_expression_after_operator"
+            | "unsupported_annotation_syntax"
     ) && !is_redefinition
     {
         return Err(nom::Err::Error(nom::error::Error::new(

@@ -45,7 +45,7 @@ use crate::ast::{
     StateDefBody, StateDefBodyElement, UseCaseDefBody, UseCaseDefBodyElement, ViewBody,
     ViewBodyElement, ViewDefBody, ViewDefBodyElement,
 };
-use crate::error::ParseError;
+use crate::error::{DiagnosticSeverity, ParseError};
 use nom::error::Error;
 use nom::Parser;
 use nom_locate::LocatedSpan;
@@ -132,6 +132,28 @@ pub(crate) fn recovery_found_snippet(input: Input<'_>) -> Option<String> {
     }
 }
 
+fn recovery_found_snippet_from_span(input: Input<'_>, recovery_end: Input<'_>) -> Option<String> {
+    let consumed_len = recovery_end
+        .location_offset()
+        .saturating_sub(input.location_offset())
+        .min(input.fragment().len());
+    if consumed_len == 0 {
+        return recovery_found_snippet(input);
+    }
+    let frag = &input.fragment()[..consumed_len];
+    let take = frag
+        .iter()
+        .position(|&b| b == b'\n' || b == b'\r')
+        .unwrap_or(frag.len())
+        .min(60);
+    let snippet = String::from_utf8_lossy(&frag[..take]).trim().to_string();
+    if snippet.is_empty() {
+        recovery_found_snippet(input)
+    } else {
+        Some(snippet)
+    }
+}
+
 /// Map nom error kind to a human-readable message for language server diagnostics.
 fn nom_error_kind_to_message(code: &nom::error::ErrorKind) -> &'static str {
     use nom::error::ErrorKind;
@@ -182,10 +204,14 @@ fn nom_err_to_parse_error(
     let (found_snippet, found_len) = fragment_to_found_snippet(fragment);
     let message = nom_error_kind_to_message(&e.code).to_string();
     let span_len = length_override.unwrap_or(found_len).max(1);
+    if trim_ascii_start(fragment).starts_with(b"}") {
+        return unexpected_closing_brace_parse_error(e.input);
+    }
     let mut pe = ParseError::new(message)
         .with_location(offset, line, column)
         .with_length(span_len)
-        .with_code(nom_error_kind_to_code(&e.code));
+        .with_code(nom_error_kind_to_code(&e.code))
+        .with_severity(DiagnosticSeverity::Error);
     if !found_snippet.is_empty() {
         pe = pe.with_found(found_snippet);
     }
@@ -504,6 +530,224 @@ fn invalid_expose_separator_diagnostic(
     ))
 }
 
+fn missing_semicolon_or_body_diagnostic(
+    fragment: &[u8],
+) -> Option<(&'static str, String, String, String)> {
+    let fragment = trim_ascii_start(fragment);
+    let cases: &[(&[u8], &str, &str)] = &[
+        (
+            b"action def",
+            "action definition",
+            "Use `action def Run;` or `action def Run { ... }`.",
+        ),
+        (
+            b"part def",
+            "part definition",
+            "Use `part def Wheel;` or `part def Wheel { ... }`.",
+        ),
+        (
+            b"requirement def",
+            "requirement definition",
+            "Use `requirement def R;` or `requirement def R { ... }`.",
+        ),
+        (
+            b"state def",
+            "state definition",
+            "Use `state def Ready;` or `state def Ready { ... }`.",
+        ),
+        (
+            b"view",
+            "view declaration",
+            "Use `view structure: GeneralView;` or `view structure: GeneralView { ... }`.",
+        ),
+        (
+            b"rendering def",
+            "rendering definition",
+            "Use `rendering def Diagram;` or `rendering def Diagram { ... }`.",
+        ),
+    ];
+
+    for (prefix, label, suggestion) in cases {
+        if fragment.starts_with(prefix) {
+            return Some((
+                "missing_body_or_semicolon",
+                format!("expected ';' or '{{' after {label} header"),
+                "';' or '{' after declaration header".to_string(),
+                suggestion.to_string(),
+            ));
+        }
+    }
+    None
+}
+
+fn invalid_typing_operator_diagnostic(
+    fragment: &[u8],
+) -> Option<(&'static str, String, String, String)> {
+    let fragment = trim_ascii_start(fragment);
+    let cases: &[(&[u8], &str, &str)] = &[
+        (
+            b"part def",
+            "part definition specialization",
+            "Use `part def Vehicle :> BaseVehicle;` when specializing a definition.",
+        ),
+        (
+            b"port def",
+            "port definition specialization",
+            "Use `port def PowerPort :> BasePort;` when specializing a definition.",
+        ),
+    ];
+
+    for (prefix, label, suggestion) in cases {
+        if fragment.starts_with(prefix) && fragment.windows(3).any(|w| w == b": ") {
+            return Some((
+                "invalid_typing_operator",
+                format!("invalid typing operator in {label}: use ':>' instead of ':'"),
+                "':>' specialization operator".to_string(),
+                suggestion.to_string(),
+            ));
+        }
+    }
+
+    if fragment.starts_with(b"part def")
+        && fragment.contains(&b':')
+        && !fragment.windows(2).any(|w| w == b":>")
+    {
+        return Some((
+            "invalid_typing_operator",
+            "invalid typing operator in part definition: use ':>' instead of ':'".to_string(),
+            "':>' specialization operator".to_string(),
+            "Use `part def Vehicle :> BaseVehicle;` when specializing a definition.".to_string(),
+        ));
+    }
+
+    None
+}
+
+fn missing_expression_after_operator_diagnostic(
+    fragment: &[u8],
+) -> Option<(&'static str, String, String, String)> {
+    let fragment = trim_ascii_start(fragment);
+    let cases: &[(&[u8], &str, &str)] = &[
+        (
+            b"bind",
+            "binding expression after '='",
+            "Use `bind x = y;`.",
+        ),
+        (
+            b"assign",
+            "assignment expression after ':='",
+            "Use `assign x := y;`.",
+        ),
+        (
+            b"first",
+            "target after 'then'",
+            "Use `first start then finish;`.",
+        ),
+        (
+            b"flow",
+            "target after 'to'",
+            "Use `flow source to target;`.",
+        ),
+        (
+            b"satisfy",
+            "target after 'by'",
+            "Use `satisfy Req by implementation;`.",
+        ),
+    ];
+
+    for (keyword, expected, suggestion) in cases {
+        if !lex::starts_with_keyword(fragment, keyword) {
+            continue;
+        }
+        let text = String::from_utf8_lossy(fragment);
+        if text.contains("= ;") || text.trim_end().ends_with('=') {
+            return Some((
+                "missing_expression_after_operator",
+                "expected expression after '='".to_string(),
+                expected.to_string(),
+                suggestion.to_string(),
+            ));
+        }
+        if text.contains(":= ;") || text.trim_end().ends_with(":=") {
+            return Some((
+                "missing_expression_after_operator",
+                "expected expression after ':='".to_string(),
+                expected.to_string(),
+                suggestion.to_string(),
+            ));
+        }
+        if text.contains(" then ;") || text.trim_end().ends_with(" then") {
+            return Some((
+                "missing_expression_after_operator",
+                "expected target after 'then'".to_string(),
+                expected.to_string(),
+                suggestion.to_string(),
+            ));
+        }
+        if text.contains(" to ;") || text.trim_end().ends_with(" to") {
+            return Some((
+                "missing_expression_after_operator",
+                "expected target after 'to'".to_string(),
+                expected.to_string(),
+                suggestion.to_string(),
+            ));
+        }
+        if text.contains(" by ;") || text.trim_end().ends_with(" by") {
+            return Some((
+                "missing_expression_after_operator",
+                "expected target after 'by'".to_string(),
+                expected.to_string(),
+                suggestion.to_string(),
+            ));
+        }
+    }
+    None
+}
+
+fn unexpected_keyword_in_scope_diagnostic(
+    fragment: &[u8],
+    starters: &[&[u8]],
+    scope_label: &str,
+) -> Option<(&'static str, String, String, String)> {
+    let fragment = trim_ascii_start(fragment);
+    if fragment.is_empty() || fragment.starts_with(b"#") || fragment.starts_with(b"@") {
+        return None;
+    }
+    let keyword_end = fragment
+        .iter()
+        .position(|b| !b.is_ascii_alphanumeric() && *b != b'_')
+        .unwrap_or(fragment.len());
+    if keyword_end == 0 {
+        return None;
+    }
+    let keyword = &fragment[..keyword_end];
+    if lex::starts_with_any_keyword(keyword, starters) {
+        return None;
+    }
+    let keyword_text = String::from_utf8_lossy(keyword);
+    Some((
+        "unexpected_keyword_in_scope",
+        format!("unexpected keyword `{keyword_text}` in {scope_label}"),
+        format!("valid {scope_label} element"),
+        format!("Replace `{keyword_text}` with a valid {scope_label} member or remove it."),
+    ))
+}
+
+fn unexpected_closing_brace_parse_error(input: Input<'_>) -> ParseError {
+    ParseError::new("unexpected closing '}'")
+        .with_location(
+            input.location_offset(),
+            input.location_line(),
+            input.get_column(),
+        )
+        .with_length(1)
+        .with_code("unexpected_closing_brace")
+        .with_expected("valid declaration or end of current body")
+        .with_found("}")
+        .with_suggestion("Remove this '}' or add the missing opening '{' before it.")
+        .with_severity(DiagnosticSeverity::Error)
+}
+
 fn missing_closing_brace_error(bytes: &[u8], input: Input<'_>) -> Option<ParseError> {
     if !input.fragment().is_empty() {
         return None;
@@ -575,6 +819,30 @@ enum RecoveryClassification {
         expected: String,
         suggestion: String,
     },
+    MissingBodyOrSemicolon {
+        code: String,
+        message: String,
+        expected: String,
+        suggestion: String,
+    },
+    MissingExpressionAfterOperator {
+        code: String,
+        message: String,
+        expected: String,
+        suggestion: String,
+    },
+    InvalidTypingOperator {
+        code: String,
+        message: String,
+        expected: String,
+        suggestion: String,
+    },
+    UnexpectedKeywordInScope {
+        code: String,
+        message: String,
+        expected: String,
+        suggestion: String,
+    },
     MissingSemicolon,
     UnsupportedAnnotation,
     Unexpected,
@@ -595,6 +863,7 @@ fn classify_recovery(
     input: Input<'_>,
     recovery_end: Input<'_>,
     starters: &[&[u8]],
+    scope_label: &str,
 ) -> RecoveryClassification {
     let trimmed = trim_ascii_start(input.fragment());
 
@@ -620,6 +889,38 @@ fn classify_recovery(
         invalid_expose_separator_diagnostic(trimmed)
     {
         return RecoveryClassification::InvalidQualifiedNameSeparator {
+            code: code.to_string(),
+            message,
+            expected,
+            suggestion,
+        };
+    }
+
+    if let Some((code, message, expected, suggestion)) = invalid_typing_operator_diagnostic(trimmed)
+    {
+        return RecoveryClassification::InvalidTypingOperator {
+            code: code.to_string(),
+            message,
+            expected,
+            suggestion,
+        };
+    }
+
+    if let Some((code, message, expected, suggestion)) =
+        missing_expression_after_operator_diagnostic(trimmed)
+    {
+        return RecoveryClassification::MissingExpressionAfterOperator {
+            code: code.to_string(),
+            message,
+            expected,
+            suggestion,
+        };
+    }
+
+    if let Some((code, message, expected, suggestion)) =
+        missing_semicolon_or_body_diagnostic(trimmed)
+    {
+        return RecoveryClassification::MissingBodyOrSemicolon {
             code: code.to_string(),
             message,
             expected,
@@ -671,6 +972,17 @@ fn classify_recovery(
         return RecoveryClassification::UnsupportedAnnotation;
     }
 
+    if let Some((code, message, expected, suggestion)) =
+        unexpected_keyword_in_scope_diagnostic(trimmed, starters, scope_label)
+    {
+        return RecoveryClassification::UnexpectedKeywordInScope {
+            code: code.to_string(),
+            message,
+            expected,
+            suggestion,
+        };
+    }
+
     RecoveryClassification::Unexpected
 }
 
@@ -681,7 +993,7 @@ pub(crate) fn build_recovery_error_node_from_span(
     scope_label: &str,
     generic_code: &str,
 ) -> ParseErrorNode {
-    match classify_recovery(input, recovery_end, starters) {
+    match classify_recovery(input, recovery_end, starters, scope_label) {
         RecoveryClassification::MissingMemberName {
             code,
             message,
@@ -699,25 +1011,49 @@ pub(crate) fn build_recovery_error_node_from_span(
             message,
             expected,
             suggestion,
+        }
+        | RecoveryClassification::MissingBodyOrSemicolon {
+            code,
+            message,
+            expected,
+            suggestion,
+        }
+        | RecoveryClassification::MissingExpressionAfterOperator {
+            code,
+            message,
+            expected,
+            suggestion,
+        }
+        | RecoveryClassification::InvalidTypingOperator {
+            code,
+            message,
+            expected,
+            suggestion,
+        }
+        | RecoveryClassification::UnexpectedKeywordInScope {
+            code,
+            message,
+            expected,
+            suggestion,
         } => ParseErrorNode {
             message,
             code,
             expected: Some(expected),
-            found: recovery_found_snippet(input),
+            found: recovery_found_snippet_from_span(input, recovery_end),
             suggestion: Some(suggestion),
         },
         RecoveryClassification::MissingSemicolon => ParseErrorNode {
             message: "missing semicolon before next declaration".to_string(),
             code: "missing_semicolon".to_string(),
             expected: Some("';'".to_string()),
-            found: recovery_found_snippet(input),
+            found: recovery_found_snippet_from_span(input, recovery_end),
             suggestion: Some("Insert ';' before this declaration.".to_string()),
         },
         RecoveryClassification::UnsupportedAnnotation => ParseErrorNode {
             message: format!("unsupported annotation syntax in {scope_label}"),
-            code: generic_code.to_string(),
+            code: "unsupported_annotation_syntax".to_string(),
             expected: Some(format!("valid {scope_label} element")),
-            found: recovery_found_snippet(input),
+            found: recovery_found_snippet_from_span(input, recovery_end),
             suggestion: Some(
                 "Remove this annotation or extend the parser to support annotated declarations."
                     .to_string(),
@@ -727,7 +1063,7 @@ pub(crate) fn build_recovery_error_node_from_span(
             message: format!("unexpected token in {scope_label}"),
             code: generic_code.to_string(),
             expected: Some(format!("valid {scope_label} element")),
-            found: recovery_found_snippet(input),
+            found: recovery_found_snippet_from_span(input, recovery_end),
             suggestion: Some(format!("Fix this {scope_label} member and re-run parsing.")),
         },
     }
@@ -760,6 +1096,12 @@ fn parse_error_from_recovery_node(span: &crate::ast::Span, node: &ParseErrorNode
         .with_location(span.offset, span.line, span.column)
         .with_length(span.len.max(1))
         .with_code(node.code.clone());
+    let severity = if node.code == "unsupported_annotation_syntax" {
+        DiagnosticSeverity::Warning
+    } else {
+        DiagnosticSeverity::Error
+    };
+    err = err.with_severity(severity);
     if let Some(expected) = &node.expected {
         err = err.with_expected(expected.clone());
     }
@@ -770,6 +1112,58 @@ fn parse_error_from_recovery_node(span: &crate::ast::Span, node: &ParseErrorNode
         err = err.with_suggestion(suggestion.clone());
     }
     err
+}
+
+fn diagnostic_specificity(err: &ParseError) -> u8 {
+    match err.code.as_deref() {
+        Some("missing_member_name")
+        | Some("missing_type_reference")
+        | Some("invalid_qualified_name_separator")
+        | Some("invalid_typing_operator")
+        | Some("missing_expression_after_operator")
+        | Some("missing_body_or_semicolon")
+        | Some("missing_semicolon")
+        | Some("unexpected_closing_brace")
+        | Some("missing_closing_brace")
+        | Some("unsupported_annotation_syntax")
+        | Some("unexpected_keyword_in_scope") => 5,
+        Some("illegal_top_level_definition") => 4,
+        Some(code) if code.starts_with("recovered_") => 2,
+        Some("expected_end_of_input") | Some("expected_keyword") => 1,
+        _ => 3,
+    }
+}
+
+fn dedup_errors(mut errors: Vec<ParseError>) -> Vec<ParseError> {
+    errors.sort_by_key(|e| {
+        (
+            e.offset.unwrap_or(usize::MAX),
+            e.line.unwrap_or(u32::MAX),
+            e.column.unwrap_or(usize::MAX),
+            std::cmp::Reverse(diagnostic_specificity(e)),
+        )
+    });
+
+    let mut deduped = Vec::new();
+    for err in errors {
+        let duplicate = deduped.iter().any(|existing: &ParseError| {
+            let same_start = existing.offset == err.offset
+                && existing.line == err.line
+                && existing.column == err.column;
+            let same_found = existing.found == err.found;
+            let existing_specificity = diagnostic_specificity(existing);
+            let err_specificity = diagnostic_specificity(&err);
+            same_start
+                && (same_found || existing.code == err.code)
+                && existing_specificity >= err_specificity
+        });
+        if !duplicate {
+            deduped.push(err);
+        }
+    }
+
+    deduped.sort_by_key(|e| (e.offset.unwrap_or(usize::MAX), e.line.unwrap_or(u32::MAX)));
+    deduped
 }
 
 fn collect_requirement_body_errors(body: &RequirementDefBody, errors: &mut Vec<ParseError>) {
@@ -1116,6 +1510,15 @@ pub fn parse_with_diagnostics(input: &str) -> ParseResult {
             }
             Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
                 let (trimmed, _) = lex::ws_and_comments(input).unwrap_or((input, ()));
+                if trim_ascii_start(trimmed.fragment()).starts_with(b"}") {
+                    errors.push(unexpected_closing_brace_parse_error(trimmed));
+                    let skip_result = lex::skip_to_next_sync_point(trimmed);
+                    match skip_result {
+                        Ok((rest, _)) => input = rest,
+                        Err(_) => break,
+                    }
+                    continue;
+                }
                 if errors.is_empty()
                     && has_unclosed_brace(bytes)
                     && (lex::starts_with_keyword(trimmed.fragment(), b"package")
@@ -1168,25 +1571,30 @@ pub fn parse_with_diagnostics(input: &str) -> ParseResult {
             .iter()
             .any(|e| e.code.as_deref() == Some("missing_closing_brace"))
     {
-        let (found_snippet, found_len) = fragment_to_found_snippet(input.fragment());
-        let mut pe = ParseError::new("expected end of input")
-            .with_location(
-                input.location_offset(),
-                input.location_line(),
-                input.get_column(),
-            )
-            .with_length(found_len.max(1))
-            .with_code("expected_end_of_input");
-        if !found_snippet.is_empty() {
-            pe = pe.with_found(found_snippet);
+        if trim_ascii_start(input.fragment()).starts_with(b"}") {
+            errors.push(unexpected_closing_brace_parse_error(input));
+        } else {
+            let (found_snippet, found_len) = fragment_to_found_snippet(input.fragment());
+            let mut pe = ParseError::new("expected end of input")
+                .with_location(
+                    input.location_offset(),
+                    input.location_line(),
+                    input.get_column(),
+                )
+                .with_length(found_len.max(1))
+                .with_code("expected_end_of_input")
+                .with_severity(DiagnosticSeverity::Error);
+            if !found_snippet.is_empty() {
+                pe = pe.with_found(found_snippet);
+            }
+            errors.push(pe);
         }
-        errors.push(pe);
     }
 
     errors.extend(collect_recovery_errors(&RootNamespace {
         elements: elements.clone(),
     }));
-    errors.sort_by_key(|e| (e.offset.unwrap_or(usize::MAX), e.line.unwrap_or(u32::MAX)));
+    errors = dedup_errors(errors);
 
     ParseResult {
         root: RootNamespace { elements },

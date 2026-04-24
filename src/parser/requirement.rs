@@ -42,7 +42,11 @@ fn other_requirement_body_element(
     );
     if matches!(
         diag.code.as_str(),
-        "missing_member_name" | "missing_type_reference"
+        "missing_member_name"
+            | "missing_type_reference"
+            | "unexpected_keyword_in_scope"
+            | "missing_expression_after_operator"
+            | "unsupported_annotation_syntax"
     ) && !is_redefinition
     {
         return Err(nom::Err::Error(nom::error::Error::new(

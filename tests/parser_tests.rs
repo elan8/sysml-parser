@@ -1628,7 +1628,7 @@ fn test_parse_with_diagnostics_reports_local_package_recovery() {
     let err = result
         .errors
         .iter()
-        .find(|e| e.code.as_deref() == Some("recovered_package_body_element"))
+        .find(|e| e.code.as_deref() == Some("unsupported_annotation_syntax"))
         .expect("expected local package recovery diagnostic");
     assert_eq!(err.line, Some(2));
     assert!(
@@ -1641,6 +1641,10 @@ fn test_parse_with_diagnostics_reports_local_package_recovery() {
         err.message.contains("annotation"),
         "annotation recovery should say why the declaration could not be parsed: {}",
         err.message
+    );
+    assert_eq!(
+        err.severity,
+        Some(sysml_v2_parser::DiagnosticSeverity::Warning)
     );
 }
 
