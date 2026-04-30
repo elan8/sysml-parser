@@ -116,6 +116,11 @@ pub enum Expression {
         op: String,
         operand: Box<Node<Expression>>,
     },
+    /// Function-like invocation, e.g. `ComputeMargin(a, b)`.
+    Invocation {
+        callee: Box<Node<Expression>>,
+        args: Vec<Node<Expression>>,
+    },
     /// Comma-separated sequence in parentheses, e.g. `(engine1, engine2)` for ordered composition values.
     Tuple(Vec<Node<Expression>>),
     /// KerML null or empty sequence ().
@@ -2092,6 +2097,10 @@ fn normalize_expression_node(node: &Node<Expression>) -> Node<Expression> {
         Expression::UnaryOp { op, operand } => Expression::UnaryOp {
             op: op.clone(),
             operand: Box::new(normalize_expression_node(operand)),
+        },
+        Expression::Invocation { callee, args } => Expression::Invocation {
+            callee: Box::new(normalize_expression_node(callee)),
+            args: args.iter().map(normalize_expression_node).collect(),
         },
         Expression::Tuple(items) => {
             Expression::Tuple(items.iter().map(normalize_expression_node).collect())

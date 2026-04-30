@@ -236,6 +236,35 @@ fn postfix<'a>(
     current: Node<Expression>,
 ) -> IResult<Input<'a>, Node<Expression>> {
     let (input, _) = ws_and_comments(input)?;
+    if input.fragment().starts_with(b"(") {
+        let (input, _) = tag(&b"("[..]).parse(input)?;
+        let (mut input, _) = ws_and_comments(input)?;
+        let mut args = Vec::new();
+        if input.fragment().starts_with(b")") {
+            let (next, _) = tag(&b")"[..]).parse(input)?;
+            let expr = Expression::Invocation {
+                callee: Box::new(current),
+                args,
+            };
+            return postfix(next, start, node_from_to(start, next, expr));
+        }
+        loop {
+            let (next, arg) = expression(input)?;
+            args.push(arg);
+            let (next, _) = ws_and_comments(next)?;
+            if next.fragment().starts_with(b")") {
+                let (next, _) = tag(&b")"[..]).parse(next)?;
+                let expr = Expression::Invocation {
+                    callee: Box::new(current),
+                    args,
+                };
+                return postfix(next, start, node_from_to(start, next, expr));
+            }
+            let (next, _) = tag(&b","[..]).parse(next)?;
+            let (next, _) = ws_and_comments(next)?;
+            input = next;
+        }
+    }
     if input.fragment().starts_with(b"#") {
         let (input, _) = tag(&b"#"[..]).parse(input)?;
         let (input, _) = preceded(ws_and_comments, tag(&b"("[..])).parse(input)?;
