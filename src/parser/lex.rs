@@ -330,13 +330,12 @@ fn local_recovery_line_boundary<'a>(input: Input<'a>, starters: &[&[u8]]) -> Opt
                     .parse(input)
                     .ok()?;
             let (candidate, _) = ws_and_comments(candidate).unwrap_or((candidate, ()));
-            if candidate.fragment().is_empty()
+            if (candidate.fragment().is_empty()
                 || candidate.fragment().starts_with(b"}")
-                || starts_with_any_keyword(candidate.fragment(), starters)
+                || starts_with_any_keyword(candidate.fragment(), starters))
+                && newline_start > 0
             {
-                if newline_start > 0 {
-                    return Some(candidate);
-                }
+                return Some(candidate);
             }
             continue;
         }
