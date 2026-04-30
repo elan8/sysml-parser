@@ -590,6 +590,138 @@ fn test_objective_body_preserves_structured_requirement_members() {
 }
 
 #[test]
+fn test_objective_typed_semicolon_uses_default_name() {
+    let input = "package P { use case def U { objective : MaximizeObjective; } }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    let use_case = match &elements[0].value {
+        PackageBodyElement::UseCaseDef(uc) => &uc.value,
+        _ => panic!("expected UseCaseDef"),
+    };
+    let body_elements = match &use_case.body {
+        sysml_v2_parser::ast::UseCaseDefBody::Brace { elements } => elements,
+        _ => panic!("expected use case brace body"),
+    };
+    let objective = body_elements
+        .iter()
+        .find_map(|e| match &e.value {
+            sysml_v2_parser::ast::UseCaseDefBodyElement::Objective(o) => Some(&o.value),
+            _ => None,
+        })
+        .expect("objective should be present");
+    assert_eq!(objective.requirement.value.name, "objective");
+    assert_eq!(
+        objective.requirement.value.type_name.as_deref(),
+        Some("MaximizeObjective")
+    );
+}
+
+#[test]
+fn test_objective_preserves_visibility_prefix() {
+    let input = "package P { use case def U { private objective O { } } }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    let use_case = match &elements[0].value {
+        PackageBodyElement::UseCaseDef(uc) => &uc.value,
+        _ => panic!("expected UseCaseDef"),
+    };
+    let body_elements = match &use_case.body {
+        sysml_v2_parser::ast::UseCaseDefBody::Brace { elements } => elements,
+        _ => panic!("expected use case brace body"),
+    };
+    let objective = body_elements
+        .iter()
+        .find_map(|e| match &e.value {
+            sysml_v2_parser::ast::UseCaseDefBodyElement::Objective(o) => Some(&o.value),
+            _ => None,
+        })
+        .expect("objective should be present");
+    assert!(matches!(
+        objective.visibility,
+        Some(sysml_v2_parser::ast::Visibility::Private)
+    ));
+}
+
+#[test]
+fn test_objective_body_parses_verify_shorthand_and_explicit_requirement() {
+    let input = "package P { use case def U { objective O { verify vehicleMassRequirement; verify requirement vehicleMassRequirement : VehicleMassRequirement; } } }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    let use_case = match &elements[0].value {
+        PackageBodyElement::UseCaseDef(uc) => &uc.value,
+        _ => panic!("expected UseCaseDef"),
+    };
+    let body_elements = match &use_case.body {
+        sysml_v2_parser::ast::UseCaseDefBody::Brace { elements } => elements,
+        _ => panic!("expected use case brace body"),
+    };
+    let objective = body_elements
+        .iter()
+        .find_map(|e| match &e.value {
+            sysml_v2_parser::ast::UseCaseDefBodyElement::Objective(o) => Some(&o.value),
+            _ => None,
+        })
+        .expect("objective should be present");
+    let req_body_elements = match &objective.requirement.value.body {
+        sysml_v2_parser::ast::RequirementDefBody::Brace { elements } => elements,
+        _ => panic!("expected objective requirement brace body"),
+    };
+    let shorthand = req_body_elements
+        .iter()
+        .find_map(|e| match &e.value {
+            sysml_v2_parser::ast::RequirementDefBodyElement::VerifyRequirement(v)
+                if !v.value.explicit_requirement_keyword =>
+            {
+                Some(&v.value)
+            }
+            _ => None,
+        })
+        .expect("shorthand verify should be present");
+    assert_eq!(shorthand.target.as_deref(), Some("vehicleMassRequirement"));
+    let explicit = req_body_elements
+        .iter()
+        .find_map(|e| match &e.value {
+            sysml_v2_parser::ast::RequirementDefBodyElement::VerifyRequirement(v)
+                if v.value.explicit_requirement_keyword =>
+            {
+                Some(&v.value)
+            }
+            _ => None,
+        })
+        .expect("explicit verify requirement should be present");
+    let explicit_req = explicit
+        .requirement
+        .as_ref()
+        .expect("explicit form should include parsed requirement usage");
+    assert_eq!(explicit_req.value.name, "vehicleMassRequirement");
+    assert_eq!(
+        explicit_req.value.type_name.as_deref(),
+        Some("VehicleMassRequirement")
+    );
+}
+
+#[test]
 fn test_state_def_body_parses_members() {
     let input =
         "package P { state def S { then Ready; state Running : Mode; transition t then Ready; } }";

@@ -4,6 +4,7 @@ use crate::ast::{
     CommentAnnotation, ConcernUsage, ConstraintBody, DocComment, FrameMember, Node, ParseErrorNode,
     RequireConstraint, RequireConstraintBody, RequirementDef, RequirementDefBody,
     RequirementDefBodyElement, RequirementUsage, Satisfy, SubjectDecl, TextualRepresentation,
+    VerifyRequirementMember,
 };
 use crate::parser::attribute::{attribute_def, attribute_usage};
 use crate::parser::constraint::{structured_constraint_body, StructuredConstraintBody};
@@ -21,6 +22,7 @@ use crate::parser::{build_recovery_error_node, build_recovery_error_node_from_sp
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::combinator::{map, opt};
+use nom::multi::many0;
 use nom::sequence::{delimited, preceded};
 use nom::{IResult, Parser};
 
@@ -206,6 +208,7 @@ fn requirement_def_body_element(
             map(subject_decl, RequirementDefBodyElement::SubjectDecl),
             map(attribute_usage, RequirementDefBodyElement::AttributeUsage),
             map(attribute_def, RequirementDefBodyElement::AttributeDef),
+            map(verify_requirement, RequirementDefBodyElement::VerifyRequirement),
             map(
                 require_constraint,
                 RequirementDefBodyElement::RequireConstraint,
@@ -217,6 +220,89 @@ fn requirement_def_body_element(
     ))
     .parse(input)?;
     Ok((rest, node_from_to(start, rest, elem)))
+}
+
+pub(crate) fn parse_requirement_usage_payload<'a>(
+    input: Input<'a>,
+    default_name: Option<&str>,
+) -> IResult<Input<'a>, RequirementUsage> {
+    let (input, _) = ws_and_comments(input)?;
+    // Support usage extension keywords where this parser already tolerates them.
+    let (input, _) = many0(preceded(tag(&b"abstract"[..]), ws1)).parse(input)?;
+    let (input, name) = {
+        let (peek, _) = ws_and_comments(input)?;
+        if let Some(default) = default_name {
+            if peek.fragment().starts_with(b":")
+                || peek.fragment().starts_with(b";")
+                || peek.fragment().starts_with(b"{")
+            {
+                (input, default.to_string())
+            } else {
+                name(input)?
+            }
+        } else {
+            name(input)?
+        }
+    };
+    let (input, type_name) = opt(preceded(
+        preceded(ws_and_comments, tag(&b":"[..])),
+        preceded(ws_and_comments, qualified_name),
+    ))
+    .parse(input)?;
+    let (input, _) = ws_and_comments(input)?;
+    let (input, _) = take_until_terminator(input, b";{")?;
+    let (input, body) = requirement_def_body(input)?;
+    let (input, subsets) = opt(preceded(
+        preceded(ws_and_comments, subset_operator),
+        preceded(ws_and_comments, qualified_name),
+    ))
+    .parse(input)?;
+    let input = if subsets.is_some() {
+        let (input, _) = preceded(ws_and_comments, tag(&b";"[..])).parse(input)?;
+        input
+    } else {
+        input
+    };
+    Ok((
+        input,
+        RequirementUsage {
+            name,
+            type_name,
+            subsets,
+            body,
+        },
+    ))
+}
+
+fn verify_requirement(input: Input<'_>) -> IResult<Input<'_>, Node<VerifyRequirementMember>> {
+    let start = input;
+    let (input, _) = preceded(ws_and_comments, tag(&b"verify"[..])).parse(input)?;
+    let (input, _) = ws1(input)?;
+    let (input, member) = if let Ok((input, _)) =
+        tag::<_, _, nom::error::Error<Input>>(&b"requirement"[..]).parse(input)
+    {
+        let (input, requirement) = parse_requirement_usage_payload(input, None)?;
+        (
+            input,
+            VerifyRequirementMember {
+                explicit_requirement_keyword: true,
+                requirement: Some(node_from_to(start, input, requirement)),
+                target: None,
+            },
+        )
+    } else {
+        let (input, target) = qualified_name(input)?;
+        let (input, _) = preceded(ws_and_comments, tag(&b";"[..])).parse(input)?;
+        (
+            input,
+            VerifyRequirementMember {
+                explicit_requirement_keyword: false,
+                requirement: None,
+                target: Some(target),
+            },
+        )
+    };
+    Ok((input, node_from_to(start, input, member)))
 }
 
 fn frame_member(input: Input<'_>) -> IResult<Input<'_>, Node<FrameMember>> {
@@ -526,31 +612,6 @@ pub(crate) fn requirement_usage(input: Input<'_>) -> IResult<Input<'_>, Node<Req
     let (input, _) = nom::combinator::opt(preceded(tag(&b"abstract"[..]), ws1)).parse(input)?;
     let (input, _) = tag(&b"requirement"[..]).parse(input)?;
     let (input, _) = ws1(input)?;
-    let (input, ident) = name(input)?;
-    let (input, type_name) = opt(preceded(
-        preceded(ws_and_comments, tag(&b":"[..])),
-        preceded(ws_and_comments, qualified_name),
-    ))
-    .parse(input)?;
-    let (input, _) = ws_and_comments(input)?;
-    let (input, _) = take_until_terminator(input, b";{")?;
-    let (input, body) = requirement_def_body(input)?;
-    let (input, subsets) = opt(preceded(
-        preceded(ws_and_comments, subset_operator),
-        preceded(ws_and_comments, qualified_name),
-    ))
-    .parse(input)?;
-    let input = if subsets.is_some() {
-        let (input, _) = preceded(ws_and_comments, tag(&b";"[..])).parse(input)?;
-        input
-    } else {
-        input
-    };
-    let val = RequirementUsage {
-        name: ident,
-        type_name,
-        subsets,
-        body,
-    };
+    let (input, val) = parse_requirement_usage_payload(input, None)?;
     Ok((input, node_from_to(start, input, val)))
 }

@@ -1125,6 +1125,7 @@ pub enum RequirementDefBodyElement {
     SubjectDecl(Node<SubjectDecl>),
     AttributeDef(Node<AttributeDef>),
     AttributeUsage(Node<AttributeUsage>),
+    VerifyRequirement(Node<VerifyRequirementMember>),
     RequireConstraint(Node<RequireConstraint>),
     Frame(Node<FrameMember>),
     Doc(Node<DocComment>),
@@ -1141,6 +1142,18 @@ pub struct SubjectDecl {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequireConstraint {
     pub body: RequireConstraintBody,
+}
+
+/// Requirement verification usage in requirement/objective bodies:
+/// `verify requirement <...>` or shorthand `verify <qualified_name>;`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifyRequirementMember {
+    /// True for `verify requirement ...`; false for shorthand `verify ...;`.
+    pub explicit_requirement_keyword: bool,
+    /// Parsed requirement usage when explicit form is used.
+    pub requirement: Option<Node<RequirementUsage>>,
+    /// Shorthand verified requirement reference (`verify QualifiedName;`).
+    pub target: Option<String>,
 }
 
 /// Require constraint body: `;` or `{` ConstraintDefBodyElement* `}`.
@@ -1365,6 +1378,7 @@ pub struct ActorUsage {
 /// Objective `objective { doc ... }`
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Objective {
+    pub visibility: Option<Visibility>,
     pub requirement: Node<RequirementUsage>,
 }
 

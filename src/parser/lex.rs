@@ -104,6 +104,7 @@ pub(crate) const REQUIREMENT_BODY_STARTERS: &[&[u8]] = &[
     b"requirement",
     b"satisfy",
     b"subject",
+    b"verify",
 ];
 
 #[allow(dead_code)]
