@@ -2249,6 +2249,51 @@ requirement def R {
 }
 
 #[test]
+fn test_requirement_local_typed_real_attribute_is_clean_in_diagnostics() {
+    let input = r#"package P {
+requirement def VehicleMassRequirement {
+  attribute targetMass : Real = (a - (b - c));
+  require constraint {
+    in actualMass : Real;
+    actualMass >= targetMass;
+  }
+}
+}"#;
+    let result = sysml_v2_parser::parse_with_diagnostics(input);
+    assert!(
+        result.errors.is_empty(),
+        "typed requirement-local Real attribute should not produce recovery diagnostics: {:?}",
+        result.errors
+    );
+
+    let pkg = match &result.root.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let PackageBody::Brace { elements } = &pkg.body else {
+        panic!("expected package body");
+    };
+    let req = elements
+        .iter()
+        .find_map(|e| match &e.value {
+            PackageBodyElement::RequirementDef(r) => Some(&r.value),
+            _ => None,
+        })
+        .expect("expected requirement definition");
+    let sysml_v2_parser::ast::RequirementDefBody::Brace { elements } = &req.body else {
+        panic!("expected requirement body");
+    };
+    assert!(elements.iter().any(|e| matches!(
+        e.value,
+        sysml_v2_parser::ast::RequirementDefBodyElement::AttributeDef(_)
+    )));
+    assert!(elements.iter().any(|e| matches!(
+        e.value,
+        sysml_v2_parser::ast::RequirementDefBodyElement::RequireConstraint(_)
+    )));
+}
+
+#[test]
 fn test_constraint_expressions_keep_parenthesized_associativity_shapes() {
     let input = r#"package P {
 constraint def C {

@@ -447,3 +447,44 @@ fn diagnostics_include_taxonomy_categories() {
         Some(DiagnosticCategory::UnsupportedGrammarForm)
     );
 }
+
+#[test]
+fn invalid_unit_reference_reports_specific_diagnostic() {
+    let input = "package P { action def Evaluate { bind measuredMass = []; in result: Real; } }";
+    let (result, elements) = package_elements(input);
+
+    assert_eq!(
+        result.errors.len(),
+        1,
+        "unexpected diagnostics: {:?}",
+        result.errors
+    );
+    let err = &result.errors[0];
+    assert_eq!(err.code.as_deref(), Some("invalid_unit_reference"));
+    assert_eq!(err.expected.as_deref(), Some("unit name inside '[ ]'"));
+    assert!(err
+        .suggestion
+        .as_deref()
+        .is_some_and(|s| s.contains("[kg]")));
+
+    let action = elements
+        .iter()
+        .find_map(|element| match &element.value {
+            PackageBodyElement::ActionDef(action)
+                if action.value.identification.name.as_deref() == Some("Evaluate") =>
+            {
+                Some(&action.value)
+            }
+            _ => None,
+        })
+        .expect("expected action definition Evaluate");
+    let sysml_v2_parser::ast::ActionDefBody::Brace { elements } = &action.body else {
+        panic!("expected action definition brace body");
+    };
+    assert!(elements
+        .iter()
+        .any(|e| matches!(e.value, sysml_v2_parser::ast::ActionDefBodyElement::Error(_))));
+    assert!(elements
+        .iter()
+        .any(|e| matches!(e.value, sysml_v2_parser::ast::ActionDefBodyElement::InOutDecl(_))));
+}

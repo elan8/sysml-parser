@@ -705,6 +705,42 @@ fn missing_expression_after_operator_diagnostic(
     None
 }
 
+fn invalid_unit_reference_diagnostic(
+    fragment: &[u8],
+) -> Option<(&'static str, String, String, String)> {
+    let fragment = trim_ascii_start(fragment);
+    let text = String::from_utf8_lossy(fragment);
+    if !(text.contains('[') && text.contains(']')) {
+        return None;
+    }
+
+    if text.contains("[]") || text.contains("[ ]") {
+        return Some((
+            "invalid_unit_reference",
+            "expected unit name inside '[ ]'".to_string(),
+            "unit name inside '[ ]'".to_string(),
+            "Use a concrete unit such as `1750 [kg]`.".to_string(),
+        ));
+    }
+
+    if text.contains("[;")
+        || text.contains("[ ;")
+        || text.contains("[)")
+        || text.contains("[ ]")
+        || text.contains("[,")
+    {
+        return Some((
+            "invalid_unit_reference",
+            "invalid unit expression inside '[ ]'".to_string(),
+            "unit name inside '[ ]'".to_string(),
+            "Use a unit symbol or qualified unit name (example: `[kg]` or `[SI::kg]`)."
+                .to_string(),
+        ));
+    }
+
+    None
+}
+
 fn unexpected_keyword_in_scope_diagnostic(
     fragment: &[u8],
     starters: &[&[u8]],
@@ -844,6 +880,12 @@ enum RecoveryClassification {
         expected: String,
         suggestion: String,
     },
+    InvalidUnitReference {
+        code: String,
+        message: String,
+        expected: String,
+        suggestion: String,
+    },
     InvalidTypingOperator {
         code: String,
         message: String,
@@ -923,6 +965,15 @@ fn classify_recovery(
         missing_expression_after_operator_diagnostic(trimmed)
     {
         return RecoveryClassification::MissingExpressionAfterOperator {
+            code: code.to_string(),
+            message,
+            expected,
+            suggestion,
+        };
+    }
+
+    if let Some((code, message, expected, suggestion)) = invalid_unit_reference_diagnostic(trimmed) {
+        return RecoveryClassification::InvalidUnitReference {
             code: code.to_string(),
             message,
             expected,
@@ -1037,6 +1088,12 @@ pub(crate) fn build_recovery_error_node_from_span(
             expected,
             suggestion,
         }
+        | RecoveryClassification::InvalidUnitReference {
+            code,
+            message,
+            expected,
+            suggestion,
+        }
         | RecoveryClassification::InvalidTypingOperator {
             code,
             message,
@@ -1142,6 +1199,7 @@ fn diagnostic_specificity(err: &ParseError) -> u8 {
         | Some("invalid_qualified_name_separator")
         | Some("invalid_typing_operator")
         | Some("missing_expression_after_operator")
+        | Some("invalid_unit_reference")
         | Some("missing_body_or_semicolon")
         | Some("missing_semicolon")
         | Some("unexpected_closing_brace")
