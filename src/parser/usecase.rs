@@ -2,7 +2,7 @@
 
 use crate::ast::{
     ActorDecl, ActorRedefinitionAssignment, ActorUsage, FirstSuccession, IncludeUseCase, Node,
-    Objective, ParseErrorNode, RefRedefinition, ReturnRef, SubjectRef, ThenDone,
+    Objective, ParseErrorNode, RefRedefinition, RequirementUsage, ReturnRef, SubjectRef, ThenDone,
     ThenIncludeUseCase, ThenUseCaseUsage, UseCaseDef, UseCaseDefBody, UseCaseDefBodyElement,
     UseCaseUsage,
 };
@@ -12,7 +12,7 @@ use crate::parser::lex::{
     USE_CASE_BODY_STARTERS,
 };
 use crate::parser::node_from_to;
-use crate::parser::requirement::{doc_comment, subject_decl};
+use crate::parser::requirement::{doc_comment, requirement_def_body, subject_decl};
 use crate::parser::Input;
 use crate::parser::{build_recovery_error_node, build_recovery_error_node_from_span};
 use nom::branch::alt;
@@ -500,9 +500,40 @@ pub(crate) fn actor_usage(input: Input<'_>) -> IResult<Input<'_>, Node<ActorUsag
 pub(crate) fn objective(input: Input<'_>) -> IResult<Input<'_>, Node<Objective>> {
     let start = input;
     let (input, _) = preceded(ws_and_comments, tag(&b"objective"[..])).parse(input)?;
-    // Standard library uses `objective <name> : <Type> { ... }`. We currently only model the body,
-    // so we skip any header tokens up to the body start.
+    let (input, _) = ws_and_comments(input)?;
+    let (input, name) = {
+        let (peek, _) = ws_and_comments(input)?;
+        if peek.fragment().starts_with(b":")
+            || peek.fragment().starts_with(b";")
+            || peek.fragment().starts_with(b"{")
+        {
+            (input, "objective".to_string())
+        } else {
+            name(input)?
+        }
+    };
+    let (input, type_name) = {
+        let (peek, _) = ws_and_comments(input)?;
+        if peek.fragment().starts_with(b":") && !peek.fragment().starts_with(b":>") {
+            let (input, _) = preceded(ws_and_comments, tag(&b":"[..])).parse(input)?;
+            let (input, type_name) = preceded(ws_and_comments, qualified_name).parse(input)?;
+            (input, Some(type_name))
+        } else {
+            (input, None)
+        }
+    };
+    let (input, _) = ws_and_comments(input)?;
     let (input, _) = take_until_terminator(input, b";{")?;
-    let (input, body) = crate::parser::requirement::constraint_body(input)?;
-    Ok((input, node_from_to(start, input, Objective { body })))
+    let (input, body) = requirement_def_body(input)?;
+    let requirement = node_from_to(
+        start,
+        input,
+        RequirementUsage {
+            name,
+            type_name,
+            subsets: None,
+            body,
+        },
+    );
+    Ok((input, node_from_to(start, input, Objective { requirement })))
 }

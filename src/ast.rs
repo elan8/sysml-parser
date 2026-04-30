@@ -1365,7 +1365,7 @@ pub struct ActorUsage {
 /// Objective `objective { doc ... }`
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Objective {
-    pub body: ConstraintBody,
+    pub requirement: Node<RequirementUsage>,
 }
 
 // ---------------------------------------------------------------------------

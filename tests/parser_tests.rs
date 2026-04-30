@@ -499,9 +499,93 @@ fn test_use_case_def_body_parses_members() {
         e.value,
         sysml_v2_parser::ast::UseCaseDefBodyElement::ActorUsage(_)
     )));
-    assert!(body_elements.iter().any(|e| matches!(
+    let objective = body_elements
+        .iter()
+        .find_map(|e| match &e.value {
+            sysml_v2_parser::ast::UseCaseDefBodyElement::Objective(o) => Some(&o.value),
+            _ => None,
+        })
+        .expect("objective should be present");
+    assert_eq!(objective.requirement.value.name, "objective");
+    assert!(objective.requirement.value.type_name.is_none());
+}
+
+#[test]
+fn test_objective_parses_named_typed_requirement_usage() {
+    let input = "package P { use case def U { objective missionObjective : MaximizeObjective; } }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    let use_case = match &elements[0].value {
+        PackageBodyElement::UseCaseDef(uc) => &uc.value,
+        _ => panic!("expected UseCaseDef"),
+    };
+    let body_elements = match &use_case.body {
+        sysml_v2_parser::ast::UseCaseDefBody::Brace { elements } => elements,
+        _ => panic!("expected use case brace body"),
+    };
+    let objective = body_elements
+        .iter()
+        .find_map(|e| match &e.value {
+            sysml_v2_parser::ast::UseCaseDefBodyElement::Objective(o) => Some(&o.value),
+            _ => None,
+        })
+        .expect("objective should be present");
+    assert_eq!(objective.requirement.value.name, "missionObjective");
+    assert_eq!(
+        objective.requirement.value.type_name.as_deref(),
+        Some("MaximizeObjective")
+    );
+    assert!(matches!(
+        objective.requirement.value.body,
+        sysml_v2_parser::ast::RequirementDefBody::Semicolon
+    ));
+}
+
+#[test]
+fn test_objective_body_preserves_structured_requirement_members() {
+    let input = "package P { use case def U { objective verificationObjective { doc /* verify behavior */ require constraint { true; } } } }";
+    let result = parse(input).expect("parse should succeed");
+    let pkg = match &result.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let elements = match &pkg.body {
+        PackageBody::Brace { elements } => elements,
+        _ => panic!("expected brace body"),
+    };
+    let use_case = match &elements[0].value {
+        PackageBodyElement::UseCaseDef(uc) => &uc.value,
+        _ => panic!("expected UseCaseDef"),
+    };
+    let body_elements = match &use_case.body {
+        sysml_v2_parser::ast::UseCaseDefBody::Brace { elements } => elements,
+        _ => panic!("expected use case brace body"),
+    };
+    let objective = body_elements
+        .iter()
+        .find_map(|e| match &e.value {
+            sysml_v2_parser::ast::UseCaseDefBodyElement::Objective(o) => Some(&o.value),
+            _ => None,
+        })
+        .expect("objective should be present");
+    let req_body_elements = match &objective.requirement.value.body {
+        sysml_v2_parser::ast::RequirementDefBody::Brace { elements } => elements,
+        _ => panic!("expected objective requirement brace body"),
+    };
+    assert!(req_body_elements.iter().any(|e| matches!(
         e.value,
-        sysml_v2_parser::ast::UseCaseDefBodyElement::Objective(_)
+        sysml_v2_parser::ast::RequirementDefBodyElement::Doc(_)
+    )));
+    assert!(req_body_elements.iter().any(|e| matches!(
+        e.value,
+        sysml_v2_parser::ast::RequirementDefBodyElement::RequireConstraint(_)
     )));
 }
 
