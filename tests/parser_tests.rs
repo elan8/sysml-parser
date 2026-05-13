@@ -1233,6 +1233,73 @@ fn test_part_def_recovery_preserves_other_member_and_later_sibling() {
 }
 
 #[test]
+fn test_part_def_accepts_nested_interface_definition() {
+    let input = r#"package P {
+part def Robot {
+  interface def signalPorts {
+    end supplierPort : Signal;
+    end consumerPort : Signal;
+  }
+  interface: signalPorts connect
+    supplierPort ::> outPort to
+    consumerPort ::> inPort;
+}
+}"#;
+    let result = parse_with_diagnostics(input);
+    assert!(
+        result.errors.is_empty(),
+        "nested interface def and usage should parse without recovery diagnostics: {:?}",
+        result.errors
+    );
+
+    let pkg = match &result.root.elements[0].value {
+        RootElement::Package(p) => &p.value,
+        _ => panic!("expected package"),
+    };
+    let PackageBody::Brace { elements } = &pkg.body else {
+        panic!("expected package body");
+    };
+    let part = elements
+        .iter()
+        .find_map(|e| match &e.value {
+            PackageBodyElement::PartDef(p) => Some(&p.value),
+            _ => None,
+        })
+        .expect("expected part def");
+    let sysml_v2_parser::ast::PartDefBody::Brace { elements } = &part.body else {
+        panic!("expected part body");
+    };
+    assert!(elements.iter().any(|e| matches!(
+        e.value,
+        sysml_v2_parser::ast::PartDefBodyElement::InterfaceDef(_)
+    )));
+    assert!(elements.iter().any(|e| matches!(
+        e.value,
+        sysml_v2_parser::ast::PartDefBodyElement::InterfaceUsage(_)
+    )));
+}
+
+#[test]
+fn test_comment_about_member_does_not_consume_next_package() {
+    let input = r#"package P {
+part def BMS {
+}
+comment about BMS
+/* BMS = Battery Management System */
+}
+package Next {
+  part def BatteryLevelComputer;
+}"#;
+    let result = parse_with_diagnostics(input);
+    assert!(
+        result.errors.is_empty(),
+        "comment about should parse without package-boundary recovery: {:?}",
+        result.errors
+    );
+    assert_eq!(result.root.elements.len(), 2);
+}
+
+#[test]
 fn test_state_def_recovery_no_longer_truncates_body() {
     let input = "package P {\nstate def Machine {\nunknown stuff;\ntransition t then Ready;\n}\n}";
     let result = parse_with_diagnostics(input);

@@ -62,11 +62,10 @@ action def ComputeBatteryInfo {
         err.expected.as_deref(),
         Some("action body member such as `perform`, `bind`, `in`, or `out`")
     );
-    assert!(
-        err.suggestion
-            .as_deref()
-            .is_some_and(|s| s.contains("perform batCap"))
-    );
+    assert!(err
+        .suggestion
+        .as_deref()
+        .is_some_and(|s| s.contains("perform batCap")));
 
     let pkg = match &result.root.elements[0].value {
         RootElement::Package(p) => &p.value,

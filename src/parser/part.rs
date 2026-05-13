@@ -12,7 +12,7 @@ use crate::parser::attribute::{attribute_def, attribute_usage, attribute_usage_s
 use crate::parser::build_recovery_error_node_from_span;
 use crate::parser::connection::connection_member_body;
 use crate::parser::expr::{expression, path_expression};
-use crate::parser::interface::connect_body;
+use crate::parser::interface::{connect_body, interface_def};
 use crate::parser::lex::{
     identification, name, qualified_name, recover_body_element, skip_until_brace_end,
     specialization_operator, starts_with_any_keyword, take_until_terminator, ws1, ws_and_comments,
@@ -225,6 +225,7 @@ fn part_def_body_element(input: Input<'_>) -> IResult<Input<'_>, Node<PartDefBod
                 PartDefBodyElement::OccurrenceUsage(Box::new(n))
             }),
             map(interface_usage, PartDefBodyElement::InterfaceUsage),
+            map(interface_def, PartDefBodyElement::InterfaceDef),
             map(port_usage, PartDefBodyElement::PortUsage),
             map(part_ref_usage, PartDefBodyElement::Ref),
             map(attribute_usage, PartDefBodyElement::AttributeUsage),
@@ -1181,7 +1182,11 @@ fn interface_usage(input: Input<'_>) -> IResult<Input<'_>, Node<InterfaceUsage>>
     let start = input;
     let (input, _) = ws_and_comments(input)?;
     let (input, _) = tag(&b"interface"[..]).parse(input)?;
-    let (input, _) = ws1(input)?;
+    let (input, _) = if input.fragment().starts_with(b":") {
+        (input, ())
+    } else {
+        ws1(input)?
+    };
     let (input, named_interface) = opt((
         name,
         opt(multiplicity),

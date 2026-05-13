@@ -403,7 +403,10 @@ action def Done { }
         .iter()
         .find(|e| e.code.as_deref() == Some("recovery_cascade_suppressed"))
         .expect("expected cascade summary diagnostic");
-    assert_eq!(summary.severity, Some(sysml_v2_parser::DiagnosticSeverity::Warning));
+    assert_eq!(
+        summary.severity,
+        Some(sysml_v2_parser::DiagnosticSeverity::Warning)
+    );
     assert!(
         summary.message.contains("suppressed"),
         "summary should explain suppression: {:?}",
@@ -417,6 +420,49 @@ action def Done { }
             .any(|e| matches!(e.value, PackageBodyElement::ActionDef(_))),
         "later valid package siblings should still parse"
     );
+}
+
+#[test]
+fn malformed_root_package_body_recovers_without_top_level_cascade() {
+    let input = r#"package Broken {
+  part def BatteryLevelComputer {
+    exhibit state BatteryLevelComputerStates {
+      in ref maxBatCap = batteryCapacity;
+    }
+  }
+  state def BatteryLevelComputerStates {
+    entry; then x;
+    state x {
+      entry act { batCap; maxBatCap; computedColor; }
+    }
+  }
+}
+package Later {
+  part def Good;
+}"#;
+    let result = parse_with_diagnostics(input);
+    assert!(
+        result
+            .errors
+            .iter()
+            .any(|e| e.code.as_deref() == Some("recovered_root_body")),
+        "root body recovery should be summarized: {:?}",
+        result.errors
+    );
+    assert!(
+        !result.errors.iter().any(|e| {
+            matches!(
+                e.code.as_deref(),
+                Some("illegal_top_level_definition") | Some("expected_keyword")
+            )
+        }),
+        "malformed package body should not cascade as top-level errors: {:?}",
+        result.errors
+    );
+    assert!(result.root.elements.iter().any(|e| match &e.value {
+        RootElement::Package(pkg) => pkg.value.identification.name.as_deref() == Some("Later"),
+        _ => false,
+    }));
 }
 
 #[test]

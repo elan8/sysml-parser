@@ -366,6 +366,7 @@ pub enum PartDefBodyElement {
     PortUsage(Node<PortUsage>),
     PartUsage(Box<Node<PartUsage>>),
     OccurrenceUsage(Box<Node<OccurrenceUsage>>),
+    InterfaceDef(Node<InterfaceDef>),
     InterfaceUsage(Node<InterfaceUsage>),
     Connect(Node<Connect>),
     /// `connection` usage member inside a part definition body.
@@ -1971,6 +1972,9 @@ fn normalize_part_def_body_element_node(el: &Node<PartDefBodyElement>) -> Node<P
         }
         PartDefBodyElement::OccurrenceUsage(n) => {
             PartDefBodyElement::OccurrenceUsage(Box::new(dummy_node(n, n.value.clone())))
+        }
+        PartDefBodyElement::InterfaceDef(n) => {
+            PartDefBodyElement::InterfaceDef(dummy_node(n, normalize_interface_def(&n.value)))
         }
         PartDefBodyElement::InterfaceUsage(n) => {
             PartDefBodyElement::InterfaceUsage(dummy_node(n, n.value.clone()))

@@ -1338,7 +1338,9 @@ fn make_cascade_summary(run: &[ParseError]) -> Option<ParseError> {
     .with_length(summary_anchor.length.unwrap_or(1).max(1))
     .with_code("recovery_cascade_suppressed")
     .with_expected("fix the first syntax error in this body")
-    .with_suggestion("Fix the earliest diagnostic in this body first; later syntax errors may be cascades.")
+    .with_suggestion(
+        "Fix the earliest diagnostic in this body first; later syntax errors may be cascades.",
+    )
     .with_severity(DiagnosticSeverity::Warning)
     .with_category(DiagnosticCategory::ParseError);
     if let Some(found) = &summary_anchor.found {
@@ -1386,6 +1388,44 @@ fn suppress_diagnostic_cascades(errors: Vec<ParseError>) -> Vec<ParseError> {
     flush_run(&mut run, &mut output);
     output.sort_by_key(|e| (e.offset.unwrap_or(usize::MAX), e.line.unwrap_or(u32::MAX)));
     output
+}
+
+fn root_body_recovery_error(input: Input<'_>, scope: &str) -> ParseError {
+    let (found, len) = fragment_to_found_snippet(input.fragment());
+    let mut err = ParseError::new(format!(
+        "could not parse {scope} body; skipped to next root element"
+    ))
+    .with_location(
+        input.location_offset(),
+        input.location_line(),
+        input.get_column(),
+    )
+    .with_length(len.max(1))
+    .with_code("recovered_root_body")
+    .with_expected(format!("valid {scope} body"))
+    .with_suggestion(
+        "Fix the first syntax error in this body; later root-level diagnostics may be cascades.",
+    )
+    .with_severity(DiagnosticSeverity::Error)
+    .with_category(DiagnosticCategory::ParseError);
+    if !found.is_empty() {
+        err = err.with_found(found);
+    }
+    err
+}
+
+fn root_body_scope(fragment: &[u8]) -> Option<&'static str> {
+    let fragment = trim_ascii_start(fragment);
+    if lex::starts_with_keyword(fragment, b"package")
+        || lex::starts_with_keyword(fragment, b"library")
+        || lex::starts_with_keyword(fragment, b"standard")
+    {
+        Some("package")
+    } else if lex::starts_with_keyword(fragment, b"namespace") {
+        Some("namespace")
+    } else {
+        None
+    }
 }
 
 fn collect_requirement_body_errors(body: &RequirementDefBody, errors: &mut Vec<ParseError>) {
@@ -1759,6 +1799,21 @@ pub fn parse_with_diagnostics(input: &str) -> ParseResult {
                 {
                     errors.push(missing_closing_brace_error_at_eof(bytes));
                     break;
+                }
+                if let Some(scope) = root_body_scope(input.fragment()) {
+                    let (error_input, _) = lex::ws_and_comments(e.input).unwrap_or((e.input, ()));
+                    if error_input.fragment().starts_with(b"{") {
+                        errors.push(root_body_recovery_error(error_input, scope));
+                        match lex::skip_statement_or_block(error_input) {
+                            Ok((rest, _))
+                                if rest.location_offset() > error_input.location_offset() =>
+                            {
+                                input = rest;
+                                continue;
+                            }
+                            _ => {}
+                        }
+                    }
                 }
                 let pe = missing_closing_brace_error(bytes, e.input).unwrap_or_else(|| {
                     nom_err_to_parse_error(&e, None, Some("'package', 'namespace', or 'import'"))
